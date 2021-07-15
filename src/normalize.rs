@@ -49,12 +49,14 @@ pub(crate) fn normalize(kallisto_quants: &[PathBuf], sample_ids: &[String]) -> R
         })
         .collect();
 
+    dbg!(&scale_factors);
+
     scale_factors.serialize(&mut Serializer::new(stdout()))?;
 
     Ok(())
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 struct ScaleFactor {
     sample_id: String,
     scale_factor: f64,
