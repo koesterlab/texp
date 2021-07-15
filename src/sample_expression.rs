@@ -84,6 +84,8 @@ pub(crate) fn sample_expression(
         }
 
         feature_likelihoods.push(likelihoods);
+
+        dbg!(i);
     }
 
     feature_likelihoods.serialize(&mut Serializer::new(stdout()))?;
