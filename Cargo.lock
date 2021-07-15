@@ -88,6 +88,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bio",
+ "getset 0.1.1",
  "hdf5",
  "itertools-num",
  "ndarray 0.15.3",
@@ -118,7 +119,7 @@ dependencies = [
  "enum-map",
  "fnv",
  "fxhash",
- "getset",
+ "getset 0.0.9",
  "itertools 0.9.0",
  "itertools-num",
  "lazy_static",
@@ -351,6 +352,18 @@ version = "0.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5bb3f5b7d8d70c9bd23cf29b2b38094661418fb0ea79f1b0cc2019a11d6f5429"
 dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "getset"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24b328c01a4d71d2d8173daa93562a73ab0fe85616876f02500f53d82948c504"
+dependencies = [
+ "proc-macro-error",
  "proc-macro2",
  "quote",
  "syn",
