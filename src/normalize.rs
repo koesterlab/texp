@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::stdout;
 use std::path::PathBuf;
 
@@ -40,13 +41,14 @@ pub(crate) fn normalize(kallisto_quants: &[PathBuf], sample_ids: &[String]) -> R
     let max_quartile = upper_quartiles.max()?.clone();
     let scale_factors = upper_quartiles.mapv(|quartile| max_quartile / quartile);
 
-    let scale_factors: Vec<_> = scale_factors
+    let scale_factors: HashMap<_, f64> = sample_ids
         .iter()
-        .zip(sample_ids)
-        .map(|(scale_factor, sample_id)| ScaleFactor {
-            sample_id: sample_id.clone(),
-            scale_factor: scale_factor.clone().into(),
-        })
+        .cloned()
+        .zip(
+            scale_factors
+                .iter()
+                .map(|scale_factor| (*scale_factor).into()),
+        )
         .collect();
 
     dbg!(&scale_factors);
@@ -54,10 +56,4 @@ pub(crate) fn normalize(kallisto_quants: &[PathBuf], sample_ids: &[String]) -> R
     scale_factors.serialize(&mut Serializer::new(stdout()))?;
 
     Ok(())
-}
-
-#[derive(Serialize, Debug)]
-struct ScaleFactor {
-    sample_id: String,
-    scale_factor: f64,
 }
