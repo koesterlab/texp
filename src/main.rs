@@ -5,7 +5,9 @@ use structopt::StructOpt;
 
 mod errors;
 mod kallisto;
-mod normalize;
+mod preprocess;
+mod prior;
+mod sample_expression;
 
 #[derive(StructOpt, Debug)]
 #[structopt(
@@ -15,11 +17,11 @@ mod normalize;
 )]
 enum Cli {
     #[structopt(
-        name = "normalize",
+        name = "preprocess",
         about = "Calculate scale factors for each given sample by upper quartile normalization.",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
-    Normalize {
+    Preprocess {
         #[structopt(
             parse(from_os_str),
             long = "kallisto-quants",
@@ -70,12 +72,12 @@ enum Cli {
 fn main() -> Result<()> {
     let cli = Cli::from_args();
     match cli {
-        Cli::Normalize {
+        Cli::Preprocess {
             kallisto_quants,
             sample_ids,
         } => {
             // normalize
-            normalize::normalize(&kallisto_quants, &sample_ids)
+            preprocess::preprocess(&kallisto_quants, &sample_ids)
         }
         Cli::SampleExp { kallisto_quant } => {
             // calculate per sample likelihoods

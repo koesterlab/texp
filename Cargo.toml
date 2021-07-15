@@ -10,9 +10,12 @@ structopt = "0.3"
 anyhow = "1.0"
 thiserror = "1.0"
 hdf5 = { git = "https://github.com/aldanor/hdf5-rust", branch = "master"}
-ndarray = "0.15"
+ndarray = { version = "0.15", features = ["serde"] }
 ndarray-stats = "0.5"
 noisy_float = "0.2"
 serde = "1.0"
 serde_derive = "1.0"
 rmp-serde = "0.15"
+itertools-num = "0.1"
+statrs = "0.15"
+bio = "0.37"
