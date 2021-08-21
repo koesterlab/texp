@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bio::stats::LogProb;
 use noisy_float::types::N32;
+use rayon::prelude::*;
 use rmp_serde::{Deserializer, Serializer};
 use serde::Deserialize as SerdeDeserialize;
 use serde::Serialize as SerdeSerialize;
@@ -23,78 +24,82 @@ pub(crate) fn group_expression(
 ) -> Result<()> {
     let preprocessing = Preprocessing::from_path(preprocessing)?;
     let prior = preprocessing.prior()?;
-    let feature_ids = preprocessing.feature_ids();
+    let feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
 
     let out_dir = Outdir::create(out_dir)?;
 
-    for (i, feature_id) in feature_ids.iter().enumerate() {
-        let maximum_likelihood_means: Vec<f64> = sample_expression_paths
-            .iter()
-            .map(|sample_expression_path| {
-                let sample_info: SampleInfo =
-                    Outdir::open(sample_expression_path)?.deserialize_value("info.mpk")?;
-                Ok(preprocessing
-                    .mean_disp_estimates()
-                    .get(sample_info.sample_id())
-                    .ok_or(Error::UnknownSampleId {
-                        sample_id: sample_info.sample_id().to_owned(),
-                    })?
-                    .means()[i])
-            })
-            .collect::<Result<Vec<_>>>()?;
+    feature_ids
+        .par_iter()
+        .try_for_each(|(i, feature_id)| -> Result<()> {
+            let maximum_likelihood_means: Vec<f64> = sample_expression_paths
+                .iter()
+                .map(|sample_expression_path| {
+                    let sample_info: SampleInfo =
+                        Outdir::open(sample_expression_path)?.deserialize_value("info.mpk")?;
+                    Ok(preprocessing
+                        .mean_disp_estimates()
+                        .get(sample_info.sample_id())
+                        .ok_or(Error::UnknownSampleId {
+                            sample_id: sample_info.sample_id().to_owned(),
+                        })?
+                        .means()[*i])
+                })
+                .collect::<Result<Vec<_>>>()?;
 
-        let sample_expression_likelihoods = sample_expression_paths
-            .iter()
-            .map(|sample_expression_path| {
-                let dir = Outdir::open(sample_expression_path)?;
-                let likelihoods: ProbDistribution<(N32, N32)> =
-                    dir.deserialize_value(feature_id)?;
-                Ok(likelihoods)
-            })
-            .collect::<Result<Vec<_>>>()?;
+            let sample_expression_likelihoods = sample_expression_paths
+                .iter()
+                .map(|sample_expression_path| {
+                    let dir = Outdir::open(sample_expression_path)?;
+                    let likelihoods: ProbDistribution<(N32, N32)> =
+                        dir.deserialize_value(feature_id)?;
+                    Ok(likelihoods)
+                })
+                .collect::<Result<Vec<_>>>()?;
 
-        let maximum_likelihood_mean =
-            maximum_likelihood_means.iter().sum::<f64>() / maximum_likelihood_means.len() as f64;
+            let maximum_likelihood_mean = maximum_likelihood_means.iter().sum::<f64>()
+                / maximum_likelihood_means.len() as f64;
 
-        let (left_window, right_window) = window(maximum_likelihood_mean);
+            let (left_window, right_window) = window(maximum_likelihood_mean);
 
-        let mut prob_dist = ProbDistribution::default();
+            let mut prob_dist = ProbDistribution::default();
 
-        let mut calc_prob = |mu_ik| {
-            let density = |i, theta_i| {
-                sample_expression_likelihoods
-                    .iter()
-                    .map(|sample_expression_likelihood| {
-                        sample_expression_likelihood
-                            .get(&(N32::new(mu_ik as f32), N32::new(theta_i as f32)))
-                            + prior.prob(theta_i)
-                    })
-                    .sum()
+            let mut calc_prob = |mu_ik| {
+                let density = |i, theta_i| {
+                    sample_expression_likelihoods
+                        .iter()
+                        .map(|sample_expression_likelihood| {
+                            sample_expression_likelihood
+                                .get(&(N32::new(mu_ik as f32), N32::new(theta_i as f32)))
+                                + prior.prob(theta_i)
+                        })
+                        .sum()
+                };
+
+                // Result of formula 7.
+                let prob = LogProb::ln_simpsons_integrate_exp(
+                    density,
+                    prior.min_value(),
+                    prior.max_value(),
+                    11,
+                );
+
+                prob_dist.insert(N32::new(mu_ik as f32), prob);
+
+                prob
             };
 
-            // Result of formula 7.
-            let prob = LogProb::ln_simpsons_integrate_exp(
-                density,
-                prior.min_value(),
-                prior.max_value(),
-                11,
-            );
+            for mu_ik in left_window {
+                calc_prob(mu_ik);
+            }
 
-            prob_dist.insert(N32::new(mu_ik as f32), prob);
+            for mu_ik in right_window {
+                calc_prob(mu_ik);
+            }
 
-            prob
-        };
+            out_dir.serialize_value(feature_id, prob_dist)?;
 
-        for mu_ik in left_window {
-            calc_prob(mu_ik);
-        }
-
-        for mu_ik in right_window {
-            calc_prob(mu_ik);
-        }
-
-        out_dir.serialize_value(feature_id, prob_dist)?;
-    }
+            Ok(())
+        })?;
 
     Ok(())
 }

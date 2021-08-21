@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
+use rayon;
 use structopt::StructOpt;
 
 mod common;
@@ -78,6 +79,12 @@ enum Cli {
             help = "Epsilon for stopping likelihood calculation."
         )]
         epsilon: f64,
+        #[structopt(
+            long = "threads",
+            default_value = "1",
+            help = "Number of threads to use."
+        )]
+        threads: usize,
     },
     #[structopt(
         name = "group-expression",
@@ -96,6 +103,12 @@ enum Cli {
             help = "Path to output directory."
         )]
         out_dir: PathBuf,
+        #[structopt(
+            long = "threads",
+            default_value = "1",
+            help = "Number of threads to use."
+        )]
+        threads: usize,
     },
     #[structopt(
         name = "differential-expression",
@@ -128,7 +141,13 @@ fn main() -> Result<()> {
             epsilon,
             sample_id,
             out_dir,
+            threads,
         } => {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build_global()
+                .unwrap();
+
             // calculate per sample likelihoods
             sample_expression::sample_expression(
                 &preprocessing_path,
@@ -141,7 +160,13 @@ fn main() -> Result<()> {
             sample_exprs,
             preprocessing_path,
             out_dir,
+            threads,
         } => {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build_global()
+                .unwrap();
+
             // calculate per group posteriors
             group_expression::group_expression(&preprocessing_path, &sample_exprs, &out_dir)
         }

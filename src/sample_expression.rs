@@ -11,6 +11,7 @@ use bio::stats::LogProb;
 use getset::Getters;
 use itertools_num::linspace;
 use noisy_float::types::N32;
+use rayon::prelude::*;
 use rmp_serde::{Deserializer, Serializer};
 use serde::Deserialize as SerdeDeserialize;
 use serde::Serialize as SerdeSerialize;
@@ -45,68 +46,74 @@ pub(crate) fn sample_expression(
         .unwrap()
         .clone();
 
-    let feature_ids = preprocessing.feature_ids();
+    let feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
 
     let out_dir = Outdir::create(out_dir)?;
 
-    for (i, feature_id) in feature_ids.iter().enumerate() {
-        let d_ij = mean_disp_estimates.means()[i];
-        // METHOD: If the per-sample dispersion is unknown, fall back to a mean interpolated from the other samples.
-        let t_ij = if let Some(t_ij) = mean_disp_estimates.dispersions()[i] {
-            t_ij
-        } else if let Some(t_ij) = preprocessing.interpolate_dispersion(i) {
-            t_ij
-        } else {
-            // TODO log message
-            continue;
-        };
-
-        let max_prob = prob_mu_ik_theta_i_x(d_ij, d_ij, d_ij, t_ij, prior.mean(), s_j);
-        let prob_threshold = LogProb(*max_prob - 10.0f64.ln());
-
-        let (mu_ik_left_window, mu_ik_right_window) = window(d_ij);
-
-        let mut likelihoods = ProbDistribution::default();
-
-        let mut likelihood_mu_ik = |mu_ik| {
-            let mut max_prob = LogProb::ln_zero();
-            let mut process_window = |window: &Vec<f64>| {
-                for theta_i in window {
-                    let prob = likelihood_mu_ik_theta_i(d_ij, mu_ik, t_ij, *theta_i, s_j, epsilon);
-
-                    likelihoods.insert((N32::new(mu_ik as f32), N32::new(*theta_i as f32)), prob);
-
-                    if prob > max_prob {
-                        max_prob = prob;
-                    }
-
-                    if prob < prob_threshold {
-                        break;
-                    }
-                }
+    feature_ids
+        .par_iter()
+        .try_for_each(|(i, feature_id)| -> Result<()> {
+            let d_ij = mean_disp_estimates.means()[*i];
+            // METHOD: If the per-sample dispersion is unknown, fall back to a mean interpolated from the other samples.
+            let t_ij = if let Some(t_ij) = mean_disp_estimates.dispersions()[*i] {
+                t_ij
+            } else if let Some(t_ij) = preprocessing.interpolate_dispersion(*i) {
+                t_ij
+            } else {
+                // TODO log message
+                return Ok(());
             };
-            process_window(prior.left_window());
-            process_window(prior.right_window());
 
-            max_prob
-        };
+            let max_prob = prob_mu_ik_theta_i_x(d_ij, d_ij, d_ij, t_ij, prior.mean(), s_j);
+            let prob_threshold = LogProb(*max_prob - 10.0f64.ln());
 
-        for mu_ik in mu_ik_left_window {
-            if likelihood_mu_ik(mu_ik) < prob_threshold {
-                break;
+            let (mu_ik_left_window, mu_ik_right_window) = window(d_ij);
+
+            let mut likelihoods = ProbDistribution::default();
+
+            let mut likelihood_mu_ik = |mu_ik| {
+                let mut max_prob = LogProb::ln_zero();
+                let mut process_window = |window: &Vec<f64>| {
+                    for theta_i in window {
+                        let prob =
+                            likelihood_mu_ik_theta_i(d_ij, mu_ik, t_ij, *theta_i, s_j, epsilon);
+
+                        likelihoods
+                            .insert((N32::new(mu_ik as f32), N32::new(*theta_i as f32)), prob);
+
+                        if prob > max_prob {
+                            max_prob = prob;
+                        }
+
+                        if prob < prob_threshold {
+                            break;
+                        }
+                    }
+                };
+                process_window(prior.left_window());
+                process_window(prior.right_window());
+
+                max_prob
+            };
+
+            for mu_ik in mu_ik_left_window {
+                if likelihood_mu_ik(mu_ik) < prob_threshold {
+                    break;
+                }
             }
-        }
 
-        for mu_ik in mu_ik_right_window {
-            if likelihood_mu_ik(mu_ik) < prob_threshold {
-                break;
+            for mu_ik in mu_ik_right_window {
+                if likelihood_mu_ik(mu_ik) < prob_threshold {
+                    break;
+                }
             }
-        }
 
-        dbg!((i, likelihoods.len()));
+            dbg!((i, likelihoods.len()));
 
-        out_dir.serialize_value(feature_id, likelihoods)?;
-    }
+            out_dir.serialize_value(feature_id, likelihoods)?;
+
+            Ok(())
+        })?;
 
     out_dir.serialize_value(
         "info",
