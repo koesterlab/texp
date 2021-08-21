@@ -88,6 +88,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bio",
+ "derive-new",
  "getset 0.1.1",
  "hdf5",
  "itertools-num",

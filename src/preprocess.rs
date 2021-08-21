@@ -17,8 +17,13 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::errors::Error;
 use crate::kallisto::{self, KallistoQuant};
+use crate::prior::{Prior, PriorParameters};
 
-pub(crate) fn preprocess(kallisto_quants: &[PathBuf], sample_ids: &[String]) -> Result<()> {
+pub(crate) fn preprocess(
+    kallisto_quants: &[PathBuf],
+    sample_ids: &[String],
+    prior_parameters: PriorParameters,
+) -> Result<()> {
     if kallisto_quants.len() < 2 {
         return Err(Error::NotEnoughQuants.into());
     }
@@ -37,6 +42,7 @@ pub(crate) fn preprocess(kallisto_quants: &[PathBuf], sample_ids: &[String]) -> 
         scale_factors,
         mean_disp_estimates,
         feature_ids: quants[0].feature_ids()?,
+        prior_parameters,
     };
 
     preprocessing.serialize(&mut Serializer::new(stdout()))?;
@@ -50,6 +56,7 @@ pub(crate) struct Preprocessing {
     scale_factors: HashMap<String, f64>,
     mean_disp_estimates: HashMap<String, Estimates>,
     feature_ids: Array1<String>,
+    prior_parameters: PriorParameters,
 }
 
 impl Preprocessing {
@@ -57,6 +64,10 @@ impl Preprocessing {
         Ok(Preprocessing::deserialize(&mut Deserializer::new(
             File::open(path)?,
         ))?)
+    }
+
+    pub(crate) fn prior(&self) -> Result<Prior> {
+        Prior::new(self.prior_parameters())
     }
 
     pub(crate) fn interpolate_dispersion(&self, feature_idx: usize) -> Option<f64> {

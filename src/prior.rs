@@ -1,9 +1,18 @@
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
+use derive_new::new;
 use getset::Getters;
 use itertools_num::linspace;
+use serde_derive::{Deserialize, Serialize};
 use statrs::distribution::{Continuous, ContinuousCDF, InverseGamma};
 use statrs::statistics::Distribution;
+
+#[derive(new, Debug, Getters, Serialize, Deserialize)]
+pub(crate) struct PriorParameters {
+    shape: f64,
+    shift: f64,
+    scale: f64,
+}
 
 #[derive(Debug, Getters)]
 pub(crate) struct Prior {
@@ -17,11 +26,11 @@ pub(crate) struct Prior {
 
 impl Prior {
     /// Initialize inverse gamma prior. alpha=shape, beta=scale or rate.
-    pub(crate) fn new(shape: f64, scale: f64, shift: f64) -> Result<Self> {
-        let inv_gamma = InverseGamma::new(shape, scale)?;
+    pub(crate) fn new(parameters: &PriorParameters) -> Result<Self> {
+        let inv_gamma = InverseGamma::new(parameters.shape, parameters.scale)?;
         let window = |a, b, left_exclusive: bool| {
             linspace(a, b, 10)
-                .map(|x| x + shift)
+                .map(|x| x + parameters.shift)
                 .skip(if left_exclusive { 1 } else { 0 })
                 .collect()
         };
@@ -34,7 +43,7 @@ impl Prior {
 
         Ok(Prior {
             inv_gamma,
-            shift,
+            shift: parameters.shift,
             left_window,
             right_window,
         })

@@ -27,9 +27,9 @@ pub(crate) fn sample_expression(
     preprocessing: &Path,
     sample_id: &str,
     epsilon: LogProb,
-    prior: &Prior,
 ) -> Result<()> {
     let preprocessing = Preprocessing::from_path(preprocessing)?;
+    let prior = preprocessing.prior()?;
     let mean_disp_estimates =
         preprocessing
             .mean_disp_estimates()

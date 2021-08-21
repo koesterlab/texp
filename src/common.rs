@@ -26,18 +26,17 @@ pub(crate) fn interpolate_pmf(
         .ln_add_exp(prob_upper + LogProb(f64::from(((value - lower) / len).ln())))
 }
 
-
 #[derive(Deserialize, Serialize, Debug, Default)]
 pub(crate) struct ProbDistribution<V>
 where
-    V: Ord + Eq
+    V: Ord + Eq,
 {
     points: BTreeMap<V, LogProb>,
 }
 
-impl<V> ProbDistribution<V> 
+impl<V> ProbDistribution<V>
 where
-    V: Ord + Eq
+    V: Ord + Eq,
 {
     pub(crate) fn get(&self, value: &V) -> LogProb {
         let upper = self.points.range(value..).next();

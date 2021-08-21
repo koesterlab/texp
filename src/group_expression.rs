@@ -1,7 +1,7 @@
 //! This implements formula 5,6,7 of the document.
 
-use std::path::{Path, PathBuf};
 use std::fs;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bio::stats::LogProb;
@@ -10,7 +10,7 @@ use rmp_serde::{Deserializer, Serializer};
 use serde::Deserialize as SerdeDeserialize;
 use serde::Serialize as SerdeSerialize;
 
-use crate::common::{ProbDistribution, window};
+use crate::common::{window, ProbDistribution};
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
 use crate::prior::Prior;
@@ -19,19 +19,22 @@ use crate::sample_expression::SampleExpression;
 pub(crate) fn group_expression(
     preprocessing: &Path,
     sample_expression_paths: &[PathBuf],
-    prior: &Prior,
     out_dir: &Path,
 ) -> Result<()> {
     let preprocessing = Preprocessing::from_path(preprocessing)?;
+    let prior = preprocessing.prior()?;
     let feature_ids = preprocessing.feature_ids();
 
     let sample_expressions: Vec<SampleExpression> = sample_expression_paths
         .iter()
         .map(|path| SampleExpression::from_path(path))
         .collect::<Result<Vec<_>>>()?;
-    
+
     if out_dir.exists() {
-        return Err(Error::ExistingOutputDir { path: out_dir.to_owned() }.into());
+        return Err(Error::ExistingOutputDir {
+            path: out_dir.to_owned(),
+        }
+        .into());
     }
     fs::create_dir_all(out_dir)?;
 
@@ -62,8 +65,10 @@ pub(crate) fn group_expression(
                 sample_expressions
                     .iter()
                     .map(|sample_expression: &SampleExpression| {
-                        let likelihood_func: &ProbDistribution<(N32, N32)> = sample_expression.likelihoods().get(i).unwrap();
-                        likelihood_func.get(&(N32::new(mu_ik as f32), N32::new(theta_i as f32))) + prior.prob(theta_i)
+                        let likelihood_func: &ProbDistribution<(N32, N32)> =
+                            sample_expression.likelihoods().get(i).unwrap();
+                        likelihood_func.get(&(N32::new(mu_ik as f32), N32::new(theta_i as f32)))
+                            + prior.prob(theta_i)
                     })
                     .sum()
             };

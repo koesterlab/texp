@@ -36,17 +36,6 @@ enum Cli {
             help = "Sample IDs to use (for each sample given by --kallisto-quants in same order)."
         )]
         sample_ids: Vec<String>,
-    },
-    #[structopt(
-        name = "sample-expression",
-        about = "Calculate sample expression likelihoods.",
-        setting = structopt::clap::AppSettings::ColoredHelp,
-    )]
-    SampleExp {
-        #[structopt(long = "sample-id", help = "ID of sample to process.")]
-        sample_id: String,
-        #[structopt(parse(from_os_str), help = "Path to preprocessed Kallisto results.")]
-        preprocessing_path: PathBuf,
         #[structopt(
             long = "prior-shape",
             default_value = "1.0409428761583088",
@@ -65,6 +54,17 @@ enum Cli {
             help = "Shift of prior distribution (inverse gamma)."
         )]
         prior_shift: f64,
+    },
+    #[structopt(
+        name = "sample-expression",
+        about = "Calculate sample expression likelihoods.",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    SampleExp {
+        #[structopt(long = "sample-id", help = "ID of sample to process.")]
+        sample_id: String,
+        #[structopt(parse(from_os_str), help = "Path to preprocessed Kallisto results.")]
+        preprocessing_path: PathBuf,
         #[structopt(
             long = "epsilon",
             default_value = "1e-9",
@@ -78,14 +78,12 @@ enum Cli {
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     GroupExp {
-        #[structopt(parse(from_os_str))]
-        sample_exps: Vec<PathBuf>,
-        #[structopt(
-            long = "scale-factors",
-            short = "s",
-            help = "Path to JSON file with per-sample scale factors."
-        )]
-        scale_factors: PathBuf,
+        #[structopt(parse(from_os_str), help = "Paths to sample expressions.")]
+        sample_exprs: Vec<PathBuf>,
+        #[structopt(parse(from_os_str), help = "Path to preprocessed Kallisto results.")]
+        preprocessing_path: PathBuf,
+        #[structopt(parse(from_os_str), help = "Path to output directory.")]
+        out_dir: PathBuf,
     },
     #[structopt(
         name = "differential-expression",
@@ -104,33 +102,34 @@ fn main() -> Result<()> {
         Cli::Preprocess {
             kallisto_quants,
             sample_ids,
-        } => {
-            // normalize
-            preprocess::preprocess(&kallisto_quants, &sample_ids)
-        }
-        Cli::SampleExp {
-            preprocessing_path,
             prior_shape,
             prior_scale,
             prior_shift,
+        } => {
+            let prior_parameters =
+                prior::PriorParameters::new(prior_shape, prior_scale, prior_shift);
+            // normalize
+            preprocess::preprocess(&kallisto_quants, &sample_ids, prior_parameters)
+        }
+        Cli::SampleExp {
+            preprocessing_path,
             epsilon,
             sample_id,
         } => {
             // calculate per sample likelihoods
-            let prior = prior::Prior::new(prior_shape, prior_scale, prior_shift)?;
             sample_expression::sample_expression(
                 &preprocessing_path,
                 &sample_id,
                 LogProb::from(Prob::checked(epsilon)?),
-                &prior,
             )
         }
         Cli::GroupExp {
-            sample_exps,
-            scale_factors,
+            sample_exprs,
+            preprocessing_path,
+            out_dir,
         } => {
             // calculate per group posteriors
-            Ok(())
+            group_expression::group_expression(&preprocessing_path, &sample_exprs, &out_dir)
         }
         Cli::DiffExp { groups_exps } => {
             // calculate between group differential expressions
