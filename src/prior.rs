@@ -1,7 +1,7 @@
-use itertools_num::linspace;
-use statrs::distribution::{ContinuousCDF, InverseGamma, Continuous};
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
+use itertools_num::linspace;
+use statrs::distribution::{Continuous, ContinuousCDF, InverseGamma};
 
 pub(crate) struct Prior {
     inv_gamma: InverseGamma,
@@ -10,10 +10,10 @@ pub(crate) struct Prior {
 
 impl Prior {
     /// Initialize inverse gamma prior. alpha=shape, beta=scale or rate.
-    pub(crate) fn new(alpha: f64, beta: f64, shift: f64) -> Result<Self> {
+    pub(crate) fn new(shape: f64, scale: f64, shift: f64) -> Result<Self> {
         Ok(Prior {
-            inv_gamma: InverseGamma::new(alpha, beta)?,
-            shift
+            inv_gamma: InverseGamma::new(shape, scale)?,
+            shift,
         })
     }
 

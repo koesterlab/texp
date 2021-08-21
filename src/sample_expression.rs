@@ -112,7 +112,7 @@ fn likelihood_mu_ik_theta_i(
     let (left_window, right_window) = window(d_ij);
 
     let prob = |x| LogProb((neg_binom(d_ij, x, t_ij) * neg_binom(x, mu_ik, theta_i)).ln());
-    let is_greater_epsilon = |prob: &LogProb| *prob >= epsilon;
+    let is_greater_epsilon = |prob: &LogProb| *prob >= epsilon; // TODO maybe better relative to the maximum?
 
     LogProb::ln_sum_exp(
         &left_window
