@@ -2,8 +2,11 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
+use noisy_float::types::N32;
 use rayon;
 use structopt::StructOpt;
+
+use crate::common::Outdir;
 
 mod common;
 mod errors;
@@ -12,6 +15,7 @@ mod kallisto;
 mod preprocess;
 mod prior;
 mod sample_expression;
+use common::ProbDistribution;
 
 #[derive(StructOpt, Debug)]
 #[structopt(
@@ -119,6 +123,17 @@ enum Cli {
         #[structopt(parse(from_os_str))]
         groups_exps: Vec<PathBuf>,
     },
+    #[structopt(
+        name = "show-mpk",
+        about = "Decode mpk into JSON.",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    ShowSampleExpressions {
+        #[structopt(parse(from_os_str), help = "Path to sample expressions dir.")]
+        path: PathBuf,
+        #[structopt(long = "feature-id", help = "ID of feature to show.")]
+        feature_id: String,
+    },
 }
 
 fn main() -> Result<()> {
@@ -175,6 +190,12 @@ fn main() -> Result<()> {
         }
         Cli::DiffExp { groups_exps } => {
             // calculate between group differential expressions
+            Ok(())
+        }
+        Cli::ShowSampleExpressions { path, feature_id } => {
+            let dir = Outdir::open(&path)?;
+            let expr: ProbDistribution<(N32, N32)> = dir.deserialize_value(&feature_id)?;
+            dbg!(&expr);
             Ok(())
         }
     }

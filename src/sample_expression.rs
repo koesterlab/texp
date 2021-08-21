@@ -108,8 +108,6 @@ pub(crate) fn sample_expression(
                 }
             }
 
-            dbg!((i, likelihoods.len()));
-
             out_dir.serialize_value(feature_id, likelihoods)?;
 
             Ok(())
