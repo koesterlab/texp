@@ -1,10 +1,19 @@
 use std::collections::BTreeMap;
+use std::fs;
+use std::path::{Path, PathBuf};
 
+use anyhow::Result;
 use bio::stats::LogProb;
+use derefable::Derefable;
 use itertools_num::linspace;
 use noisy_float::prelude::Float;
 use noisy_float::types::N32;
+use rmp_serde::{Deserializer, Serializer};
+use serde::Deserialize as SerdeDeserialize;
+use serde::Serialize as SerdeSerialize;
 use serde_derive::{Deserialize, Serialize};
+
+use crate::errors::Error;
 
 pub(crate) fn window(mean: f64) -> (impl Iterator<Item = f64>, impl Iterator<Item = f64>) {
     // TODO: think about larger steps, binary search etc. to optimize instead of just having a fixed number of steps.
@@ -64,5 +73,51 @@ where
 
     pub(crate) fn len(&self) -> usize {
         self.points.len()
+    }
+}
+
+#[derive(Derefable)]
+pub(crate) struct Outdir {
+    #[deref]
+    path: PathBuf,
+}
+
+impl Outdir {
+    pub(crate) fn open(path: &Path) -> Result<Self> {
+        if !path.exists() {
+            return Err(Error::NotExistingOutputDir {
+                path: path.to_owned(),
+            }
+            .into());
+        }
+        Ok(Outdir {
+            path: path.to_owned(),
+        })
+    }
+
+    pub(crate) fn create(path: &Path) -> Result<Self> {
+        if path.exists() {
+            return Err(Error::ExistingOutputDir {
+                path: path.to_owned(),
+            }
+            .into());
+        }
+        fs::create_dir_all(path)?;
+
+        Ok(Outdir {
+            path: path.to_owned(),
+        })
+    }
+
+    pub(crate) fn serialize_value<V: SerdeSerialize>(&self, name: &str, value: V) -> Result<()> {
+        let file = fs::File::create(self.join(name).with_extension("mpk"))?;
+        value.serialize(&mut Serializer::new(file))?;
+        Ok(())
+    }
+
+    pub(crate) fn deserialize_value<'a, V: SerdeDeserialize<'a>>(&self, name: &str) -> Result<V> {
+        Ok(V::deserialize(&mut Deserializer::new(fs::File::open(
+            self.join(name).with_extension("mpk"),
+        )?))?)
     }
 }

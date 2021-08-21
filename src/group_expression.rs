@@ -10,11 +10,11 @@ use rmp_serde::{Deserializer, Serializer};
 use serde::Deserialize as SerdeDeserialize;
 use serde::Serialize as SerdeSerialize;
 
-use crate::common::{window, ProbDistribution};
+use crate::common::{window, Outdir, ProbDistribution};
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
 use crate::prior::Prior;
-use crate::sample_expression::SampleExpression;
+use crate::sample_expression::SampleInfo;
 
 pub(crate) fn group_expression(
     preprocessing: &Path,
@@ -25,31 +25,31 @@ pub(crate) fn group_expression(
     let prior = preprocessing.prior()?;
     let feature_ids = preprocessing.feature_ids();
 
-    let sample_expressions: Vec<SampleExpression> = sample_expression_paths
-        .iter()
-        .map(|path| SampleExpression::from_path(path))
-        .collect::<Result<Vec<_>>>()?;
-
-    if out_dir.exists() {
-        return Err(Error::ExistingOutputDir {
-            path: out_dir.to_owned(),
-        }
-        .into());
-    }
-    fs::create_dir_all(out_dir)?;
+    let out_dir = Outdir::create(out_dir)?;
 
     for (i, feature_id) in feature_ids.iter().enumerate() {
-        let maximum_likelihood_means: Vec<f64> = sample_expressions
+        let maximum_likelihood_means: Vec<f64> = sample_expression_paths
             .iter()
-            .map(|sample_expression: &SampleExpression| {
-                let sample_id = sample_expression.sample_id();
+            .map(|sample_expression_path| {
+                let sample_info: SampleInfo =
+                    Outdir::open(sample_expression_path)?.deserialize_value("info.mpk")?;
                 Ok(preprocessing
                     .mean_disp_estimates()
-                    .get(sample_expression.sample_id())
+                    .get(sample_info.sample_id())
                     .ok_or(Error::UnknownSampleId {
-                        sample_id: sample_id.to_owned(),
+                        sample_id: sample_info.sample_id().to_owned(),
                     })?
                     .means()[i])
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let sample_expression_likelihoods = sample_expression_paths
+            .iter()
+            .map(|sample_expression_path| {
+                let dir = Outdir::open(sample_expression_path)?;
+                let likelihoods: ProbDistribution<(N32, N32)> =
+                    dir.deserialize_value(feature_id)?;
+                Ok(likelihoods)
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -62,12 +62,11 @@ pub(crate) fn group_expression(
 
         let mut calc_prob = |mu_ik| {
             let density = |i, theta_i| {
-                sample_expressions
+                sample_expression_likelihoods
                     .iter()
-                    .map(|sample_expression: &SampleExpression| {
-                        let likelihood_func: &ProbDistribution<(N32, N32)> =
-                            sample_expression.likelihoods().get(i).unwrap();
-                        likelihood_func.get(&(N32::new(mu_ik as f32), N32::new(theta_i as f32)))
+                    .map(|sample_expression_likelihood| {
+                        sample_expression_likelihood
+                            .get(&(N32::new(mu_ik as f32), N32::new(theta_i as f32)))
                             + prior.prob(theta_i)
                     })
                     .sum()
@@ -94,8 +93,7 @@ pub(crate) fn group_expression(
             calc_prob(mu_ik);
         }
 
-        let file = fs::File::create(out_dir.join(feature_id).with_extension("mpk"))?;
-        prob_dist.serialize(&mut Serializer::new(file))?;
+        out_dir.serialize_value(feature_id, prob_dist)?;
     }
 
     Ok(())

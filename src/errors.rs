@@ -11,4 +11,6 @@ pub(crate) enum Error {
     UnknownSampleId { sample_id: String },
     #[error("Output directory {path} already exists")]
     ExistingOutputDir { path: PathBuf },
+    #[error("Input directory {path} does not exist")]
+    NotExistingOutputDir { path: PathBuf },
 }

@@ -66,6 +66,13 @@ enum Cli {
         #[structopt(parse(from_os_str), help = "Path to preprocessed Kallisto results.")]
         preprocessing_path: PathBuf,
         #[structopt(
+            parse(from_os_str),
+            long = "output",
+            short = "o",
+            help = "Path to output directory."
+        )]
+        out_dir: PathBuf,
+        #[structopt(
             long = "epsilon",
             default_value = "1e-9",
             help = "Epsilon for stopping likelihood calculation."
@@ -82,7 +89,12 @@ enum Cli {
         sample_exprs: Vec<PathBuf>,
         #[structopt(parse(from_os_str), help = "Path to preprocessed Kallisto results.")]
         preprocessing_path: PathBuf,
-        #[structopt(parse(from_os_str), help = "Path to output directory.")]
+        #[structopt(
+            parse(from_os_str),
+            long = "output",
+            short = "o",
+            help = "Path to output directory."
+        )]
         out_dir: PathBuf,
     },
     #[structopt(
@@ -115,12 +127,14 @@ fn main() -> Result<()> {
             preprocessing_path,
             epsilon,
             sample_id,
+            out_dir,
         } => {
             // calculate per sample likelihoods
             sample_expression::sample_expression(
                 &preprocessing_path,
                 &sample_id,
                 LogProb::from(Prob::checked(epsilon)?),
+                &out_dir,
             )
         }
         Cli::GroupExp {

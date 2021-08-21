@@ -1,10 +1,10 @@
 //! This implements formula 3+4 of the document.
 
 use std::collections::BTreeMap;
-use std::fs::File;
+use std::fs;
 use std::io::stdout;
 use std::mem;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bio::stats::LogProb;
@@ -17,6 +17,7 @@ use serde::Serialize as SerdeSerialize;
 use serde_derive::{Deserialize, Serialize};
 use statrs::function::beta::ln_beta;
 
+use crate::common::Outdir;
 use crate::common::{window, ProbDistribution};
 use crate::errors::Error;
 use crate::kallisto::KallistoQuant;
@@ -27,6 +28,7 @@ pub(crate) fn sample_expression(
     preprocessing: &Path,
     sample_id: &str,
     epsilon: LogProb,
+    out_dir: &Path,
 ) -> Result<()> {
     let preprocessing = Preprocessing::from_path(preprocessing)?;
     let prior = preprocessing.prior()?;
@@ -45,9 +47,9 @@ pub(crate) fn sample_expression(
 
     let feature_ids = preprocessing.feature_ids();
 
-    let mut feature_likelihoods = Vec::new();
+    let out_dir = Outdir::create(out_dir)?;
 
-    for i in 0..feature_ids.len() {
+    for (i, feature_id) in feature_ids.iter().enumerate() {
         let d_ij = mean_disp_estimates.means()[i];
         // METHOD: If the per-sample dispersion is unknown, fall back to a mean interpolated from the other samples.
         let t_ij = if let Some(t_ij) = mean_disp_estimates.dispersions()[i] {
@@ -103,29 +105,29 @@ pub(crate) fn sample_expression(
 
         dbg!((i, likelihoods.len()));
 
-        feature_likelihoods.push(likelihoods);
+        out_dir.serialize_value(feature_id, likelihoods)?;
     }
 
-    SampleExpression {
-        sample_id: sample_id.to_owned(),
-        likelihoods: feature_likelihoods,
-    }
-    .serialize(&mut Serializer::new(stdout()))?;
+    out_dir.serialize_value(
+        "info",
+        SampleInfo {
+            sample_id: sample_id.to_owned(),
+        },
+    )?;
 
     Ok(())
 }
 
 #[derive(Debug, Deserialize, Serialize, Getters)]
 #[getset(get = "pub(crate)")]
-pub(crate) struct SampleExpression {
+pub(crate) struct SampleInfo {
     sample_id: String,
-    likelihoods: Vec<ProbDistribution<(N32, N32)>>,
 }
 
-impl SampleExpression {
+impl SampleInfo {
     pub(crate) fn from_path(path: &Path) -> Result<Self> {
-        Ok(SampleExpression::deserialize(&mut Deserializer::new(
-            File::open(path)?,
+        Ok(SampleInfo::deserialize(&mut Deserializer::new(
+            fs::File::open(path)?,
         ))?)
     }
 }
