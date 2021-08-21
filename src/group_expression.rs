@@ -95,6 +95,7 @@ pub(crate) fn group_expression(
             for mu_ik in right_window {
                 calc_prob(mu_ik);
             }
+            // TODO ensure that this is a posterior by dividing with integral of all values.
 
             out_dir.serialize_value(feature_id, prob_dist)?;
 
