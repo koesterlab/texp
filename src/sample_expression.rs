@@ -48,37 +48,48 @@ pub(crate) fn sample_expression(
             continue;
         };
 
-        let (left_window, right_window) = window(d_ij);
+        let max_prob = prob_mu_ik_theta_i_x(d_ij, d_ij, d_ij, t_ij, prior.mean());
+        let prob_threshold = LogProb(*max_prob - 10.0f64.ln());
+
+        let (mu_ik_left_window, mu_ik_right_window) = window(d_ij);
 
         let mut likelihoods = Vec::new();
 
         let mut likelihood_mu_ik = |mu_ik| {
             let mut max_prob = LogProb::ln_zero();
-            for theta_i in prior.window() {
-                let prob = likelihood_mu_ik_theta_i(d_ij, mu_ik, t_ij, theta_i, epsilon);
+            let mut process_window = |window: &Vec<f64>| {
+                for theta_i in window {
+                    let prob = likelihood_mu_ik_theta_i(d_ij, mu_ik, t_ij, *theta_i, epsilon);
 
-                if prob > max_prob {
-                    max_prob = prob;
+                    likelihoods.push(Likelihood {
+                        mu_ik: mu_ik,
+                        theta_i: *theta_i,
+                        prob,
+                    });
+
+                    if prob > max_prob {
+                        max_prob = prob;
+                    }
+
+                    if prob < prob_threshold {
+                        break;
+                    }
                 }
-
-                likelihoods.push(Likelihood {
-                    mu_ik: mu_ik,
-                    theta_i: theta_i,
-                    prob,
-                });
-            }
+            };
+            process_window(prior.left_window());
+            process_window(prior.right_window());
 
             max_prob
         };
 
-        for mu_ik in left_window {
-            if likelihood_mu_ik(mu_ik) < epsilon {
+        for mu_ik in mu_ik_left_window {
+            if likelihood_mu_ik(mu_ik) < prob_threshold {
                 break;
             }
         }
 
-        for mu_ik in right_window {
-            if likelihood_mu_ik(mu_ik) < epsilon {
+        for mu_ik in mu_ik_right_window {
+            if likelihood_mu_ik(mu_ik) < prob_threshold {
                 break;
             }
         }
@@ -101,6 +112,11 @@ struct Likelihood {
     prob: LogProb,
 }
 
+fn prob_mu_ik_theta_i_x(x: f64, d_ij: f64, mu_ik: f64, t_ij: f64, theta_i: f64) -> LogProb {
+    LogProb((neg_binom(d_ij, x, t_ij) * neg_binom(x, mu_ik, theta_i)).ln())
+}
+
+/// Inner of equation 3/4 in the document.
 fn likelihood_mu_ik_theta_i(
     d_ij: f64,
     mu_ik: f64,
@@ -109,24 +125,27 @@ fn likelihood_mu_ik_theta_i(
     epsilon: LogProb,
 ) -> LogProb {
     // TODO determine whether this is the best window given that we also have access to mu_ik here.
-    let (left_window, right_window) = window(d_ij);
+    let (x_left_window, x_right_window) = window(d_ij);
 
-    let prob = |x| LogProb((neg_binom(d_ij, x, t_ij) * neg_binom(x, mu_ik, theta_i)).ln());
-    let is_greater_epsilon = |prob: &LogProb| *prob >= epsilon; // TODO maybe better relative to the maximum?
+    let prob = |x| prob_mu_ik_theta_i_x(x, d_ij, mu_ik, t_ij, theta_i);
+
+    let max_prob = prob(d_ij);
+    let threshold = LogProb(*max_prob - 10.0f64.ln());
+    let is_informative = |prob: &LogProb| *prob >= threshold; // TODO maybe better relative to the maximum?
 
     LogProb::ln_sum_exp(
-        &left_window
+        &x_left_window
             .map(&prob)
-            .take_while(&is_greater_epsilon)
-            .chain(right_window.map(&prob).take_while(&is_greater_epsilon))
+            .take_while(&is_informative)
+            .chain(x_right_window.map(&prob).take_while(&is_informative))
             .collect::<Vec<_>>(),
     )
 }
 
 fn window(d_ij: f64) -> (impl Iterator<Item = f64>, impl Iterator<Item = f64>) {
     (
+        linspace(d_ij / 5.0, d_ij, 100).rev().skip(1),
         linspace(d_ij, 5.0 * d_ij, 100),
-        linspace(d_ij / 5.0, d_ij, 100).rev(),
     )
 }
 
