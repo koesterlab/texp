@@ -143,10 +143,10 @@ fn likelihood_mu_ik_theta_i(
 }
 
 fn window(d_ij: f64) -> (impl Iterator<Item = f64>, impl Iterator<Item = f64>) {
-    // TODO: think about larger steps, binary search etc. to optimize instead of just having 100 steps.
+    // TODO: think about larger steps, binary search etc. to optimize instead of just having a fixed number of steps.
     (
-        linspace(d_ij / 5.0, d_ij, 100).rev().skip(1),
-        linspace(d_ij, 5.0 * d_ij, 100),
+        linspace(d_ij / 5.0, d_ij, 10).rev().skip(1),
+        linspace(d_ij, 5.0 * d_ij, 10),
     )
 }
 
