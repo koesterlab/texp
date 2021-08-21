@@ -131,8 +131,11 @@ fn main() -> Result<()> {
             prior_scale,
             prior_shift,
         } => {
-            let prior_parameters =
-                prior::PriorParameters::new(prior_shape, prior_scale, prior_shift);
+            let prior_parameters = prior::PriorParameters::builder()
+                .shape(prior_shape)
+                .scale(prior_scale)
+                .shift(prior_shift)
+                .build();
             // normalize
             preprocess::preprocess(&kallisto_quants, &sample_ids, prior_parameters)
         }
