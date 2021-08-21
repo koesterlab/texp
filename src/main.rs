@@ -124,7 +124,7 @@ enum Cli {
         groups_exps: Vec<PathBuf>,
     },
     #[structopt(
-        name = "show-mpk",
+        name = "show-sample-expression",
         about = "Decode mpk into JSON.",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
@@ -195,6 +195,7 @@ fn main() -> Result<()> {
         Cli::ShowSampleExpressions { path, feature_id } => {
             let dir = Outdir::open(&path)?;
             let expr: ProbDistribution<(N32, N32)> = dir.deserialize_value(&feature_id)?;
+            // TODO output as tsv (use csv crate)
             dbg!(&expr);
             Ok(())
         }
