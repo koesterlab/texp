@@ -17,8 +17,8 @@ pub(crate) fn window(mean: f64) -> (impl Iterator<Item = f64>, impl Iterator<Ite
 pub(crate) fn interpolate_pmf(
     value: N32,
     lower: N32,
-    prob_lower: LogProb,
     upper: N32,
+    prob_lower: LogProb,
     prob_upper: LogProb,
 ) -> LogProb {
     let len = upper - lower;
@@ -26,64 +26,30 @@ pub(crate) fn interpolate_pmf(
         .ln_add_exp(prob_upper + LogProb(f64::from(((value - lower) / len).ln())))
 }
 
-pub(crate) trait LikelihoodFunc {
-    fn get(&self, values: &[N32]) -> LogProb;
-    fn insert(&mut self, values: &[N32], prob: LogProb);
+
+#[derive(Deserialize, Serialize, Debug, Default)]
+pub(crate) struct ProbDistribution<V>
+where
+    V: Ord + Eq
+{
+    points: BTreeMap<V, LogProb>,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
-pub(crate) struct LikelihoodFunction<V> {
-    points: BTreeMap<(N32, N32), LogProb>,
-}
-
-impl<V: LikelihoodFunc> LikelihoodFunc for LikelihoodFunction<V> {
-    fn get(&self, values: &[N32]) -> LogProb {
-        let upper = self.points.range(values[0]..).next();
+impl<V> ProbDistribution<V> 
+where
+    V: Ord + Eq
+{
+    pub(crate) fn get(&self, value: &V) -> LogProb {
+        let upper = self.points.range(value..).next();
 
         if let Some((upper, upper_prob)) = upper {
-            if *upper == values[0] {
-                upper_prob.get(&values[1..])
-            } else {
-                let lower = self.points.range(..=values[0]).last();
-                if let Some((lower, lower_prob)) = lower {
-                    interpolate_pmf(
-                        values[0],
-                        *lower,
-                        lower_prob.get(&values[1..]),
-                        *upper,
-                        upper_prob.get(&values[1..]),
-                    )
-                } else {
-                    LogProb::ln_zero()
-                }
-            }
-        } else {
-            LogProb::ln_zero()
-        }
-    }
-
-    fn insert(&mut self, values: &[N32], prob: LogProb) {
-        self.points.insert(values[0], 
-    }
-}
-
-impl LikelihoodFunc for LikelihoodFunction<LogProb> {
-    fn get(&self, values: &[N32]) -> LogProb {
-        let upper = self.points.range(values[0]..).next();
-
-        if let Some((upper, upper_prob)) = upper {
-            if *upper == values[0] {
+            if upper == value {
                 *upper_prob
             } else {
-                let lower = self.points.range(..=values[0]).last();
+                let lower = self.points.range(..=value).last();
                 if let Some((lower, lower_prob)) = lower {
-                    interpolate_pmf(
-                        values[0],
-                        *lower,
-                        *lower_prob,
-                        *upper,
-                        *upper_prob,
-                    )
+                    // TODO interpolate
+                    LogProb(*lower_prob.ln_add_exp(*upper_prob) - 2.0_f64.ln())
                 } else {
                     LogProb::ln_zero()
                 }
@@ -91,5 +57,13 @@ impl LikelihoodFunc for LikelihoodFunction<LogProb> {
         } else {
             LogProb::ln_zero()
         }
+    }
+
+    pub(crate) fn insert(&mut self, value: V, prob: LogProb) {
+        self.points.insert(value, prob);
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.points.len()
     }
 }

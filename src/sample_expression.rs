@@ -10,14 +10,14 @@ use anyhow::Result;
 use bio::stats::LogProb;
 use getset::Getters;
 use itertools_num::linspace;
-use noisy_float::types::N64;
+use noisy_float::types::N32;
 use rmp_serde::{Deserializer, Serializer};
 use serde::Deserialize as SerdeDeserialize;
 use serde::Serialize as SerdeSerialize;
 use serde_derive::{Deserialize, Serialize};
 use statrs::function::beta::ln_beta;
 
-use crate::common::{window, LikelihoodFunction};
+use crate::common::{window, ProbDistribution};
 use crate::errors::Error;
 use crate::kallisto::KallistoQuant;
 use crate::preprocess::Preprocessing;
@@ -64,7 +64,7 @@ pub(crate) fn sample_expression(
 
         let (mu_ik_left_window, mu_ik_right_window) = window(d_ij);
 
-        let mut likelihoods = BTreeMap::new();
+        let mut likelihoods = ProbDistribution::default();
 
         let mut likelihood_mu_ik = |mu_ik| {
             let mut max_prob = LogProb::ln_zero();
@@ -72,10 +72,7 @@ pub(crate) fn sample_expression(
                 for theta_i in window {
                     let prob = likelihood_mu_ik_theta_i(d_ij, mu_ik, t_ij, *theta_i, s_j, epsilon);
 
-                    let mut likelihoods = likelihoods
-                        .entry(N64::new(mu_ik))
-                        .or_insert_with(BTreeMap::new);
-                    likelihoods.insert(N64::new(*theta_i), prob);
+                    likelihoods.insert((N32::new(mu_ik as f32), N32::new(*theta_i as f32)), prob);
 
                     if prob > max_prob {
                         max_prob = prob;
@@ -122,7 +119,7 @@ pub(crate) fn sample_expression(
 #[getset(get = "pub(crate)")]
 pub(crate) struct SampleExpression {
     sample_id: String,
-    likelihoods: Vec<LikelihoodFunction<LikelihoodFunction<LogProb>>>,
+    likelihoods: Vec<ProbDistribution<(N32, N32)>>,
 }
 
 impl SampleExpression {

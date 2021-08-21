@@ -1,4 +1,5 @@
 use thiserror::Error;
+use std::path::PathBuf;
 
 #[derive(Error, Debug)]
 pub(crate) enum Error {
@@ -8,4 +9,6 @@ pub(crate) enum Error {
     NotEnoughQuants,
     #[error("Unknown sample id {sample_id}")]
     UnknownSampleId { sample_id: String },
+    #[error("Output directory {path} already exists")]
+    ExistingOutputDir { path: PathBuf },
 }
