@@ -94,9 +94,9 @@ pub(crate) fn sample_expression(
             }
         }
 
-        feature_likelihoods.push(likelihoods);
+        dbg!((i, likelihoods.len()));
 
-        dbg!(i);
+        feature_likelihoods.push(likelihoods);
     }
 
     feature_likelihoods.serialize(&mut Serializer::new(stdout()))?;
@@ -143,6 +143,7 @@ fn likelihood_mu_ik_theta_i(
 }
 
 fn window(d_ij: f64) -> (impl Iterator<Item = f64>, impl Iterator<Item = f64>) {
+    // TODO: think about larger steps, binary search etc. to optimize instead of just having 100 steps.
     (
         linspace(d_ij / 5.0, d_ij, 100).rev().skip(1),
         linspace(d_ij, 5.0 * d_ij, 100),
