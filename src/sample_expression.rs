@@ -1,3 +1,7 @@
+//! This implements formula 3+4 of the document.
+
+use std::collections::BTreeMap;
+use std::fs::File;
 use std::io::stdout;
 use std::mem;
 use std::path::Path;
@@ -6,12 +10,14 @@ use anyhow::Result;
 use bio::stats::LogProb;
 use getset::Getters;
 use itertools_num::linspace;
+use noisy_float::types::N64;
 use rmp_serde::{Deserializer, Serializer};
 use serde::Deserialize as SerdeDeserialize;
 use serde::Serialize as SerdeSerialize;
 use serde_derive::{Deserialize, Serialize};
 use statrs::function::beta::ln_beta;
 
+use crate::common::{window, LikelihoodFunction};
 use crate::errors::Error;
 use crate::kallisto::KallistoQuant;
 use crate::preprocess::Preprocessing;
@@ -31,6 +37,11 @@ pub(crate) fn sample_expression(
             .ok_or(Error::UnknownSampleId {
                 sample_id: sample_id.to_owned(),
             })?;
+    let s_j = preprocessing
+        .scale_factors()
+        .get(sample_id)
+        .unwrap()
+        .clone();
 
     let feature_ids = preprocessing.feature_ids();
 
@@ -48,24 +59,23 @@ pub(crate) fn sample_expression(
             continue;
         };
 
-        let max_prob = prob_mu_ik_theta_i_x(d_ij, d_ij, d_ij, t_ij, prior.mean());
+        let max_prob = prob_mu_ik_theta_i_x(d_ij, d_ij, d_ij, t_ij, prior.mean(), s_j);
         let prob_threshold = LogProb(*max_prob - 10.0f64.ln());
 
         let (mu_ik_left_window, mu_ik_right_window) = window(d_ij);
 
-        let mut likelihoods = Vec::new();
+        let mut likelihoods = BTreeMap::new();
 
         let mut likelihood_mu_ik = |mu_ik| {
             let mut max_prob = LogProb::ln_zero();
             let mut process_window = |window: &Vec<f64>| {
                 for theta_i in window {
-                    let prob = likelihood_mu_ik_theta_i(d_ij, mu_ik, t_ij, *theta_i, epsilon);
+                    let prob = likelihood_mu_ik_theta_i(d_ij, mu_ik, t_ij, *theta_i, s_j, epsilon);
 
-                    likelihoods.push(Likelihood {
-                        mu_ik: mu_ik,
-                        theta_i: *theta_i,
-                        prob,
-                    });
+                    let mut likelihoods = likelihoods
+                        .entry(N64::new(mu_ik))
+                        .or_insert_with(BTreeMap::new);
+                    likelihoods.insert(N64::new(*theta_i), prob);
 
                     if prob > max_prob {
                         max_prob = prob;
@@ -99,21 +109,39 @@ pub(crate) fn sample_expression(
         feature_likelihoods.push(likelihoods);
     }
 
-    feature_likelihoods.serialize(&mut Serializer::new(stdout()))?;
+    SampleExpression {
+        sample_id: sample_id.to_owned(),
+        likelihoods: feature_likelihoods,
+    }
+    .serialize(&mut Serializer::new(stdout()))?;
 
     Ok(())
 }
 
-#[derive(Deserialize, Serialize, Debug, Getters)]
+#[derive(Debug, Deserialize, Serialize, Getters)]
 #[getset(get = "pub(crate)")]
-struct Likelihood {
-    mu_ik: f64,
-    theta_i: f64,
-    prob: LogProb,
+pub(crate) struct SampleExpression {
+    sample_id: String,
+    likelihoods: Vec<LikelihoodFunction<LikelihoodFunction<LogProb>>>,
 }
 
-fn prob_mu_ik_theta_i_x(x: f64, d_ij: f64, mu_ik: f64, t_ij: f64, theta_i: f64) -> LogProb {
-    LogProb((neg_binom(d_ij, x, t_ij) * neg_binom(x, mu_ik, theta_i)).ln())
+impl SampleExpression {
+    pub(crate) fn from_path(path: &Path) -> Result<Self> {
+        Ok(SampleExpression::deserialize(&mut Deserializer::new(
+            File::open(path)?,
+        ))?)
+    }
+}
+
+fn prob_mu_ik_theta_i_x(
+    x: f64,
+    d_ij: f64,
+    mu_ik: f64,
+    t_ij: f64,
+    theta_i: f64,
+    s_j: f64,
+) -> LogProb {
+    LogProb((neg_binom(d_ij, x, t_ij) * neg_binom(x, mu_ik * s_j, theta_i)).ln())
 }
 
 /// Inner of equation 3/4 in the document.
@@ -122,12 +150,13 @@ fn likelihood_mu_ik_theta_i(
     mu_ik: f64,
     t_ij: f64,
     theta_i: f64,
+    s_j: f64,
     epsilon: LogProb,
 ) -> LogProb {
     // TODO determine whether this is the best window given that we also have access to mu_ik here.
     let (x_left_window, x_right_window) = window(d_ij);
 
-    let prob = |x| prob_mu_ik_theta_i_x(x, d_ij, mu_ik, t_ij, theta_i);
+    let prob = |x| prob_mu_ik_theta_i_x(x, d_ij, mu_ik, t_ij, theta_i, s_j);
 
     let max_prob = prob(d_ij);
     let threshold = LogProb(*max_prob - 10.0f64.ln());
@@ -139,14 +168,6 @@ fn likelihood_mu_ik_theta_i(
             .take_while(&is_informative)
             .chain(x_right_window.map(&prob).take_while(&is_informative))
             .collect::<Vec<_>>(),
-    )
-}
-
-fn window(d_ij: f64) -> (impl Iterator<Item = f64>, impl Iterator<Item = f64>) {
-    // TODO: think about larger steps, binary search etc. to optimize instead of just having a fixed number of steps.
-    (
-        linspace(d_ij / 5.0, d_ij, 10).rev().skip(1),
-        linspace(d_ij, 5.0 * d_ij, 10),
     )
 }
 

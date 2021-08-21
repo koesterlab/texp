@@ -4,7 +4,9 @@ use anyhow::Result;
 use bio::stats::{LogProb, Prob};
 use structopt::StructOpt;
 
+mod common;
 mod errors;
+mod group_expression;
 mod kallisto;
 mod preprocess;
 mod prior;

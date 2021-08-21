@@ -1,3 +1,5 @@
+//! This infers scale factors, mean and dispersion from Kallisto results.
+
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::stdout;

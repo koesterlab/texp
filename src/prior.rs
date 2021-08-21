@@ -47,4 +47,12 @@ impl Prior {
     pub(crate) fn mean(&self) -> f64 {
         self.inv_gamma.mean().unwrap() + self.shift
     }
+
+    pub(crate) fn min_value(&self) -> f64 {
+        self.shift
+    }
+
+    pub(crate) fn max_value(&self) -> f64 {
+        self.inv_gamma.inverse_cdf(0.9999)
+    }
 }
