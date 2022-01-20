@@ -22,6 +22,7 @@ pub(crate) fn group_expression(
     sample_expression_paths: &[PathBuf],
     out_dir: &Path,
 ) -> Result<()> {
+
     let preprocessing = Preprocessing::from_path(preprocessing)?;
     let prior = preprocessing.prior()?;
     let feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
@@ -35,7 +36,7 @@ pub(crate) fn group_expression(
                 .iter()
                 .map(|sample_expression_path| {
                     let sample_info: SampleInfo =
-                        Outdir::open(sample_expression_path)?.deserialize_value("info.mpk")?;
+                        Outdir::open(sample_expression_path)?.deserialize_value("info")?;
                     Ok(preprocessing
                         .mean_disp_estimates()
                         .get(sample_info.sample_id())
@@ -46,16 +47,25 @@ pub(crate) fn group_expression(
                 })
                 .collect::<Result<Vec<_>>>()?;
 
+
             let sample_expression_likelihoods = sample_expression_paths
                 .iter()
                 .map(|sample_expression_path| {
                     let dir = Outdir::open(sample_expression_path)?;
-                    let likelihoods: ProbDistribution<(N32, N32)> =
-                        dir.deserialize_value(feature_id)?;
-                    Ok(likelihoods)
+                    let feature_id_with_mpk = format!("{}{}", feature_id, ".mpk");
+                    let fullpath = format!("{}{}", sample_expression_path.to_str().unwrap(), feature_id_with_mpk);
+                    if (Path::new(&fullpath).exists()) {
+                       let likelihoods: ProbDistribution<(N32, N32)> =
+                           dir.deserialize_value(feature_id)?;
+                       Ok(likelihoods)
+                    } else {
+                        // TODO Sensible handling of skipped features
+                        println!("Skipping {}", fullpath);
+                        Ok(ProbDistribution::default())
+                    }
+
                 })
                 .collect::<Result<Vec<_>>>()?;
-
             let maximum_likelihood_mean = maximum_likelihood_means.iter().sum::<f64>()
                 / maximum_likelihood_means.len() as f64;
 
@@ -72,8 +82,9 @@ pub(crate) fn group_expression(
                                 .get(&(N32::new(mu_ik as f32), N32::new(theta_i as f32)))
                                 + prior.prob(theta_i)
                         })
-                        .sum()
+                        .sum()  //Formula 5
                 };
+
 
                 // Result of formula 7.
                 let prob = LogProb::ln_simpsons_integrate_exp(

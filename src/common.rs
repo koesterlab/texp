@@ -110,14 +110,16 @@ impl Outdir {
     }
 
     pub(crate) fn serialize_value<V: SerdeSerialize>(&self, name: &str, value: V) -> Result<()> {
-        let file = fs::File::create(self.join(name).with_extension("mpk"))?;
+        let pathname = format!("{}.mpk", name);
+        let file = fs::File::create(self.join(pathname))?;
         value.serialize(&mut Serializer::new(file))?;
         Ok(())
     }
 
     pub(crate) fn deserialize_value<'a, V: SerdeDeserialize<'a>>(&self, name: &str) -> Result<V> {
+        let pathname = format!("{}.mpk", name);
         Ok(V::deserialize(&mut Deserializer::new(fs::File::open(
-            self.join(name).with_extension("mpk"),
+            self.join(pathname),
         )?))?)
     }
 }
