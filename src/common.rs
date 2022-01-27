@@ -18,8 +18,8 @@ use crate::errors::Error;
 pub(crate) fn window(mean: f64) -> (impl Iterator<Item = f64>, impl Iterator<Item = f64>) {
     // TODO: think about larger steps, binary search etc. to optimize instead of just having a fixed number of steps.
     (
-        linspace(mean / 5.0, mean, 10).rev().skip(1),
-        linspace(mean, 5.0 * mean, 10),
+        linspace(mean / 5.0, mean, 15).rev().skip(1),
+        linspace(mean, 5.0 * mean, 25),
     )
 }
 
@@ -41,11 +41,12 @@ where
     V: Ord + Eq,
 {
     points: BTreeMap<V, LogProb>,
+    max_position: Option<V>,
 }
 
 impl<V> ProbDistribution<V>
 where
-    V: Ord + Eq,
+    V: Ord + Eq + Copy,
 {
     pub(crate) fn get(&self, value: &V) -> LogProb {
         let upper = self.points.range(value..).next();
@@ -69,10 +70,18 @@ where
 
     pub(crate) fn insert(&mut self, value: V, prob: LogProb) {
         self.points.insert(value, prob);
+
+        if self.max_position.is_none() || self.points.get(&self.max_position.unwrap()).unwrap() < &prob {
+            self.max_position = Some(value);
+        }
     }
 
     pub(crate) fn len(&self) -> usize {
         self.points.len()
+    }
+
+    pub(crate) fn get_max_position(&self) -> Option<V> {
+        self.max_position
     }
 }
 

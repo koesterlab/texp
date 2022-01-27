@@ -15,6 +15,7 @@ mod kallisto;
 mod preprocess;
 mod prior;
 mod sample_expression;
+mod diff_exp;
 use common::ProbDistribution;
 
 #[derive(StructOpt, Debug)]
@@ -98,7 +99,14 @@ enum Cli {
     GroupExp {
         #[structopt(parse(from_os_str), help = "Paths to sample expressions.")]
         sample_exprs: Vec<PathBuf>,
-        #[structopt(parse(from_os_str), help = "Path to preprocessed Kallisto results.")]
+//         #[structopt(parse(from_os_str), help = "Path to preprocessed Kallisto results.")]
+//         preprocessing_path: PathBuf,
+        #[structopt(
+            parse(from_os_str),
+            long = "preprocessing_path",
+            short = "p",
+            help = "Path to preprocessed Kallisto results."
+        )]
         preprocessing_path: PathBuf,
         #[structopt(
             parse(from_os_str),
@@ -122,6 +130,19 @@ enum Cli {
     DiffExp {
         #[structopt(parse(from_os_str))]
         groups_exps: Vec<PathBuf>,
+        #[structopt(
+            short = "c",
+            default_value = "0",
+            help = "Constant c of fold change"
+        )]
+        c: usize,
+        #[structopt(
+            parse(from_os_str),
+            long = "output",
+            short = "o",
+            help = "Path to output directory."
+        )]
+        out_dir: PathBuf,
     },
     #[structopt(
         name = "show-sample-expression",
@@ -175,10 +196,10 @@ fn main() -> Result<()> {
             )
         }
         Cli::GroupExp {
-            sample_exprs,
             preprocessing_path,
             out_dir,
             threads,
+            sample_exprs,
         } => {
             rayon::ThreadPoolBuilder::new()
                 .num_threads(threads)
@@ -188,9 +209,12 @@ fn main() -> Result<()> {
             // calculate per group posteriors
             group_expression::group_expression(&preprocessing_path, &sample_exprs, &out_dir)
         }
-        Cli::DiffExp { groups_exps } => {
-            // calculate between group differential expressions
-            Ok(())
+        Cli::DiffExp {
+            groups_exps,
+            c,
+            out_dir,
+        } => {
+            diff_exp::diff_exp(c, &groups_exps, &out_dir)
         }
         Cli::ShowSampleExpressions { path, feature_id } => {
             let dir = Outdir::open(&path)?;
