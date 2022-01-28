@@ -11,7 +11,7 @@ use rmp_serde::{Deserializer, Serializer};
 use serde::Deserialize as SerdeDeserialize;
 use serde::Serialize as SerdeSerialize;
 
-use crate::common::{window, Outdir, ProbDistribution};
+use crate::common::{window, Outdir, ProbDistribution, MeanDispersionPair, Mean};
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
 use crate::prior::Prior;
@@ -54,14 +54,12 @@ pub(crate) fn group_expression(
                     let dir = Outdir::open(sample_expression_path)?;
                     let feature_id_with_mpk = format!("{}{}", feature_id, ".mpk");
                     let fullpath = format!("{}{}", sample_expression_path.to_str().unwrap(), feature_id_with_mpk);
-                    if (Path::new(&fullpath).exists()) {
-                       let likelihoods: ProbDistribution<(N32, N32)> =
+                    if Path::new(&fullpath).exists() {
+                       let likelihoods: ProbDistribution<MeanDispersionPair> =
                            dir.deserialize_value(feature_id)?;
                        Ok(likelihoods)
                     } else {
-                        // TODO Sensible handling of skipped features
-                        println!("Skipping {}", fullpath);
-                        Ok(ProbDistribution::default())
+                        Ok(ProbDistribution::na())
                     }
 
                 })
@@ -79,12 +77,11 @@ pub(crate) fn group_expression(
                         .iter()
                         .map(|sample_expression_likelihood| {
                             sample_expression_likelihood
-                                .get(&(N32::new(mu_ik as f32), N32::new(theta_i as f32)))
-                                + prior.prob(theta_i)
+                                .get(&MeanDispersionPair::new(N32::new(mu_ik as f32), N32::new(theta_i as f32)))
                         })
-                        .sum()  //Formula 5
+                        .sum::<LogProb>() + //Formula 5
+                        LogProb(*prior.prob(theta_i) * 2.0) // square of Pr(theta_i), formula 8
                 };
-
 
                 // Result of formula 7.
                 let prob = LogProb::ln_simpsons_integrate_exp(
@@ -94,7 +91,7 @@ pub(crate) fn group_expression(
                     11,
                 );
 
-                prob_dist.insert(N32::new(mu_ik as f32), prob);
+                prob_dist.insert(Mean::new(N32::new(mu_ik as f32)), prob);
 
                 prob
             };
@@ -106,7 +103,7 @@ pub(crate) fn group_expression(
             for mu_ik in right_window {
                 calc_prob(mu_ik);
             }
-            // TODO ensure that this is a posterior by dividing with integral of all values.
+            prob_dist.normalize(); // remove factor c_ik
 
             out_dir.serialize_value(feature_id, prob_dist)?;
 

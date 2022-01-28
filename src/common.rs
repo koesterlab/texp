@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bio::stats::LogProb;
 use derefable::Derefable;
+use derive_new::new;
 use itertools_num::linspace;
+use noisy_float::NoisyFloat;
 use noisy_float::prelude::Float;
 use noisy_float::types::N32;
 use rmp_serde::{Deserializer, Serializer};
@@ -38,41 +40,73 @@ pub(crate) fn interpolate_pmf(
 #[derive(Deserialize, Serialize, Debug, Default)]
 pub(crate) struct ProbDistribution<V>
 where
-    V: Ord + Eq + Copy,
+    V: Ord + Eq + Copy + DistributionValue,
 {
     points: BTreeMap<V, LogProb>,
-    max_position: Option<V>,
+    max_prob_value: Option<V>,
+    is_na: bool,
+}
+
+impl ProbDistribution<Mean> {
+    pub(crate) fn normalize(&mut self) {
+        let marginal = LogProb::ln_trapezoidal_integrate_grid_exp(
+    |i, value| {
+                *self.points.get(&Mean::new(value)).unwrap()
+            }, 
+        &self.points.keys().map(|value| **value).collect::<Vec<_>>()
+        );
+
+        for prob in self.points.values_mut() {
+            *prob = *prob - marginal
+        }
+    }
 }
 
 impl<V> ProbDistribution<V>
 where
-    V: Ord + Eq + Copy,
+    V: Ord + Eq + Copy + DistributionValue,
 {
-    pub(crate) fn get(&self, value: &V) -> LogProb {
-        let upper = self.points.range(value..).next();
+    pub(crate) fn na() -> Self {
+        ProbDistribution {
+            points: BTreeMap::default(),
+            max_prob_value: None,
+            is_na: true,
+        }
+    }
 
-        if let Some((upper, upper_prob)) = upper {
-            if upper == value {
-                *upper_prob
+    pub(crate) fn get(&self, value: &V) -> LogProb {
+        if self.is_na {
+            if value.is_zero() {
+                LogProb::ln_one()
             } else {
-                let lower = self.points.range(..=value).last();
-                if let Some((lower, lower_prob)) = lower {
-                    // TODO interpolate
-                    LogProb(*lower_prob.ln_add_exp(*upper_prob) - 2.0_f64.ln())
-                } else {
-                    LogProb::ln_zero()
-                }
+                LogProb::ln_zero()
             }
         } else {
-            LogProb::ln_zero()
+            let upper = self.points.range(value..).next();
+
+            if let Some((upper, upper_prob)) = upper {
+                if upper == value {
+                    *upper_prob
+                } else {
+                    let lower = self.points.range(..=value).last();
+                    if let Some((lower, lower_prob)) = lower {
+                        // TODO interpolate
+                        LogProb(*lower_prob.ln_add_exp(*upper_prob) - 2.0_f64.ln())
+                    } else {
+                        LogProb::ln_zero()
+                    }
+                }
+            } else {
+                LogProb::ln_zero()
+            }
         }
     }
 
     pub(crate) fn insert(&mut self, value: V, prob: LogProb) {
         self.points.insert(value, prob);
 
-        if self.max_position.is_none() || self.points.get(&self.max_position.unwrap()).unwrap() < &prob {
-            self.max_position = Some(value);
+        if self.max_prob_value.is_none() || self.points.get(&self.max_prob_value.unwrap()).unwrap() < &prob {
+            self.max_prob_value = Some(value);
         }
     }
 
@@ -80,8 +114,8 @@ where
         self.points.len()
     }
 
-    pub(crate) fn get_max_position(&self) -> Option<V> {
-        self.max_position
+    pub(crate) fn get_max_prob_value(&self) -> Option<V> {
+        self.max_prob_value
     }
 }
 
@@ -130,5 +164,43 @@ impl Outdir {
         Ok(V::deserialize(&mut Deserializer::new(fs::File::open(
             self.join(pathname),
         )?))?)
+    }
+}
+
+pub(crate) trait DistributionValue {
+    fn is_zero(&self) -> bool;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, Deserialize, Serialize, new, Default)]
+pub(crate) struct MeanDispersionPair {
+    mean: N32,
+    Dispersion: N32,
+}
+
+
+impl DistributionValue for MeanDispersionPair {
+    fn is_zero(&self) -> bool {
+        self.mean == N32::new(0.0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, Deserialize, Serialize, new, Default, Derefable)]
+pub(crate) struct Mean(#[deref] N32);
+
+
+impl DistributionValue for Mean {
+    fn is_zero(&self) -> bool {
+        **self == N32::new(0.0)
+    }
+}
+
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, Deserialize, Serialize, new, Default, Derefable)]
+pub(crate) struct Log2FoldChange(#[deref] N32);
+
+
+impl DistributionValue for Log2FoldChange {
+    fn is_zero(&self) -> bool {
+        **self == N32::new(0.0)
     }
 }

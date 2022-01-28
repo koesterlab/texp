@@ -6,7 +6,7 @@ use noisy_float::types::N32;
 use rayon;
 use structopt::StructOpt;
 
-use crate::common::Outdir;
+use crate::common::{Outdir, MeanDispersionPair};
 
 mod common;
 mod errors;
@@ -218,7 +218,7 @@ fn main() -> Result<()> {
         }
         Cli::ShowSampleExpressions { path, feature_id } => {
             let dir = Outdir::open(&path)?;
-            let expr: ProbDistribution<(N32, N32)> = dir.deserialize_value(&feature_id)?;
+            let expr: ProbDistribution<MeanDispersionPair> = dir.deserialize_value(&feature_id)?;
             // TODO output as tsv (use csv crate)
             dbg!(&expr);
             Ok(())

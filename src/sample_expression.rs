@@ -18,7 +18,7 @@ use serde::Serialize as SerdeSerialize;
 use serde_derive::{Deserialize, Serialize};
 use statrs::function::beta::ln_beta;
 
-use crate::common::Outdir;
+use crate::common::{Outdir, MeanDispersionPair};
 use crate::common::{window, ProbDistribution};
 use crate::errors::Error;
 use crate::kallisto::KallistoQuant;
@@ -79,7 +79,7 @@ pub(crate) fn sample_expression(
                             likelihood_mu_ik_theta_i(d_ij, mu_ik, t_ij, *theta_i, s_j, epsilon);
 
                         likelihoods
-                            .insert((N32::new(mu_ik as f32), N32::new(*theta_i as f32)), prob);
+                            .insert(MeanDispersionPair::new(N32::new(mu_ik as f32), N32::new(*theta_i as f32)), prob);
 
                         if prob > max_prob {
                             max_prob = prob;
