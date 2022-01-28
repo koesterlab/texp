@@ -132,10 +132,10 @@ enum Cli {
         groups_exps: Vec<PathBuf>,
         #[structopt(
             short = "c",
-            default_value = "0",
+            default_value = "0.",
             help = "Constant c of fold change"
         )]
-        c: usize,
+        c: f64,
         #[structopt(
             parse(from_os_str),
             long = "output",

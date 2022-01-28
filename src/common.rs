@@ -38,7 +38,7 @@ pub(crate) fn interpolate_pmf(
 #[derive(Deserialize, Serialize, Debug, Default)]
 pub(crate) struct ProbDistribution<V>
 where
-    V: Ord + Eq,
+    V: Ord + Eq + Copy,
 {
     points: BTreeMap<V, LogProb>,
     max_position: Option<V>,
