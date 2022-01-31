@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use bio::stats::{LogProb, Prob};
-use derive_new::new;
+// use derive_new::new;
 use getset::Getters;
 use itertools_num::linspace;
 use serde_derive::{Deserialize, Serialize};

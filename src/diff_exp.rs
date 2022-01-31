@@ -1,22 +1,18 @@
-use std::fs;
+//! This implements formula 9 of the document and calculates the fold change / differential expression.
+
 use std::path::{Path, PathBuf};
-use std::mem;
 
 use anyhow::Result;
 use bio::stats::LogProb;
-use noisy_float::types::{N32, N64};
+use noisy_float::types::{N32};
 use rayon::prelude::*;
-use rmp_serde::{Deserializer, Serializer};
-use serde::Deserialize as SerdeDeserialize;
-use serde::Serialize as SerdeSerialize;
-use itertools_num::linspace;
 
 
 use crate::common::{window, Outdir, ProbDistribution, Mean, Log2FoldChange};
-use crate::errors::Error;
+// use crate::errors::Error;
 use crate::preprocess::Preprocessing;
-use crate::prior::Prior;
-use crate::sample_expression::SampleInfo;
+// use crate::prior::Prior;
+// use crate::sample_expression::SampleInfo;
 // use crate::group_expression::group_expression
 
 
@@ -50,32 +46,16 @@ pub(crate) fn diff_exp(
     let mut diff_exp_distribution = ProbDistribution::<Log2FoldChange>::default();
 
     let mut calc_prob = |f| {
-        
-        // let density = |i, x| {
-        //     prob_dist_i_k1.get(x) + prob_dist_i_k2.get(&N64::new(f * (x.raw() + c) -c));
-        // };
-
-
-        let marginal = LogProb::ln_trapezoidal_integrate_grid_exp(
+        let prob = LogProb::ln_trapezoidal_integrate_grid_exp(
             |i, value| {
-                        prob_dist_i_k1.get(&Mean::new(value)) + prob_dist_i_k2.get(&Mean::new(( N32::new(f as f32) * (value + N32::new(c as f32))) -  N32::new(c as f32)))
+                    prob_dist_i_k1.get(&Mean::new(value)) + prob_dist_i_k2.get(&Mean::new(( N32::new(f as f32) * (value + N32::new(c as f32))) -  N32::new(c as f32)))
                     }, 
-                &prob_dist_i_k1.points.keys().map(|value| **value).collect::<Vec<_>>()
-                );
-        
-  
+            &prob_dist_i_k1.points.keys().map(|value| **value).collect::<Vec<_>>()
+            );
 
+        diff_exp_distribution.insert(Log2FoldChange::new(N32::new(f as f32)), prob);
 
-        // let prob = LogProb::ln_simpsons_integrate_exp(
-        //     density,
-        //     prior.min_value(),
-        //     prior.max_value(),
-        //     11,
-        // );
-
-        diff_exp_distribution.insert(Log2FoldChange::new(N32::new(f as f32)), marginal);
-
-        marginal
+        prob
     };
 
 

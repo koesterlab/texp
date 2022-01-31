@@ -1,20 +1,20 @@
 //! This implements formula 5,6,7 of the document.
 
-use std::fs;
+// use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bio::stats::LogProb;
 use noisy_float::types::N32;
 use rayon::prelude::*;
-use rmp_serde::{Deserializer, Serializer};
-use serde::Deserialize as SerdeDeserialize;
-use serde::Serialize as SerdeSerialize;
+// use rmp_serde::{Deserializer, Serializer};
+// use serde::Deserialize as SerdeDeserialize;
+// use serde::Serialize as SerdeSerialize;
 
 use crate::common::{window, Outdir, ProbDistribution, MeanDispersionPair, Mean};
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
-use crate::prior::Prior;
+// use crate::prior::Prior;
 use crate::sample_expression::SampleInfo;
 
 pub(crate) fn group_expression(

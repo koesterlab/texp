@@ -1,29 +1,24 @@
 //! This implements formula 3+4 of the document.
 
-use std::collections::BTreeMap;
 use std::fs;
-use std::io::stdout;
 use std::mem;
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 
 use anyhow::Result;
 use bio::stats::LogProb;
 use getset::Getters;
-use itertools_num::linspace;
+// use itertools_num::linspace;
 use noisy_float::types::N32;
 use rayon::prelude::*;
 use rmp_serde::{Deserializer, Serializer};
 use serde::Deserialize as SerdeDeserialize;
-use serde::Serialize as SerdeSerialize;
 use serde_derive::{Deserialize, Serialize};
 use statrs::function::beta::ln_beta;
 
 use crate::common::{Outdir, MeanDispersionPair};
 use crate::common::{window, ProbDistribution};
 use crate::errors::Error;
-use crate::kallisto::KallistoQuant;
 use crate::preprocess::Preprocessing;
-use crate::prior::Prior;
 
 pub(crate) fn sample_expression(
     preprocessing: &Path,

@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use getset::Getters;
-use ndarray::{s, Array1, Axis};
+use ndarray::{Array1, Axis};
 use ndarray_stats::{interpolate, Quantile1dExt, QuantileExt};
 use noisy_float::types::N64;
 use rmp_serde::{Deserializer, Serializer};
@@ -16,7 +16,7 @@ use serde::Serialize as SerdeSerialize;
 use serde_derive::{Deserialize, Serialize};
 
 use crate::errors::Error;
-use crate::kallisto::{self, KallistoQuant};
+use crate::kallisto::{KallistoQuant};
 use crate::prior::{Prior, PriorParameters};
 
 pub(crate) fn preprocess(

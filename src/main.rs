@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
-use noisy_float::types::N32;
+// use noisy_float::types::N32;
 use rayon;
 use structopt::StructOpt;
 
