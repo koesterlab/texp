@@ -4,7 +4,7 @@ use std::mem;
 
 use anyhow::Result;
 use bio::stats::LogProb;
-use noisy_float::types::N64;
+use noisy_float::types::{N32, N64};
 use rayon::prelude::*;
 use rmp_serde::{Deserializer, Serializer};
 use serde::Deserialize as SerdeDeserialize;
@@ -12,7 +12,7 @@ use serde::Serialize as SerdeSerialize;
 use itertools_num::linspace;
 
 
-use crate::common::{window, Outdir, ProbDistribution};
+use crate::common::{window, Outdir, ProbDistribution, Mean, Log2FoldChange};
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
 use crate::prior::Prior;
@@ -22,62 +22,112 @@ use crate::sample_expression::SampleInfo;
 
 pub(crate) fn diff_exp(
     c: f64,
-//     preprocessing: &Path,
+    preprocessing: &Path,
     group_expression_paths: &[PathBuf],
     out_dir: &Path,
 ) -> Result<()> {
 
-    let mut prob_dist_i_k1 = ProbDistribution::default();
-    prob_dist_i_k1.insert(N64::new(1. as f64), LogProb(10.0f64.ln()));
-    let mut prob_dist_i_k2 = ProbDistribution::default();
-    prob_dist_i_k2.insert(N64::new(1. as f64), LogProb(10.0f64.ln()));
+    let out_dir = Outdir::create(out_dir)?;
+    
 
-    let max_prob_fold_change = prob_dist_i_k1.max_prob_value() / prob_dist_i_k2.max_prob_value();
+    let preprocessing = Preprocessing::from_path(preprocessing)?;
+    let feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
+
+    // feature_ids
+    //     .par_iter()
+    //     .try_for_each(|(i, feature_id)| -> Result<()> {
+
+    let mut prob_dist_i_k1 = ProbDistribution::default();
+    prob_dist_i_k1.insert(Mean::new(N32::new(1. as f32)), LogProb(10.0f64.ln()));
+    let mut prob_dist_i_k2 = ProbDistribution::default();
+    prob_dist_i_k2.insert(Mean::new(N32::new(1. as f32)), LogProb(10.0f64.ln()));
+
+    let max_prob_fold_change = *prob_dist_i_k1.get_max_prob_value().unwrap() / *prob_dist_i_k2.get_max_prob_value().unwrap();
 
     // Step 1: use window() to determine range around max_prob_fold_change
+    let (left_window, right_window) = window(f64::from(max_prob_fold_change));
+
+    let mut diff_exp_distribution = ProbDistribution::<Log2FoldChange>::default();
+
+    let mut calc_prob = |f| {
+        
+        // let density = |i, x| {
+        //     prob_dist_i_k1.get(x) + prob_dist_i_k2.get(&N64::new(f * (x.raw() + c) -c));
+        // };
+
+
+        let marginal = LogProb::ln_trapezoidal_integrate_grid_exp(
+            |i, value| {
+                        prob_dist_i_k1.get(&Mean::new(value)) + prob_dist_i_k2.get(&Mean::new(( N32::new(f as f32) * (value + N32::new(c as f32))) -  N32::new(c as f32)))
+                    }, 
+                &prob_dist_i_k1.points.keys().map(|value| **value).collect::<Vec<_>>()
+                );
+        
+  
+
+
+        // let prob = LogProb::ln_simpsons_integrate_exp(
+        //     density,
+        //     prior.min_value(),
+        //     prior.max_value(),
+        //     11,
+        // );
+
+        diff_exp_distribution.insert(Log2FoldChange::new(N32::new(f as f32)), marginal);
+
+        marginal
+    };
+
 
     // Step 2: For each fold change in determined range, calculate formula 9 and put in ProbabilityDistribution
+    for f in left_window {
+        calc_prob(f);
+    }
+
+    for f in right_window {
+        calc_prob(f);
+    }
+
+
+    
     // for x, iterate over values in prob_dist_i_k1, the value for looking up in prob_dist_i_k2 is f * (x + c) - c
+
+
 
     // Step 3: Write 
 
 
+    // let range_for_f = vec![1./5., 1./4., 1./3., 1./2., 1., 2., 3., 4., 5.];
+    // for i in &range_for_f {
+    //     println!("{}", i);
+    // }
+    // if max_pos_i_k2 < max_pos_i_k1 {
+    //     mem::swap(&mut prob_dist_i_k1, &mut prob_dist_i_k2);
+    //     mem::swap(&mut max_pos_i_k1, &mut max_pos_i_k2);
+    // }
 
 
-    let mut max_pos_i_k1 = prob_dist_i_k1.get_max_position().unwrap();
-    let mut max_pos_i_k2 = prob_dist_i_k2.get_max_position().unwrap();
+    // let mut diff_exp_distribution = ProbDistribution::default();
 
-    let range_for_f = vec![1./5., 1./4., 1./3., 1./2., 1., 2., 3., 4., 5.];
-    for i in &range_for_f {
-        println!("{}", i);
-    }
-    if max_pos_i_k2 < max_pos_i_k1 {
-        mem::swap(&mut prob_dist_i_k1, &mut prob_dist_i_k2);
-        mem::swap(&mut max_pos_i_k1, &mut max_pos_i_k2);
-    }
+    // range_for_f
+    //     .par_iter()
+    //     .try_for_each(|f|-> Result<()> {
+    //         let f_max_i_k2 = (-f * c + c + max_pos_i_k1.raw()) / f;
+    //         let range_for_x = linspace(0., max_pos_i_k1.raw(), 15).chain(linspace(max_pos_i_k1.raw(), f_max_i_k2, 15)).chain(linspace(f_max_i_k2, f_max_i_k2 + 15., 15));
 
+    //         let density = |i, x| {
+    //             prob_dist_i_k1.get(x) + prob_dist_i_k2.get(&N64::new(f * (x.raw() + c) -c));
+    //         };
 
-    let mut diff_exp_distribution = ProbDistribution::default();
-
-    range_for_f
-        .par_iter()
-        .try_for_each(|f|-> Result<()> {
-            let f_max_i_k2 = (-f * c + c + max_pos_i_k1.raw()) / f;
-            let range_for_x = linspace(0., max_pos_i_k1.raw(), 15).chain(linspace(max_pos_i_k1.raw(), f_max_i_k2, 15)).chain(linspace(f_max_i_k2, f_max_i_k2 + 15., 15));
-
-            let density = |i, x| {
-                prob_dist_i_k1.get(x) + prob_dist_i_k2.get(&N64::new(f * (x.raw() + c) -c));
-            };
-
-            let mut value = LogProb::ln_simpsons_integrate_exp(
-                density,
-                0.f64,
-                15.f64,
-                11,
-            );
-            diff_exp_distribution.insert(*f, value);
-           Ok(())
-       });
+    //         let mut value = LogProb::ln_simpsons_integrate_exp(
+    //             density,
+    //             0.f64,
+    //             15.f64,
+    //             11,
+    //         );
+    //         diff_exp_distribution.insert(*f, value);
+    //        Ok(())
+    //    });
 
    
 

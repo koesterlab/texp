@@ -42,7 +42,7 @@ pub(crate) struct ProbDistribution<V>
 where
     V: Ord + Eq + Copy + DistributionValue,
 {
-    points: BTreeMap<V, LogProb>,
+    pub points: BTreeMap<V, LogProb>,
     max_prob_value: Option<V>,
     is_na: bool,
 }

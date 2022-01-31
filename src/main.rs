@@ -131,6 +131,13 @@ enum Cli {
         #[structopt(parse(from_os_str))]
         groups_exps: Vec<PathBuf>,
         #[structopt(
+            parse(from_os_str),
+            long = "preprocessing_path",
+            short = "p",
+            help = "Path to preprocessed Kallisto results."
+        )]
+        preprocessing_path: PathBuf,
+        #[structopt(
             short = "c",
             default_value = "0.",
             help = "Constant c of fold change"
@@ -211,10 +218,11 @@ fn main() -> Result<()> {
         }
         Cli::DiffExp {
             groups_exps,
+            preprocessing_path,            
             c,
             out_dir,
         } => {
-            diff_exp::diff_exp(c, &groups_exps, &out_dir)
+            diff_exp::diff_exp(c, &preprocessing_path,  &groups_exps, &out_dir)
         }
         Cli::ShowSampleExpressions { path, feature_id } => {
             let dir = Outdir::open(&path)?;
