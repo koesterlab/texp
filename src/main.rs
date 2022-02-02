@@ -128,8 +128,22 @@ enum Cli {
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     DiffExp {
-        #[structopt(parse(from_os_str))]
-        groups_exps: Vec<PathBuf>,
+        // #[structopt(parse(from_os_str))]
+        // groups_exps: Vec<PathBuf>,
+        #[structopt(
+            parse(from_os_str),
+            long = "group_path1",
+            short = "g1",
+            help = "Path to group expressions of group 1"
+        )]
+        group_path1: PathBuf,
+        #[structopt(
+            parse(from_os_str),
+            long = "group_path2",
+            short = "g2",
+            help = "Path to group expressions of group 2"
+        )]
+        group_path2: PathBuf,
         #[structopt(
             parse(from_os_str),
             long = "preprocessing_path",
@@ -150,6 +164,12 @@ enum Cli {
             help = "Path to output directory."
         )]
         out_dir: PathBuf,
+        #[structopt(
+            long = "threads",
+            default_value = "1",
+            help = "Number of threads to use."
+        )]
+        threads: usize,
     },
     #[structopt(
         name = "show-sample-expression",
@@ -217,12 +237,20 @@ fn main() -> Result<()> {
             group_expression::group_expression(&preprocessing_path, &sample_exprs, &out_dir)
         }
         Cli::DiffExp {
-            groups_exps,
+            group_path1,
+            group_path2,
             preprocessing_path,            
             c,
             out_dir,
+            threads,
         } => {
-            diff_exp::diff_exp(c, &preprocessing_path,  &groups_exps, &out_dir)
+
+            rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build_global()
+            .unwrap();
+
+            diff_exp::diff_exp(c, &preprocessing_path,  &group_path1, &group_path2, &out_dir)
         }
         Cli::ShowSampleExpressions { path, feature_id } => {
             let dir = Outdir::open(&path)?;

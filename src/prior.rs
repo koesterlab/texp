@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use bio::stats::{LogProb, Prob};
+use bio::stats::{LogProb};
 // use derive_new::new;
 use getset::Getters;
 use itertools_num::linspace;

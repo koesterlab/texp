@@ -28,7 +28,6 @@ pub(crate) fn group_expression(
     let feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
 
     let out_dir = Outdir::create(out_dir)?;
-
     feature_ids
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
@@ -47,7 +46,6 @@ pub(crate) fn group_expression(
                 })
                 .collect::<Result<Vec<_>>>()?;
 
-
             let sample_expression_likelihoods = sample_expression_paths
                 .iter()
                 .map(|sample_expression_path| {
@@ -57,9 +55,9 @@ pub(crate) fn group_expression(
                     if Path::new(&fullpath).exists() {
                        let likelihoods: ProbDistribution<MeanDispersionPair> =
                            dir.deserialize_value(feature_id)?;
-                       Ok(likelihoods)
+                       Ok(likelihoods)                       
                     } else {
-                        Ok(ProbDistribution::na())
+                        Ok(ProbDistribution::na())                        
                     }
 
                 })
@@ -90,7 +88,6 @@ pub(crate) fn group_expression(
                     prior.max_value(),
                     11,
                 );
-
                 prob_dist.insert(Mean::new(N32::new(mu_ik as f32)), prob);
 
                 prob
@@ -104,9 +101,7 @@ pub(crate) fn group_expression(
                 calc_prob(mu_ik);
             }
             prob_dist.normalize(); // remove factor c_ik
-
             out_dir.serialize_value(feature_id, prob_dist)?;
-
             Ok(())
         })?;
 

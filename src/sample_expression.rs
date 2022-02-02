@@ -10,7 +10,7 @@ use getset::Getters;
 // use itertools_num::linspace;
 use noisy_float::types::N32;
 use rayon::prelude::*;
-use rmp_serde::{Deserializer, Serializer};
+use rmp_serde::{Deserializer};
 use serde::Deserialize as SerdeDeserialize;
 use serde_derive::{Deserialize, Serialize};
 use statrs::function::beta::ln_beta;
