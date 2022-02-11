@@ -11,7 +11,7 @@ use rayon::prelude::*;
 // use serde::Deserialize as SerdeDeserialize;
 // use serde::Serialize as SerdeSerialize;
 
-use crate::common::{window, Outdir, ProbDistribution, MeanDispersionPair, Mean};
+use crate::common::{window, Mean, MeanDispersionPair, Outdir, ProbDistribution};
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
 // use crate::prior::Prior;
@@ -22,7 +22,6 @@ pub(crate) fn group_expression(
     sample_expression_paths: &[PathBuf],
     out_dir: &Path,
 ) -> Result<()> {
-
     let preprocessing = Preprocessing::from_path(preprocessing)?;
     let prior = preprocessing.prior()?;
     let feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
@@ -55,9 +54,9 @@ pub(crate) fn group_expression(
                     if Path::new(&fullpath).exists() {
                        let likelihoods: ProbDistribution<MeanDispersionPair> =
                            dir.deserialize_value(feature_id)?;
-                       Ok(likelihoods)                       
+                       Ok(likelihoods)
                     } else {
-                        Ok(ProbDistribution::na())                        
+                        Ok(ProbDistribution::na())
                     }
 
                 })

@@ -16,7 +16,6 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::errors::Error;
 
-
 /// Return left and right window around given parameter mean
 pub(crate) fn window(mean: f64) -> (impl Iterator<Item = f64>, impl Iterator<Item = f64>) {
     // TODO: think about larger steps, binary search etc. to optimize instead of just having a fixed number of steps.
@@ -38,7 +37,6 @@ pub(crate) fn interpolate_pmf(
         .ln_add_exp(prob_upper + LogProb(f64::from(((value - lower) / len).ln())))
 }
 
-
 //--------------------ProbDistribution --------------------
 
 /// Datastructure for storing probability distributions. Points is a BTreeMap assigning value V -> probability in LogProb
@@ -52,15 +50,12 @@ where
     is_na: bool,
 }
 
-
 /// Normalize the probability distribution by dividing through the integral
 impl ProbDistribution<Mean> {
     pub(crate) fn normalize(&mut self) {
         let marginal = LogProb::ln_trapezoidal_integrate_grid_exp(
-    |i, value| {
-                *self.points.get(&Mean::new(value)).unwrap()
-            }, 
-        &self.points.keys().map(|value| **value).collect::<Vec<_>>()
+            |i, value| *self.points.get(&Mean::new(value)).unwrap(),
+            &self.points.keys().map(|value| **value).collect::<Vec<_>>(),
         );
 
         for prob in self.points.values_mut() {
@@ -112,7 +107,9 @@ where
     pub(crate) fn insert(&mut self, value: V, prob: LogProb) {
         self.points.insert(value, prob);
 
-        if self.max_prob_value.is_none() || self.points.get(&self.max_prob_value.unwrap()).unwrap() < &prob {
+        if self.max_prob_value.is_none()
+            || self.points.get(&self.max_prob_value.unwrap()).unwrap() < &prob
+        {
             self.max_prob_value = Some(value);
         }
     }
@@ -130,12 +127,13 @@ pub(crate) trait DistributionValue {
     fn is_zero(&self) -> bool;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, Deserialize, Serialize, new, Default)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, Deserialize, Serialize, new, Default,
+)]
 pub(crate) struct MeanDispersionPair {
     mean: N32,
     dispersion: N32,
 }
-
 
 impl DistributionValue for MeanDispersionPair {
     fn is_zero(&self) -> bool {
@@ -143,9 +141,21 @@ impl DistributionValue for MeanDispersionPair {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, Deserialize, Serialize, new, Default, Derefable)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Copy,
+    Deserialize,
+    Serialize,
+    new,
+    Default,
+    Derefable,
+)]
 pub(crate) struct Mean(#[deref] N32);
-
 
 impl DistributionValue for Mean {
     fn is_zero(&self) -> bool {
@@ -153,10 +163,21 @@ impl DistributionValue for Mean {
     }
 }
 
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, Deserialize, Serialize, new, Default, Derefable)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Copy,
+    Deserialize,
+    Serialize,
+    new,
+    Default,
+    Derefable,
+)]
 pub(crate) struct Log2FoldChange(#[deref] N32);
-
 
 impl DistributionValue for Log2FoldChange {
     fn is_zero(&self) -> bool {
@@ -164,9 +185,7 @@ impl DistributionValue for Log2FoldChange {
     }
 }
 
-
 //--------------------OutDir--------------------
-
 
 #[derive(Derefable)]
 pub(crate) struct Outdir {
@@ -215,4 +234,3 @@ impl Outdir {
         )?))?)
     }
 }
-

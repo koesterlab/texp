@@ -2,7 +2,7 @@
 
 use std::fs;
 use std::mem;
-use std::path::{Path};
+use std::path::Path;
 
 use anyhow::Result;
 use bio::stats::LogProb;
@@ -10,13 +10,13 @@ use getset::Getters;
 // use itertools_num::linspace;
 use noisy_float::types::N32;
 use rayon::prelude::*;
-use rmp_serde::{Deserializer};
+use rmp_serde::Deserializer;
 use serde::Deserialize as SerdeDeserialize;
 use serde_derive::{Deserialize, Serialize};
 use statrs::function::beta::ln_beta;
 
-use crate::common::{Outdir, MeanDispersionPair};
 use crate::common::{window, ProbDistribution};
+use crate::common::{MeanDispersionPair, Outdir};
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
 
@@ -73,8 +73,13 @@ pub(crate) fn sample_expression(
                         let prob =
                             likelihood_mu_ik_theta_i(d_ij, mu_ik, t_ij, *theta_i, s_j, epsilon);
 
-                        likelihoods
-                            .insert(MeanDispersionPair::new(N32::new(mu_ik as f32), N32::new(*theta_i as f32)), prob);
+                        likelihoods.insert(
+                            MeanDispersionPair::new(
+                                N32::new(mu_ik as f32),
+                                N32::new(*theta_i as f32),
+                            ),
+                            prob,
+                        );
 
                         if prob > max_prob {
                             max_prob = prob;

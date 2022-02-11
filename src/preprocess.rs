@@ -16,7 +16,7 @@ use serde::Serialize as SerdeSerialize;
 use serde_derive::{Deserialize, Serialize};
 
 use crate::errors::Error;
-use crate::kallisto::{KallistoQuant};
+use crate::kallisto::KallistoQuant;
 use crate::prior::{Prior, PriorParameters};
 
 pub(crate) fn preprocess(

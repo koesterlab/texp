@@ -6,16 +6,16 @@ use bio::stats::{LogProb, Prob};
 use rayon;
 use structopt::StructOpt;
 
-use crate::common::{Outdir, MeanDispersionPair};
+use crate::common::{MeanDispersionPair, Outdir};
 
 mod common;
+mod diff_exp;
 mod errors;
 mod group_expression;
 mod kallisto;
 mod preprocess;
 mod prior;
 mod sample_expression;
-mod diff_exp;
 use common::ProbDistribution;
 
 #[derive(StructOpt, Debug)]
@@ -99,8 +99,8 @@ enum Cli {
     GroupExp {
         #[structopt(parse(from_os_str), help = "Paths to sample expressions.")]
         sample_exprs: Vec<PathBuf>,
-//         #[structopt(parse(from_os_str), help = "Path to preprocessed Kallisto results.")]
-//         preprocessing_path: PathBuf,
+        //         #[structopt(parse(from_os_str), help = "Path to preprocessed Kallisto results.")]
+        //         preprocessing_path: PathBuf,
         #[structopt(
             parse(from_os_str),
             long = "preprocessing_path",
@@ -151,11 +151,7 @@ enum Cli {
             help = "Path to preprocessed Kallisto results."
         )]
         preprocessing_path: PathBuf,
-        #[structopt(
-            short = "c",
-            default_value = "0.",
-            help = "Constant c of fold change"
-        )]
+        #[structopt(short = "c", default_value = "0.", help = "Constant c of fold change")]
         c: f64,
         #[structopt(
             parse(from_os_str),
@@ -239,18 +235,17 @@ fn main() -> Result<()> {
         Cli::DiffExp {
             group_path1,
             group_path2,
-            preprocessing_path,            
+            preprocessing_path,
             c,
             out_dir,
             threads,
         } => {
-
             rayon::ThreadPoolBuilder::new()
-            .num_threads(threads)
-            .build_global()
-            .unwrap();
+                .num_threads(threads)
+                .build_global()
+                .unwrap();
 
-            diff_exp::diff_exp(c, &preprocessing_path,  &group_path1, &group_path2, &out_dir)
+            diff_exp::diff_exp(c, &preprocessing_path, &group_path1, &group_path2, &out_dir)
         }
         Cli::ShowSampleExpressions { path, feature_id } => {
             let dir = Outdir::open(&path)?;
