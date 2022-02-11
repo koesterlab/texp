@@ -7,9 +7,6 @@ use anyhow::Result;
 use bio::stats::LogProb;
 use noisy_float::types::N32;
 use rayon::prelude::*;
-// use rmp_serde::{Deserializer, Serializer};
-// use serde::Deserialize as SerdeDeserialize;
-// use serde::Serialize as SerdeSerialize;
 
 use crate::common::{window, Mean, MeanDispersionPair, Outdir, ProbDistribution};
 use crate::errors::Error;

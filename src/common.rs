@@ -20,8 +20,8 @@ use crate::errors::Error;
 pub(crate) fn window(mean: f64) -> (impl Iterator<Item = f64>, impl Iterator<Item = f64>) {
     // TODO: think about larger steps, binary search etc. to optimize instead of just having a fixed number of steps.
     (
-        linspace(mean / 5.0, mean, 15).rev().skip(1),
-        linspace(mean, 5.0 * mean, 25),
+        linspace(mean / 5.0, mean, 20).rev().skip(1),
+        linspace(mean, 5.0 * mean, 30),
     )
 }
 
