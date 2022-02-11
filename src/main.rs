@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
-// use noisy_float::types::N32;
 use rayon;
 use structopt::StructOpt;
 
@@ -20,14 +19,14 @@ use common::ProbDistribution;
 
 #[derive(StructOpt, Debug)]
 #[structopt(
-    name = "bexp",
-    about = "Bayesian framework for gene/transcript expression analysis.",
+    name = "t-exp",
+    about = "Tyrannosaurus Exp: Bayesian framework for gene/transcript expression analysis.",
     setting = structopt::clap::AppSettings::ColoredHelp,
 )]
 enum Cli {
     #[structopt(
         name = "preprocess",
-        about = "Calculate scale factors for each given sample by upper quartile normalization.",
+        about = "Calculate mean and dispersion estimates as well as scale factors for each given sample by upper quartile normalization.",
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     Preprocess {
@@ -69,7 +68,12 @@ enum Cli {
     SampleExp {
         #[structopt(long = "sample-id", help = "ID of sample to process.")]
         sample_id: String,
-        #[structopt(parse(from_os_str), help = "Path to preprocessed Kallisto results.")]
+        #[structopt(
+            parse(from_os_str),
+            long = "preprocessing_path",
+            short = "p",
+            help = "Path to preprocessed Kallisto results."
+        )]
         preprocessing_path: PathBuf,
         #[structopt(
             parse(from_os_str),
@@ -99,8 +103,6 @@ enum Cli {
     GroupExp {
         #[structopt(parse(from_os_str), help = "Paths to sample expressions.")]
         sample_exprs: Vec<PathBuf>,
-        //         #[structopt(parse(from_os_str), help = "Path to preprocessed Kallisto results.")]
-        //         preprocessing_path: PathBuf,
         #[structopt(
             parse(from_os_str),
             long = "preprocessing_path",
@@ -128,20 +130,18 @@ enum Cli {
         setting = structopt::clap::AppSettings::ColoredHelp,
     )]
     DiffExp {
-        // #[structopt(parse(from_os_str))]
-        // groups_exps: Vec<PathBuf>,
         #[structopt(
             parse(from_os_str),
             long = "group_path1",
             short = "g1",
-            help = "Path to group expressions of group 1"
+            help = "Path to group expressions of group 1."
         )]
         group_path1: PathBuf,
         #[structopt(
             parse(from_os_str),
             long = "group_path2",
             short = "g2",
-            help = "Path to group expressions of group 2"
+            help = "Path to group expressions of group 2."
         )]
         group_path2: PathBuf,
         #[structopt(
@@ -151,7 +151,10 @@ enum Cli {
             help = "Path to preprocessed Kallisto results."
         )]
         preprocessing_path: PathBuf,
-        #[structopt(short = "c", default_value = "0.", help = "Constant c of fold change")]
+        #[structopt(
+            short = "c", 
+            default_value = "10", 
+            help = "Pseudo counts c for fold change calculation.")]
         c: f64,
         #[structopt(
             parse(from_os_str),
@@ -244,7 +247,7 @@ fn main() -> Result<()> {
                 .num_threads(threads)
                 .build_global()
                 .unwrap();
-
+            // calculate differential expression between groups
             diff_exp::diff_exp(c, &preprocessing_path, &group_path1, &group_path2, &out_dir)
         }
         Cli::ShowSampleExpressions { path, feature_id } => {
