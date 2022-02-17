@@ -47,7 +47,11 @@ pub(crate) fn group_expression(
                 .map(|sample_expression_path| {
                     let dir = Outdir::open(sample_expression_path)?;
                     let feature_id_with_mpk = format!("{}{}", feature_id, ".mpk");
-                    let fullpath = format!("{}{}", sample_expression_path.to_str().unwrap(), feature_id_with_mpk);
+                    let mut fullpath = format!("{}{}", sample_expression_path.to_str().unwrap(), feature_id_with_mpk);
+                    if sample_expression_path.to_str().unwrap().chars().last().unwrap() != '/' { 
+                        fullpath = format!("{}/{}", sample_expression_path.to_str().unwrap(), feature_id_with_mpk);
+                    }
+                    
                     if Path::new(&fullpath).exists() {
                        let likelihoods: ProbDistribution<MeanDispersionPair> =
                            dir.deserialize_value(feature_id)?;

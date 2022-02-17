@@ -105,6 +105,7 @@ where
     }
 
     pub(crate) fn insert(&mut self, value: V, prob: LogProb) {
+        self.is_na = false;
         self.points.insert(value, prob);
 
         if self.max_prob_value.is_none()
