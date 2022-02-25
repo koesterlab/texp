@@ -21,7 +21,23 @@ pub(crate) fn window(mean: f64) -> (impl Iterator<Item = f64>, impl Iterator<Ite
     // TODO: think about larger steps, binary search etc. to optimize instead of just having a fixed number of steps.
     (
         linspace(mean / 5.0, mean, 20).rev().skip(1),
-        linspace(mean, 5.0 * mean, 30),
+        linspace(mean, 500.0 * mean, 80),
+    )
+}
+
+pub(crate) fn window_x(mean: f64) -> (impl Iterator<Item = f64>, impl Iterator<Item = f64>) {
+    // TODO: think about larger steps, binary search etc. to optimize instead of just having a fixed number of steps.
+    (
+        linspace(0.0, 50., 51),
+        linspace(51., 500., 450),
+    )
+}
+
+pub(crate) fn window_f(max_prob_fold_change: f64) -> (impl Iterator<Item = f64>, impl Iterator<Item = f64>) {
+    // TODO: think about larger steps, binary search etc. to optimize instead of just having a fixed number of steps.
+    (
+        linspace(max_prob_fold_change / 5.0, max_prob_fold_change, 20).rev().skip(1),
+        linspace(max_prob_fold_change, 30.0 * max_prob_fold_change, 30),
     )
 }
 

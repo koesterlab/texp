@@ -7,7 +7,7 @@ use bio::stats::LogProb;
 use noisy_float::types::N32;
 use rayon::prelude::*;
 
-use crate::common::{window, Log2FoldChange, Mean, Outdir, ProbDistribution};
+use crate::common::{window_f, Log2FoldChange, Mean, Outdir, ProbDistribution};
 use crate::preprocess::Preprocessing;
 
 pub(crate) fn diff_exp(
@@ -41,7 +41,7 @@ pub(crate) fn diff_exp(
                 *prob_dist_i_k1.get_max_prob_value().unwrap() / max_prob_value2;
 
             // Step 1: use window() to determine range around max_prob_fold_change
-            let (left_window, right_window) = window(f64::from(max_prob_fold_change));
+            let (left_window, right_window) = window_f(f64::from(max_prob_fold_change));
 
             let mut diff_exp_distribution = ProbDistribution::<Log2FoldChange>::default();
 

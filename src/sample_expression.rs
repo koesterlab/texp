@@ -15,7 +15,7 @@ use serde::Deserialize as SerdeDeserialize;
 use serde_derive::{Deserialize, Serialize};
 use statrs::function::beta::ln_beta;
 
-use crate::common::{window, ProbDistribution};
+use crate::common::{window, window_x, ProbDistribution};
 use crate::common::{MeanDispersionPair, Outdir};
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
@@ -35,6 +35,10 @@ pub(crate) fn sample_expression(
             .ok_or(Error::UnknownSampleId {
                 sample_id: sample_id.to_owned(),
             })?;
+    let group_means = 
+        preprocessing
+            .group_means();
+            
     let s_j = preprocessing
         .scale_factors()
         .get(sample_id)
@@ -48,7 +52,10 @@ pub(crate) fn sample_expression(
     feature_ids
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
-            let d_ij = mean_disp_estimates.means()[*i];
+            let debug_print = false; //**feature_id == String::from("ENST00000643797.1");
+            let d_ij = mean_disp_estimates.means()[*i]; //TODO Do we need group mean mu_ik instead of sample mean
+            let d_ik = group_means[*i];
+            println!("i {:?}, d_ij {:?}, d_ik{:?}", i, d_ij, d_ik);
             // METHOD: If the per-sample dispersion is unknown, fall back to a mean interpolated from the other samples.
             let t_ij = if let Some(t_ij) = mean_disp_estimates.dispersions()[*i] {
                 t_ij
@@ -62,7 +69,8 @@ pub(crate) fn sample_expression(
             let max_prob = prob_mu_ik_theta_i_x(d_ij, d_ij, d_ij, t_ij, prior.mean(), s_j);
             let prob_threshold = LogProb(*max_prob - 10.0f64.ln());
 
-            let (mu_ik_left_window, mu_ik_right_window) = window(d_ij);
+            let (mu_ik_left_window, mu_ik_right_window) = window(d_ik);
+
 
             let mut likelihoods = ProbDistribution::default();
 
@@ -85,9 +93,9 @@ pub(crate) fn sample_expression(
                             max_prob = prob;
                         }
 
-                        if prob < prob_threshold {
-                            break;
-                        }
+                        // if prob < prob_threshold {
+                        //     // break;
+                        // }
                     }
                 };
                 process_window(prior.left_window());
@@ -98,13 +106,13 @@ pub(crate) fn sample_expression(
 
             for mu_ik in mu_ik_left_window {
                 if likelihood_mu_ik(mu_ik) < prob_threshold {
-                    break;
+                    // break;
                 }
             }
 
             for mu_ik in mu_ik_right_window {
                 if likelihood_mu_ik(mu_ik) < prob_threshold {
-                    break;
+                    // break;
                 }
             }
 
@@ -158,7 +166,7 @@ fn likelihood_mu_ik_theta_i(
     epsilon: LogProb,
 ) -> LogProb {
     // TODO determine whether this is the best window given that we also have access to mu_ik here.
-    let (x_left_window, x_right_window) = window(d_ij);
+    let (x_left_window, x_right_window) = window_x(d_ij);
 
     let prob = |x| prob_mu_ik_theta_i_x(x, d_ij, mu_ik, t_ij, theta_i, s_j);
 
@@ -169,8 +177,8 @@ fn likelihood_mu_ik_theta_i(
     LogProb::ln_sum_exp(
         &x_left_window
             .map(&prob)
-            .take_while(&is_informative)
-            .chain(x_right_window.map(&prob).take_while(&is_informative))
+            // .take_while(&is_informative)
+            .chain(x_right_window.map(&prob))//.take_while(&is_informative))
             .collect::<Vec<_>>(),
     )
 }
