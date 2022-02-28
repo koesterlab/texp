@@ -15,7 +15,7 @@ use serde::Deserialize as SerdeDeserialize;
 use serde_derive::{Deserialize, Serialize};
 use statrs::function::beta::ln_beta;
 
-use crate::common::{window, window_x, ProbDistribution};
+use crate::common::{window, window_x, ProbDistribution, ProbDistribution2d};
 use crate::common::{MeanDispersionPair, Outdir};
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
@@ -72,7 +72,8 @@ pub(crate) fn sample_expression(
             let (mu_ik_left_window, mu_ik_right_window) = window(d_ik);
 
 
-            let mut likelihoods = ProbDistribution::default();
+            // let mut points = LinkedList::<[f64;2]>::new();
+            let mut likelihoods = ProbDistribution2d::new();
 
             let mut likelihood_mu_ik = |mu_ik| {
                 let mut max_prob = LogProb::ln_zero();
@@ -81,13 +82,7 @@ pub(crate) fn sample_expression(
                         let prob =
                             likelihood_mu_ik_theta_i(d_ij, mu_ik, t_ij, *theta_i, s_j, epsilon);
 
-                        likelihoods.insert(
-                            MeanDispersionPair::new(
-                                N32::new(mu_ik as f32),
-                                N32::new(*theta_i as f32),
-                            ),
-                            prob,
-                        );
+                        likelihoods.insert(mu_ik, *theta_i, prob);
 
                         if prob > max_prob {
                             max_prob = prob;

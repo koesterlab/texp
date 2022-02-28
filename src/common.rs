@@ -7,6 +7,8 @@ use bio::stats::LogProb;
 use derefable::Derefable;
 use derive_new::new;
 use itertools_num::linspace;
+use kdtree::KdTree;
+use kdtree::distance::squared_euclidean;
 use noisy_float::prelude::Float;
 use noisy_float::types::N32;
 use rmp_serde::{Deserializer, Serializer};
@@ -53,13 +55,77 @@ pub(crate) fn interpolate_pmf(
         .ln_add_exp(prob_upper + LogProb(f64::from(((value - lower) / len).ln())))
 }
 
-//--------------------ProbDistribution --------------------
+//--------------------ProbDistribution based on KdTree --------------------
 
-/// Datastructure for storing probability distributions. Points is a BTreeMap assigning value V -> probability in LogProb
+/// Datastructure for storing sample expression probability distributions. kdtree is a 2 dimensional kdTree with data = probability in LogProb.
+#[derive(Serialize, Debug)]
+pub(crate) struct ProbDistribution2d<'a>
+{
+    pub kdtree: KdTree<f64, LogProb, &'a [f64]>,
+    max_prob_value: Option<[f64;2]>,
+    is_na: bool,
+}
+
+impl<'a>  ProbDistribution2d<'a> {
+    pub(crate) fn new() -> Self {
+        ProbDistribution2d {
+            kdtree: KdTree::new(2), // 2 dimensional kdTree
+            max_prob_value: None,
+            is_na: false,
+        }
+    }
+
+
+    // pub(crate) fn na() -> Self {
+    //     ProbDistribution2d {
+    //         kdtree: KdTree::new(2),
+    //         max_prob_value: None,
+    //         is_na: true,
+    //     }
+    // }
+
+    pub(crate) fn len(&self) -> usize {
+        self.kdtree.size()
+    }
+
+    pub(crate) fn get_max_prob_value(&self) -> [f64;2] {
+        self.max_prob_value.unwrap()
+    }
+
+    pub(crate) fn insert(&'a mut self, mu: f64, theta: f64, prob: LogProb) {
+        let value : [f64;2]  = [mu,theta];
+        if self.is_na
+            || self.kdtree.nearest(&value, 1, &squared_euclidean).unwrap()[0].1 < &prob
+        {
+            self.max_prob_value = Some(value);
+        }
+        
+        self.kdtree.add(&value, prob);
+        self.is_na = false;
+    }
+
+    pub(crate) fn get(&self, value: &'a [f64]) -> LogProb {
+        // println!("value {:?}", value);
+        if self.is_na {
+            if value[0] == 0.0 { // mean 0
+                LogProb::ln_one()
+            } else {
+                LogProb::ln_zero()
+            }
+        } else {
+            *self.kdtree.nearest(&value, 1, &squared_euclidean).unwrap()[0].1
+        }
+    }
+}
+
+
+
+
+/// Datastructure for storing probability distributions. kdtree is a BTreeMap assigning value V -> probability in LogProb
 #[derive(Deserialize, Serialize, Debug, Default)]
 pub(crate) struct ProbDistribution<V>
 where
-    V: Ord + Eq + Copy + DistributionValue,
+    V: Ord + Eq + Copy + DistributionValue + std::fmt::Debug,
 {
     pub points: BTreeMap<V, LogProb>,
     max_prob_value: Option<V>,
