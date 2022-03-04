@@ -58,31 +58,31 @@ pub(crate) fn interpolate_pmf(
 //--------------------ProbDistribution based on KdTree --------------------
 
 /// Datastructure for storing sample expression probability distributions. kdtree is a 2 dimensional kdTree with data = probability in LogProb.
-#[derive(Serialize, Debug)]
-pub(crate) struct ProbDistribution2d<'a>
+#[derive(Serialize, Deserialize, Debug)]
+pub(crate) struct ProbDistribution2d
 {
-    pub kdtree: KdTree<f64, LogProb, &'a [f64]>,
+    pub kdtree: KdTree<f64, LogProb, [f64;2] >,
     max_prob_value: Option<[f64;2]>,
     is_na: bool,
 }
 
-impl<'a>  ProbDistribution2d<'a> {
+impl  ProbDistribution2d {
     pub(crate) fn new() -> Self {
         ProbDistribution2d {
             kdtree: KdTree::new(2), // 2 dimensional kdTree
             max_prob_value: None,
-            is_na: false,
+            is_na: true,
         }
     }
 
 
-    // pub(crate) fn na() -> Self {
-    //     ProbDistribution2d {
-    //         kdtree: KdTree::new(2),
-    //         max_prob_value: None,
-    //         is_na: true,
-    //     }
-    // }
+    pub(crate) fn na() -> Self {
+        ProbDistribution2d {
+            kdtree: KdTree::new(2),
+            max_prob_value: None,
+            is_na: true,
+        }
+    }
 
     pub(crate) fn len(&self) -> usize {
         self.kdtree.size()
@@ -92,7 +92,7 @@ impl<'a>  ProbDistribution2d<'a> {
         self.max_prob_value.unwrap()
     }
 
-    pub(crate) fn insert(&'a mut self, mu: f64, theta: f64, prob: LogProb) {
+    pub(crate) fn insert(&mut self, mu: f64, theta: f64, prob: LogProb) -> Result<()> {
         let value : [f64;2]  = [mu,theta];
         if self.is_na
             || self.kdtree.nearest(&value, 1, &squared_euclidean).unwrap()[0].1 < &prob
@@ -100,11 +100,12 @@ impl<'a>  ProbDistribution2d<'a> {
             self.max_prob_value = Some(value);
         }
         
-        self.kdtree.add(&value, prob);
+        self.kdtree.add(value, prob)?;
         self.is_na = false;
+        Ok(())
     }
 
-    pub(crate) fn get(&self, value: &'a [f64]) -> LogProb {
+    pub(crate) fn get(&self, value: &[f64]) -> LogProb {
         // println!("value {:?}", value);
         if self.is_na {
             if value[0] == 0.0 { // mean 0
@@ -116,6 +117,82 @@ impl<'a>  ProbDistribution2d<'a> {
             *self.kdtree.nearest(&value, 1, &squared_euclidean).unwrap()[0].1
         }
     }
+}
+
+
+/// Datastructure for storing group expression probability distributions and fold change distributions. kdtree is a 1 dimensional kdTree with data = probability in LogProb.
+#[derive(Serialize, Deserialize, Debug)]
+pub(crate) struct ProbDistribution1d
+{
+    pub kdtree: KdTree<f64, LogProb, [f64;1] >,
+    max_prob_value: Option<f64>,
+    is_na: bool,
+}
+
+impl  ProbDistribution1d {
+    pub(crate) fn new() -> Self {
+        ProbDistribution1d {
+            kdtree: KdTree::with_capacity(1, 32), // 2 dimensional kdTree
+            max_prob_value: None,
+            is_na: true,
+        }
+    }
+
+
+    pub(crate) fn na() -> Self {
+        ProbDistribution1d {
+            kdtree: KdTree::new(1),
+            max_prob_value: None,
+            is_na: true,
+        }
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.kdtree.size()
+    }
+
+    pub(crate) fn get_max_prob_value(&self) -> f64 {
+        self.max_prob_value.unwrap()
+    }
+
+    pub(crate) fn insert(&mut self, value: f64, prob: LogProb) -> Result<()> {
+        let value2 = [value];
+        if self.is_na
+            || self.kdtree.nearest(&value2, 1, &squared_euclidean).unwrap()[0].1 < &prob
+        {
+            self.max_prob_value = Some(value2[0]);
+        }
+        
+        self.kdtree.add(value2, prob)?;
+        self.is_na = false;
+        Ok(())
+    }
+
+    pub(crate) fn get(&self, value: f64) -> LogProb {
+        // println!("value {:?}", value);
+        if self.is_na {
+            if value == 0.0 { // mean or fold change 0
+                LogProb::ln_one()
+            } else {
+                LogProb::ln_zero()
+            }
+        } else {
+            let value = [value];
+            *self.kdtree.nearest(&value, 1, &squared_euclidean).unwrap()[0].1
+        }
+    }
+
+    // pub(crate) fn normalize(&mut self) -> LogProb {
+    //     let marginal = LogProb::ln_trapezoidal_integrate_grid_exp(
+    //         |i, value| *self.points.get(&Mean::new(value)).unwrap(),
+    //         &self.points.keys().map(|value| **value).collect::<Vec<_>>(),
+    //     );
+    //     // println!("norm faktor {:?}", marginal);
+    //     for prob in self.points.values_mut() {
+    //         *prob = *prob - marginal //Logspace / -> -
+    //     }
+    //     marginal
+    // }
 }
 
 

@@ -1,17 +1,18 @@
 //! This implements formula 9 of the document and calculates the fold change / differential expression.
 
 use std::path::Path;
+use std::mem;
 
 use anyhow::Result;
 use bio::stats::LogProb;
 use noisy_float::types::N32;
 use rayon::prelude::*;
 
-use crate::common::{window_f, Log2FoldChange, Mean, Outdir, ProbDistribution};
+use crate::common::{window_f, Log2FoldChange, Mean, Outdir, ProbDistribution1d};
 use crate::preprocess::Preprocessing;
 
 pub(crate) fn diff_exp(
-    c: f32,
+    c: f64,
     preprocessing: &Path,
     group_path1: &Path,
     group_path2: &Path,
@@ -28,41 +29,57 @@ pub(crate) fn diff_exp(
     feature_ids
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
-            let prob_dist_i_k1: ProbDistribution<Mean> = in_dir1.deserialize_value(feature_id)?;
-            let prob_dist_i_k2: ProbDistribution<Mean> = in_dir2.deserialize_value(feature_id)?;
+            let mut prob_dist_i_k1: ProbDistribution1d = in_dir1.deserialize_value(feature_id)?;
+            let mut prob_dist_i_k2: ProbDistribution1d = in_dir2.deserialize_value(feature_id)?;
 
-            let mut max_prob_value2 = *prob_dist_i_k2.get_max_prob_value().unwrap();
-            let max_prob_value2 = if max_prob_value2 != 0. {
+            let mut max_prob_value1 = prob_dist_i_k1.get_max_prob_value();
+            let mut max_prob_value2 = prob_dist_i_k2.get_max_prob_value();
+            let mut max_prob_value2 = if max_prob_value2 != 0. {
                 max_prob_value2
             } else {
-                N32::new(1.)
+                1.
             }; // Avoid division by zero
-            let max_prob_fold_change =
-                *prob_dist_i_k1.get_max_prob_value().unwrap() / max_prob_value2;
+            let max_prob_fold_change = max_prob_value1 / max_prob_value2;
+
+            if max_prob_value1 < max_prob_value2 { // Ensure that maximum of prob_dist_k1 is left of prob_dist_k2
+                mem::swap(&mut prob_dist_i_k1, &mut prob_dist_i_k2);
+                mem::swap(&mut max_prob_value1, &mut max_prob_value2);
+            }
 
             // Step 1: use window() to determine range around max_prob_fold_change
-            let (left_window, right_window) = window_f(f64::from(max_prob_fold_change));
+            let (left_window, right_window) = window_f(max_prob_fold_change);
 
-            let mut diff_exp_distribution = ProbDistribution::<Log2FoldChange>::default();
+            let mut diff_exp_distribution = ProbDistribution1d::new();
 
-            let mut calc_prob = |f| {
+            let mut calc_prob = |f : f64| {
+                let f_max_i_k2 = (-f * c + c + max_prob_value1) / f;
                  // for x, iterate over values in prob_dist_i_k1, the value for looking up in prob_dist_i_k2 is f * (x + c) - c
-                let prob = LogProb::ln_trapezoidal_integrate_grid_exp(
-                    |i, value| {
-                        prob_dist_i_k1.get(&Mean::new(value))
-                            + prob_dist_i_k2.get(&Mean::new(
-                                (N32::new(f as f32) * (value + N32::new(c)))
-                                    - N32::new(c),
-                            ))
-                    },
-                    &prob_dist_i_k1
-                        .points
-                        .keys()
-                        .map(|value| **value)
-                        .collect::<Vec<_>>(),
+                // let prob = LogProb::ln_trapezoidal_integrate_grid_exp(
+                //     |i, &value| {
+                //         prob_dist_i_k1.get(&value)
+                //             + prob_dist_i_k2.get(&[(N32::new(f as f32) * (value[0] + N32::new(c))- N32::new(c))])
+                //     },
+                    // &prob_dist_i_k1
+                    //     .points
+                    //     .keys()
+                    //     .map(|value| **value)
+                    //     .collect::<Vec<_>>(),
+                // );
+
+
+                let density = |i : usize, x :f64 | {
+                    prob_dist_i_k1.get(x).ln_add_exp(prob_dist_i_k2.get((f * (x + c)-c)))
+                };
+    
+                let mut prob = LogProb::ln_simpsons_integrate_exp(
+                    density,
+                    0.,
+                    15.,
+                    11,
                 );
 
-                diff_exp_distribution.insert(Log2FoldChange::new(N32::new(f as f32)), prob);
+                let prob = LogProb::ln_one();
+                diff_exp_distribution.insert(f, prob);
 
                 prob
             };

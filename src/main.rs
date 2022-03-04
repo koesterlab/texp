@@ -155,7 +155,7 @@ enum Cli {
             short = "c", 
             default_value = "10", 
             help = "Pseudo counts c for fold change calculation.")]
-        c: f32,
+        c: f64,
         #[structopt(
             parse(from_os_str),
             long = "output",
