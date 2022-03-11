@@ -8,7 +8,9 @@ use bio::stats::LogProb;
 use noisy_float::types::N32;
 use rayon::prelude::*;
 
-use crate::common::{window, Mean, MeanDispersionPair, Outdir, ProbDistribution1d, ProbDistribution2d};
+use crate::common::{
+    window, Mean, MeanDispersionPair, Outdir, ProbDistribution1d, ProbDistribution2d,
+};
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
 use crate::sample_expression::SampleInfo;
@@ -46,20 +48,33 @@ pub(crate) fn group_expression(
                 .map(|sample_expression_path| {
                     let dir = Outdir::open(sample_expression_path)?;
                     let feature_id_with_mpk = format!("{}{}", feature_id, ".mpk");
-                    let mut fullpath = format!("{}{}", sample_expression_path.to_str().unwrap(), feature_id_with_mpk);
-                    if sample_expression_path.to_str().unwrap().chars().last().unwrap() != '/' { 
-                        fullpath = format!("{}/{}", sample_expression_path.to_str().unwrap(), feature_id_with_mpk);
+                    let mut fullpath = format!(
+                        "{}{}",
+                        sample_expression_path.to_str().unwrap(),
+                        feature_id_with_mpk
+                    );
+                    if sample_expression_path
+                        .to_str()
+                        .unwrap()
+                        .chars()
+                        .last()
+                        .unwrap()
+                        != '/'
+                    {
+                        fullpath = format!(
+                            "{}/{}",
+                            sample_expression_path.to_str().unwrap(),
+                            feature_id_with_mpk
+                        );
                     }
-                    
+
                     if Path::new(&fullpath).exists() {
-                       let likelihoods: ProbDistribution2d =
-                           dir.deserialize_value(feature_id)?;
-                       Ok(likelihoods)
+                        let likelihoods: ProbDistribution2d = dir.deserialize_value(feature_id)?;
+                        Ok(likelihoods)
                     } else {
                         // println!("{:?}", feature_id);
                         Ok(ProbDistribution2d::na())
                     }
-
                 })
                 .collect::<Result<Vec<_>>>()?;
             let maximum_likelihood_mean = maximum_likelihood_means.iter().sum::<f64>()
@@ -82,10 +97,10 @@ pub(crate) fn group_expression(
                         })
                         .sum::<LogProb>() + //Formula 5
                         LogProb(*prior.prob(theta_i) * 2.0); // square of Pr(theta_i), formula 8
-                    // println!("i {:?}, mu_ik {:?}, theta_i {:?}, summand_theta_i {:?}, density {:?}",i, mu_ik, theta_i, LogProb(*prior.prob(theta_i) * 2.0),  d);
+                                                             // println!("i {:?}, mu_ik {:?}, theta_i {:?}, summand_theta_i {:?}, density {:?}",i, mu_ik, theta_i, LogProb(*prior.prob(theta_i) * 2.0),  d);
                     d
                 };
-                
+
                 // Result of formula 7.
                 let prob = LogProb::ln_simpsons_integrate_exp(
                     density,
@@ -105,11 +120,11 @@ pub(crate) fn group_expression(
             for mu_ik in right_window {
                 calc_prob(mu_ik);
             }
-            // TODO !!!!
-            // let norm_factor = prob_dist.normalize(); // remove factor c_ik
-            // if **feature_id == String::from("ENST00000671775.2"){
-            //     println!("norm faktor {:?}", norm_factor);
-            // }
+
+            let norm_factor = prob_dist.normalize(); // remove factor c_ik
+            if **feature_id == String::from("ENST00000671775.2") {
+                println!("norm faktor {:?}", norm_factor);
+            }
             out_dir.serialize_value(feature_id, prob_dist)?;
             Ok(())
         })?;

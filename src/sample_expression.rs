@@ -7,7 +7,6 @@ use std::path::Path;
 use anyhow::Result;
 use bio::stats::LogProb;
 use getset::Getters;
-// use itertools_num::linspace;
 use noisy_float::types::N32;
 use rayon::prelude::*;
 use rmp_serde::Deserializer;
@@ -35,10 +34,8 @@ pub(crate) fn sample_expression(
             .ok_or(Error::UnknownSampleId {
                 sample_id: sample_id.to_owned(),
             })?;
-    let group_means = 
-        preprocessing
-            .group_means();
-            
+    let group_means = preprocessing.group_means();
+
     let s_j = preprocessing
         .scale_factors()
         .get(sample_id)
@@ -55,7 +52,7 @@ pub(crate) fn sample_expression(
             let debug_print = false; //**feature_id == String::from("ENST00000643797.1");
             let d_ij = mean_disp_estimates.means()[*i]; //TODO Do we need group mean mu_ik instead of sample mean
             let d_ik = group_means[*i];
-            println!("i {:?}, d_ij {:?}, d_ik{:?}", i, d_ij, d_ik);
+            // println!("i {:?}, d_ij {:?}, d_ik{:?}", i, d_ij, d_ik);
             // METHOD: If the per-sample dispersion is unknown, fall back to a mean interpolated from the other samples.
             let t_ij = if let Some(t_ij) = mean_disp_estimates.dispersions()[*i] {
                 t_ij
@@ -173,7 +170,7 @@ fn likelihood_mu_ik_theta_i(
         &x_left_window
             .map(&prob)
             // .take_while(&is_informative)
-            .chain(x_right_window.map(&prob))//.take_while(&is_informative))
+            .chain(x_right_window.map(&prob)) //.take_while(&is_informative))
             .collect::<Vec<_>>(),
     )
 }
