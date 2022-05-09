@@ -8,7 +8,7 @@ use bio::stats::LogProb;
 use noisy_float::types::N32;
 use rayon::prelude::*;
 
-use crate::common::{window, Mean, MeanDispersionPair, Outdir};
+use crate::common::{window, Outdir};
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
 use crate::prob_distribution_1d::ProbDistribution1d;

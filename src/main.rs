@@ -5,7 +5,7 @@ use bio::stats::{LogProb, Prob};
 use rayon;
 use structopt::StructOpt;
 
-use crate::common::{MeanDispersionPair, Outdir};
+use crate::common::Outdir;
 
 mod common;
 mod diff_exp;
@@ -17,7 +17,7 @@ mod prior;
 mod prob_distribution_1d;
 mod prob_distribution_2d;
 mod sample_expression;
-use common::ProbDistribution;
+// use prob_distribution_2d::ProbDistribution2d;
 
 #[derive(StructOpt, Debug)]
 #[structopt(
@@ -255,9 +255,9 @@ fn main() -> Result<()> {
         }
         Cli::ShowSampleExpressions { path, feature_id } => {
             let dir = Outdir::open(&path)?;
-            let expr: ProbDistribution<MeanDispersionPair> = dir.deserialize_value(&feature_id)?;
+            // let expr: ProbDistribution<MeanDispersionPair> = dir.deserialize_value(&feature_id)?;
             // TODO output as tsv (use csv crate)
-            dbg!(&expr);
+            // dbg!(&expr);
             Ok(())
         }
     }

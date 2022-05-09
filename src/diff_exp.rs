@@ -11,7 +11,7 @@ use noisy_float::types::N32;
 use noisy_float::types::N64;
 use rayon::prelude::*;
 
-use crate::common::{window_f, Log2FoldChange, Mean, Outdir};
+use crate::common::{window_f, Outdir};
 use crate::preprocess::Preprocessing;
 use crate::prob_distribution_1d::ProbDistribution1d;
 

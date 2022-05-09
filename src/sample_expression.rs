@@ -15,8 +15,7 @@ use serde::Deserialize as SerdeDeserialize;
 use serde_derive::{Deserialize, Serialize};
 use statrs::function::beta::ln_beta;
 
-use crate::common::{window, window_x, ProbDistribution};
-use crate::common::{MeanDispersionPair, Outdir};
+use crate::common::{window, window_x, Outdir};
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
 use crate::prob_distribution_2d::ProbDistribution2d;

@@ -57,7 +57,6 @@ pub(crate) fn interpolate_pmf(
         .ln_add_exp(prob_upper + LogProb(f64::from(((value - lower) / len).ln())))
 }
 
-
 //--------------------OutDir--------------------
 
 #[derive(Derefable)]
