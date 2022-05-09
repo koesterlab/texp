@@ -8,9 +8,11 @@ use std::collections::LinkedList;
 use anyhow::Result;
 use bio::stats::LogProb;
 use noisy_float::types::N32;
+use noisy_float::types::N64;
 use rayon::prelude::*;
 
-use crate::common::{window_f, Log2FoldChange, Mean, Outdir, ProbDistribution1d};
+use crate::common::{window_f, Log2FoldChange, Mean, Outdir};
+use crate::prob_distribution_1d::ProbDistribution1d;
 use crate::preprocess::Preprocessing;
 
 

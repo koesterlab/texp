@@ -9,8 +9,10 @@ use noisy_float::types::N32;
 use rayon::prelude::*;
 
 use crate::common::{
-    window, Mean, MeanDispersionPair, Outdir, ProbDistribution1d, ProbDistribution2d,
+    window, Mean, MeanDispersionPair, Outdir,
 };
+use crate::prob_distribution_2d::ProbDistribution2d;
+use crate::prob_distribution_1d::ProbDistribution1d;
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
 use crate::sample_expression::SampleInfo;
