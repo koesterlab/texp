@@ -1,8 +1,7 @@
+use std::cmp::min;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::cmp::min;
-
 
 use anyhow::Result;
 use bio::stats::LogProb;
@@ -59,12 +58,10 @@ pub(crate) fn interpolate_pmf(
         .ln_add_exp(prob_upper + LogProb(f64::from(((value - lower) / len).ln())))
 }
 
-
-
 /// Datastructure for storing group expression probability distributions and fold change distributions. kdtree is a 1 dimensional kdTree with data = probability in LogProb.
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct ProbDistribution1d {
-    points: BTreeMap<N64, (LogProb, f64,LogProb)>,
+    points: BTreeMap<N64, (LogProb, f64, LogProb)>,
     // pub kdtree: KdTree<f64, LogProb, [f64; 1]>,
     max_prob_value: Option<f64>,
     is_na: bool,
@@ -98,19 +95,26 @@ impl ProbDistribution1d {
         self.max_prob_value.unwrap()
     }
 
-    fn calc_directions(x1:f64, y1:LogProb, s1:f64, x2:f64, y2:LogProb, s2:f64) -> (f64, LogProb, f64) {
+    fn calc_directions(
+        x1: f64,
+        y1: LogProb,
+        s1: f64,
+        x2: f64,
+        y2: LogProb,
+        s2: f64,
+    ) -> (f64, LogProb, f64) {
         let y1_ = f64::from(y1).exp();
         let y2_ = f64::from(y2).exp();
-        let d1 =  0.; // (x1/(x1*x1+ y1_*y1_).sqrt() + x2/(x2*x2+ y2_*y2_).sqrt()); // is f64
+        let d1 = 0.; // (x1/(x1*x1+ y1_*y1_).sqrt() + x2/(x2*x2+ y2_*y2_).sqrt()); // is f64
 
         let x1_ = LogProb(x1.abs().ln());
         let x2_ = LogProb(x2.abs().ln());
         let mut left = LogProb::ln_zero();
-        if !(y1 == LogProb::ln_zero() && x1 == 0.){
+        if !(y1 == LogProb::ln_zero() && x1 == 0.) {
             left = y1 - LogProb(f64::from((x1_ + x1_).ln_add_exp(y1 + y1)) / 2.);
         }
         let mut right = LogProb::ln_zero();
-        if !(y2 == LogProb::ln_zero() && x2 == 0.){        
+        if !(y2 == LogProb::ln_zero() && x2 == 0.) {
             right = y2 - LogProb(f64::from((x2_ + x2_).ln_add_exp(y2 + y2)) / 2.);
         }
         let mut d2 = LogProb::ln_zero();
@@ -126,7 +130,11 @@ impl ProbDistribution1d {
         (d1, d2, new_s)
     }
 
-    fn calc_sign_params(lower_prob:LogProb, prob:LogProb, upper_prob:LogProb) -> (f64, LogProb, f64, LogProb) {
+    fn calc_sign_params(
+        lower_prob: LogProb,
+        prob: LogProb,
+        upper_prob: LogProb,
+    ) -> (f64, LogProb, f64, LogProb) {
         let mut sign1 = 1.;
         let mut param1 = LogProb::ln_zero();
         // Upper and lower bound is there
@@ -149,9 +157,8 @@ impl ProbDistribution1d {
     }
 
     pub(crate) fn insert(&mut self, value: f64, prob: LogProb) -> Result<()> {
-        if value == f64::INFINITY{
+        if value == f64::INFINITY {
             println!("value inf, prob {:?}, size {:?}", prob, self.points.len());
-
         }
         let value2 = [value];
         // if self.is_na || self.kdtree.nearest(&value2, 1, &squared_euclidean).unwrap()[0].1 < &prob {
@@ -159,9 +166,16 @@ impl ProbDistribution1d {
         // }
         // self.kdtree.add(value2, prob)?;
 
-        if self.is_na || self.points.get(&N64::new(self.max_prob_value.unwrap())).unwrap().0 < prob {
+        if self.is_na
+            || self
+                .points
+                .get(&N64::new(self.max_prob_value.unwrap()))
+                .unwrap()
+                .0
+                < prob
+        {
             self.max_prob_value = Some(value2[0]);
-        }        
+        }
         self.is_na = false;
         let mut d1 = 1.;
         let mut d2 = LogProb::ln_zero();
@@ -171,63 +185,83 @@ impl ProbDistribution1d {
         let mut lp_d2 = LogProb::ln_zero();
 
         {
-        // let upper = self.points.range(N64::new(value)..).next();
-        // let lower = self.points.range(..=N64::new(value)).last();
-        let mut upper_it = self.points.range(N64::new(value)..);
-        let upper = upper_it.next();
-        let upper_next = upper_it.next();
-        let mut lower_it = self.points.range(..=N64::new(value)).rev();
-        let lower = lower_it.next();
-        let lower_prev = lower_it.next();
+            // let upper = self.points.range(N64::new(value)..).next();
+            // let lower = self.points.range(..=N64::new(value)).last();
+            let mut upper_it = self.points.range(N64::new(value)..);
+            let upper = upper_it.next();
+            let upper_next = upper_it.next();
+            let mut lower_it = self.points.range(..=N64::new(value)).rev();
+            let lower = lower_it.next();
+            let lower_prev = lower_it.next();
 
-        if let Some((upper, (upper_prob, ud1, ud2))) = upper {
-            if let Some((lower, (lower_prob, ld1, ld2))) = lower {
-                let (sign1, param1, sign2, param2) = ProbDistribution1d::calc_sign_params(*lower_prob, prob, *upper_prob);
-                let (local_d1, local_d2, local_s) = 
-                    ProbDistribution1d::calc_directions(
-                        lower.raw()-value, param1, sign1, upper.raw()-value, param2, sign2);
-                // d1 = local_d1;
-                // d1 was changed to s1 Vorzeichen der LogProb, um negative LogProbs speichern zu können
-                d1 = local_s;
-                d2 = local_d2;
+            if let Some((upper, (upper_prob, ud1, ud2))) = upper {
+                if let Some((lower, (lower_prob, ld1, ld2))) = lower {
+                    let (sign1, param1, sign2, param2) =
+                        ProbDistribution1d::calc_sign_params(*lower_prob, prob, *upper_prob);
+                    let (local_d1, local_d2, local_s) = ProbDistribution1d::calc_directions(
+                        lower.raw() - value,
+                        param1,
+                        sign1,
+                        upper.raw() - value,
+                        param2,
+                        sign2,
+                    );
+                    // d1 = local_d1;
+                    // d1 was changed to s1 Vorzeichen der LogProb, um negative LogProbs speichern zu können
+                    d1 = local_s;
+                    d2 = local_d2;
 
-                if let Some((upper_next, (upper_next_prob, u_next_d1, u_next_d2))) = upper_next {
-                    un_d1 = *u_next_d1;
-                    un_d2 = *u_next_d2;
-                }
-                if let Some((lower_prev, (lower_prev_prob, l_prev_d1, l_prev_d2))) = lower_prev {
-                    lp_d1 = *l_prev_d1;
-                    lp_d2 = *l_prev_d2;
+                    if let Some((upper_next, (upper_next_prob, u_next_d1, u_next_d2))) = upper_next
+                    {
+                        un_d1 = *u_next_d1;
+                        un_d2 = *u_next_d2;
+                    }
+                    if let Some((lower_prev, (lower_prev_prob, l_prev_d1, l_prev_d2))) = lower_prev
+                    {
+                        lp_d1 = *l_prev_d1;
+                        lp_d2 = *l_prev_d2;
+                    }
                 }
             }
+            //     If only one bound or neither upper nor lower bound  are there
+            //     d1 and d2 default to 0
         }
-        //     If only one bound or neither upper nor lower bound  are there
-        //     d1 and d2 default to 0 
-        }
-        
+
         {
             let upper = self.points.range_mut(N64::new(value)..).next();
-            if let Some((upper, (upper_prob, ud1, ud2))) = upper{
-                let (sign1, param1, sign2, param2) = ProbDistribution1d::calc_sign_params(prob, *upper_prob, un_d2);
-                let (local_d1, local_d2, local_s) = 
-                    ProbDistribution1d::calc_directions(
-                        // lower.raw()-value, lower_prob.ln_sub_exp(prob), upper.raw()-value, upper_prob.ln_sub_exp(prob));
-                        // value-upper.raw(), prob.ln_sub_exp(*upper_prob), un_d1-upper.raw(), un_d2.ln_sub_exp(*upper_prob));
-                        value-upper.raw(), param1, sign1, un_d1-upper.raw(), param2, sign2);
+            if let Some((upper, (upper_prob, ud1, ud2))) = upper {
+                let (sign1, param1, sign2, param2) =
+                    ProbDistribution1d::calc_sign_params(prob, *upper_prob, un_d2);
+                let (local_d1, local_d2, local_s) = ProbDistribution1d::calc_directions(
+                    // lower.raw()-value, lower_prob.ln_sub_exp(prob), upper.raw()-value, upper_prob.ln_sub_exp(prob));
+                    // value-upper.raw(), prob.ln_sub_exp(*upper_prob), un_d1-upper.raw(), un_d2.ln_sub_exp(*upper_prob));
+                    value - upper.raw(),
+                    param1,
+                    sign1,
+                    un_d1 - upper.raw(),
+                    param2,
+                    sign2,
+                );
                 *ud1 = local_s;
                 *ud2 = local_d2;
             }
         }
 
-        {    
+        {
             let lower = self.points.range_mut(..=N64::new(value)).last();
-            if let Some((lower, (lower_prob, ld1, ld2))) = lower{
-                let (sign1, param1, sign2, param2) = ProbDistribution1d::calc_sign_params(lp_d2, *lower_prob, prob);
-                let (local_d1, local_d2, local_s) = 
-                    ProbDistribution1d::calc_directions(
-                        // lower.raw()-value, lower_prob.ln_sub_exp(prob), upper.raw()-value, upper_prob.ln_sub_exp(prob));
-                        // lp_d1-lower.raw(), lp_d2.ln_sub_exp(*lower_prob), value-lower.raw(), prob.ln_sub_exp(*lower_prob));
-                        lp_d1-lower.raw(),  param1, sign1, value-lower.raw(), param2, sign2);
+            if let Some((lower, (lower_prob, ld1, ld2))) = lower {
+                let (sign1, param1, sign2, param2) =
+                    ProbDistribution1d::calc_sign_params(lp_d2, *lower_prob, prob);
+                let (local_d1, local_d2, local_s) = ProbDistribution1d::calc_directions(
+                    // lower.raw()-value, lower_prob.ln_sub_exp(prob), upper.raw()-value, upper_prob.ln_sub_exp(prob));
+                    // lp_d1-lower.raw(), lp_d2.ln_sub_exp(*lower_prob), value-lower.raw(), prob.ln_sub_exp(*lower_prob));
+                    lp_d1 - lower.raw(),
+                    param1,
+                    sign1,
+                    value - lower.raw(),
+                    param2,
+                    sign2,
+                );
                 *ld1 = local_s;
                 *ld2 = local_d2;
             }
@@ -264,67 +298,68 @@ impl ProbDistribution1d {
                     // return (upper_prob + LogProb(factor_u.ln())).ln_add_exp(lower_prob + LogProb(factor_l.ln())) - LogProb((factor_u + factor_l).ln());
                     // println!("value {:?}, lower {:?} upper {:?}", value ,lower, upper);
                     let diff = *upper - *lower;
-                    if diff <= 0.{
+                    if diff <= 0. {
                         return *upper_prob; // if value is in data structure, upper and lower are the same, no interpolation needed
                     }
                     // println!("diff {:?}", diff);
                     let factor_u = (value - *lower) / diff;
-                    let factor_l = (*upper- value) / diff;
+                    let factor_l = (*upper - value) / diff;
                     // println!("factor l {:?} factor u  {:?}", factor_l, factor_u);
                     let min_diff = min((value - lower), (*upper - value));
                     let scaling = (2. * min_diff.raw()) / diff.raw();
                     let scaling_u = ud2 + (LogProb((factor_u.raw() * scaling).ln()));
                     let scaling_l = ld2 + (LogProb((factor_l.raw() * scaling).ln()));
-                    let mut result = (LogProb(factor_l.raw().ln()) +lower_prob).ln_add_exp(LogProb(factor_u.raw().ln()) + upper_prob);
+                    let mut result = (LogProb(factor_l.raw().ln()) + lower_prob)
+                        .ln_add_exp(LogProb(factor_u.raw().ln()) + upper_prob);
 
-                    if ld1 >= ud1 { //Needed for numerically stable calculations, first add all positive values before doing subtractions
+                    if ld1 >= ud1 {
+                        //Needed for numerically stable calculations, first add all positive values before doing subtractions
                         if ld1 < &0. {
-                            if scaling_l >= result{
+                            if scaling_l >= result {
                                 result = LogProb::ln_zero();
                                 return result;
                             }
                             // println!("result {:?} scaling l  {:?}", result, scaling_l);
                             result.ln_sub_exp(scaling_l);
-                        } else{
+                        } else {
                             result.ln_add_exp(scaling_l);
                         }
                         if ud1 < &0. {
-                            if scaling_u >= result{
+                            if scaling_u >= result {
                                 result = LogProb::ln_zero();
                                 return result;
                             }
                             // println!("result {:?} scaling u  {:?}", result, scaling_u);
                             result.ln_sub_exp(scaling_u);
-                        }else{
+                        } else {
                             result.ln_add_exp(scaling_u);
                         }
                     } else {
                         if ud1 < &0. {
-                            if scaling_u >= result{
+                            if scaling_u >= result {
                                 result = LogProb::ln_zero();
                                 return result;
                             }
                             // println!("result {:?} scaling u  {:?}", result, scaling_u);
                             result.ln_sub_exp(scaling_u);
-                        }else{
+                        } else {
                             result.ln_add_exp(scaling_u);
                         }
                         if ld1 < &0. {
-                            if scaling_l >= result{
+                            if scaling_l >= result {
                                 result = LogProb::ln_zero();
                                 return result;
                             }
                             // println!("result {:?} scaling l  {:?}", result, scaling_l);
                             result.ln_sub_exp(scaling_l);
-                        } else{
+                        } else {
                             result.ln_add_exp(scaling_l);
                         }
-                        
                     }
-                //     return (LogProb(factor_l.raw().ln()) 
-                //             + (lower_prob.ln_add_exp(left))
-                //         .ln_add_exp(LogProb(factor_u.raw().ln()) 
-                //             + (upper_prob.ln_add_exp(*ud2 + LogProb(scaling.ln())))));                
+                    //     return (LogProb(factor_l.raw().ln())
+                    //             + (lower_prob.ln_add_exp(left))
+                    //         .ln_add_exp(LogProb(factor_u.raw().ln())
+                    //             + (upper_prob.ln_add_exp(*ud2 + LogProb(scaling.ln())))));
                     return result;
                 }
                 // Only upper bound
@@ -364,7 +399,10 @@ impl ProbDistribution1d {
         // // }
 
         let density = |i, value| self.get(value);
-        let marginals = self.points.keys().map(|value| *value)
+        let marginals = self
+            .points
+            .keys()
+            .map(|value| *value)
             .collect::<Vec<_>>()
             .windows(2)
             .map(|x| LogProb::ln_simpsons_integrate_exp(density, x[0].raw(), x[1].raw(), 3))
@@ -381,12 +419,12 @@ impl ProbDistribution1d {
             |i, value| self.points.get(&value).unwrap().0,
             &self.points.keys().map(|value| *value).collect::<Vec<_>>(),
         );
-        if marginal != LogProb::ln_zero(){
+        if marginal != LogProb::ln_zero() {
             for (prob, d1, d2) in self.points.values_mut() {
                 *prob = *prob - marginal //Logspace / -> -
             }
         }
-        
+
         // println!("marginals 1 {:?} btreemap  2{:?}", marginal, marginal_map);
         marginal_map
     }

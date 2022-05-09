@@ -8,13 +8,11 @@ use bio::stats::LogProb;
 use noisy_float::types::N32;
 use rayon::prelude::*;
 
-use crate::common::{
-    window, Mean, MeanDispersionPair, Outdir,
-};
-use crate::prob_distribution_2d::ProbDistribution2d;
-use crate::prob_distribution_1d::ProbDistribution1d;
+use crate::common::{window, Mean, MeanDispersionPair, Outdir};
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
+use crate::prob_distribution_1d::ProbDistribution1d;
+use crate::prob_distribution_2d::ProbDistribution2d;
 use crate::sample_expression::SampleInfo;
 
 pub(crate) fn group_expression(
@@ -87,9 +85,6 @@ pub(crate) fn group_expression(
             let mut prob_dist = ProbDistribution1d::new();
 
             let mut calc_prob = |mu_ik| {
-                // println!("prior.min_value() {:?}, prior.max_value() {:?}", prior.min_value(), prior.max_value());
-                // println!("{:?}", *prior.prob((prior.max_value() + prior.min_value()) / 2.));
-
                 let density = |i, theta_i| {
                     let d = sample_expression_likelihoods
                         .iter()
@@ -99,7 +94,7 @@ pub(crate) fn group_expression(
                         })
                         .sum::<LogProb>() + //Formula 5
                         LogProb(*prior.prob(theta_i) * 2.0); // square of Pr(theta_i), formula 8
-                                                             // println!("i {:?}, mu_ik {:?}, theta_i {:?}, summand_theta_i {:?}, density {:?}",i, mu_ik, theta_i, LogProb(*prior.prob(theta_i) * 2.0),  d);
+                        // println!("i {:?}, mu_ik {:?}, theta_i {:?}, summand_theta_i {:?}, density {:?}",i, mu_ik, theta_i, LogProb(*prior.prob(theta_i) * 2.0),  d);
                     d
                 };
 
@@ -115,6 +110,7 @@ pub(crate) fn group_expression(
                 prob
             };
 
+            // println!("\n\n\nfeature id: {:?} ", feature_id);
             for mu_ik in left_window {
                 calc_prob(mu_ik);
             }

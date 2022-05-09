@@ -1,5 +1,6 @@
 //! This implements formula 3+4 of the document.
 
+use std::collections::LinkedList;
 use std::fs;
 use std::mem;
 use std::path::Path;
@@ -15,10 +16,10 @@ use serde_derive::{Deserialize, Serialize};
 use statrs::function::beta::ln_beta;
 
 use crate::common::{window, window_x, ProbDistribution};
-use crate::prob_distribution_2d::ProbDistribution2d;
 use crate::common::{MeanDispersionPair, Outdir};
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
+use crate::prob_distribution_2d::ProbDistribution2d;
 
 pub(crate) fn sample_expression(
     preprocessing: &Path,
@@ -56,35 +57,68 @@ pub(crate) fn sample_expression(
             // println!("i {:?}, d_ij {:?}, d_ik{:?}", i, d_ij, d_ik);
             // METHOD: If the per-sample dispersion is unknown, fall back to a mean interpolated from the other samples.
             let t_ij = if let Some(t_ij) = mean_disp_estimates.dispersions()[*i] {
+                if debug_print {
+                    println!("t_ij 1 {:?}", t_ij)
+                }
                 t_ij
             } else if let Some(t_ij) = preprocessing.interpolate_dispersion(*i) {
+                if debug_print {
+                    println!("t_ij 2 {:?}", t_ij)
+                }
                 t_ij
             } else {
                 // TODO log message
                 return Ok(());
             };
 
-            let max_prob = prob_mu_ik_theta_i_x(d_ij, d_ij, d_ij, t_ij, prior.mean(), s_j);
+            let max_prob =
+                prob_mu_ik_theta_i_x(d_ij, d_ij, d_ij, t_ij, prior.mean(), s_j, debug_print);
             let prob_threshold = LogProb(*max_prob - 10.0f64.ln());
+            if debug_print {
+                println!(
+                    "max_prob, prob_threshold {:?}{:?}",
+                    max_prob, prob_threshold
+                )
+            }
 
             let (mu_ik_left_window, mu_ik_right_window) = window(d_ik);
 
-
-            // let mut points = LinkedList::<[f64;2]>::new();
+            if debug_print {
+                let (mu_ik_left_window, mu_ik_right_window) = window(d_ik);
+                println!("mu_ik_left_window, d_ik {:?}", d_ik);
+                for i in mu_ik_left_window {
+                    print!("{}, ", i);
+                }
+                println!("mu_ik_right_window, d_ik {:?}", d_ik);
+                for i in mu_ik_right_window {
+                    print!("{}, ", i);
+                }
+                println!("");
+            }
             let mut likelihoods = ProbDistribution2d::new();
 
             let mut likelihood_mu_ik = |mu_ik| {
                 let mut max_prob = LogProb::ln_zero();
                 let mut process_window = |window: &Vec<f64>| {
                     for theta_i in window {
-                        let prob =
-                            likelihood_mu_ik_theta_i(d_ij, mu_ik, t_ij, *theta_i, s_j, epsilon);
+                        let prob = likelihood_mu_ik_theta_i(
+                            d_ij,
+                            mu_ik,
+                            t_ij,
+                            *theta_i,
+                            s_j,
+                            epsilon,
+                            debug_print,
+                        );
 
                         likelihoods.insert(mu_ik, *theta_i, prob);
 
                         if prob > max_prob {
                             max_prob = prob;
                         }
+                        // if debug_print {
+                        //     println!("mu_ik {:?}, theta_i {:?}, prob {:?}\n", mu_ik, theta_i, prob);
+                        // }
 
                         // if prob < prob_threshold {
                         //     // break;
@@ -93,6 +127,14 @@ pub(crate) fn sample_expression(
                 };
                 process_window(prior.left_window());
                 process_window(prior.right_window());
+                if debug_print {
+                    // let (mu_ik_left_window, mu_ik_right_window) = window_x(d_ij);
+                    println!("prior.left_window()");
+                    for i in prior.left_window() {
+                        print!("{}, ", i);
+                    }
+                    println!("");
+                }
 
                 max_prob
             };
@@ -145,7 +187,13 @@ fn prob_mu_ik_theta_i_x(
     t_ij: f64,
     theta_i: f64,
     s_j: f64,
+    debug_print: bool,
 ) -> LogProb {
+    // if debug_print {
+        // println!("neg_binom1 {:?}", neg_binom(d_ij, x, t_ij));
+        // println!("neg_binom2 {:?}", neg_binom(x, mu_ik * s_j, theta_i));
+        // println!("x {:?}, mu_ik {:?}, s_j {:?}, theta_i {:?}", x, mu_ik , s_j, theta_i);
+    // }
     LogProb((neg_binom(d_ij, x, t_ij) * neg_binom(x, mu_ik * s_j, theta_i)).ln())
 }
 
@@ -157,11 +205,20 @@ fn likelihood_mu_ik_theta_i(
     theta_i: f64,
     s_j: f64,
     epsilon: LogProb,
+    debug_print: bool,
 ) -> LogProb {
     // TODO determine whether this is the best window given that we also have access to mu_ik here.
     let (x_left_window, x_right_window) = window_x(d_ij);
+    if debug_print {
+        let (x_left_window, x_right_window) = window_x(d_ij);
+        println!("x_window");
+        for i in x_left_window {
+            print!("> {}", i);
+        }
+        println!("");
+    }
 
-    let prob = |x| prob_mu_ik_theta_i_x(x, d_ij, mu_ik, t_ij, theta_i, s_j);
+    let prob = |x| prob_mu_ik_theta_i_x(x, d_ij, mu_ik, t_ij, theta_i, s_j, debug_print);
 
     let max_prob = prob(d_ij);
     let threshold = LogProb(*max_prob - 10.0f64.ln());

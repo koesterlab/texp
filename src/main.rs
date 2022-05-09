@@ -14,6 +14,8 @@ mod group_expression;
 mod kallisto;
 mod preprocess;
 mod prior;
+mod prob_distribution_1d;
+mod prob_distribution_2d;
 mod sample_expression;
 use common::ProbDistribution;
 

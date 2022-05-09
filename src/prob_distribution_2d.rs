@@ -4,13 +4,13 @@ use anyhow::Result;
 use bio::stats::LogProb;
 use kdtree::distance::squared_euclidean;
 use kdtree::KdTree;
+use noisy_float::prelude::Float;
+use noisy_float::types::N32;
+use noisy_float::types::N64;
 use rmp_serde::{Deserializer, Serializer};
 use serde::Deserialize as SerdeDeserialize;
 use serde::Serialize as SerdeSerialize;
 use serde_derive::{Deserialize, Serialize};
-use noisy_float::types::N64;
-use noisy_float::types::N32;
-use noisy_float::prelude::Float;
 
 //--------------------ProbDistribution based on KdTree --------------------
 
