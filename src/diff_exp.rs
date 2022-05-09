@@ -2,6 +2,8 @@
 
 use std::mem;
 use std::path::Path;
+use std::collections::VecDeque;
+use std::collections::LinkedList;
 
 use anyhow::Result;
 use bio::stats::LogProb;
@@ -10,6 +12,12 @@ use rayon::prelude::*;
 
 use crate::common::{window_f, Log2FoldChange, Mean, Outdir, ProbDistribution1d};
 use crate::preprocess::Preprocessing;
+
+
+pub(crate) struct Pair {
+    left: f64,
+    right: f64,
+}
 
 pub(crate) fn diff_exp(
     c: f64,
@@ -39,6 +47,7 @@ pub(crate) fn diff_exp(
             } else {
                 1.
             }; // Avoid division by zero
+            // let max_prob_fold_change = (prob_dist_i_k1.get(max_prob_value1) - prob_dist_i_k2.get(max_prob_value2)).exp();
             let max_prob_fold_change = max_prob_value1 / max_prob_value2;
 
             if max_prob_value1 < max_prob_value2 {
@@ -70,25 +79,62 @@ pub(crate) fn diff_exp(
                 let density = |i: usize, x: f64| {
                     prob_dist_i_k1
                         .get(x)
-                        .ln_add_exp(prob_dist_i_k2.get((f * (x + c) - c)))
+                        + (prob_dist_i_k2.get((f * (x + c) - c)))
                 };
 
                 let mut prob = LogProb::ln_simpsons_integrate_exp(density, 0., 15., 11);
 
-                let prob = LogProb::ln_one();
-                diff_exp_distribution.insert(f, prob);
+                // let prob = LogProb::ln_one();
+                // diff_exp_distribution.insert(f, prob);
 
                 prob
             };
-
-            // Step 2: For each fold change in determined range, calculate formula 9 and put in ProbabilityDistribution
-            for f in left_window {
-                calc_prob(f);
+            println!("max_prob_fold_change {:?}", max_prob_fold_change);
+            let start_points = [0., max_prob_fold_change/10., max_prob_fold_change, max_prob_fold_change*10., f64::INFINITY ];
+            diff_exp_distribution.insert(max_prob_fold_change/10., calc_prob( max_prob_fold_change/10.));
+            diff_exp_distribution.insert(max_prob_fold_change, calc_prob( max_prob_fold_change));
+            diff_exp_distribution.insert(max_prob_fold_change*10.,calc_prob( max_prob_fold_change*10.));
+            let mut queue = VecDeque::<Pair>::new(); 
+            start_points.windows(2).for_each(|w| queue.push_back(Pair { left: w[0], right: w[1] }));
+            while queue.len() > 0 {
+                let pair = queue.pop_front().unwrap();
+                let left = pair.left;
+                let right = pair.right;
+                if left == 0. && right == 0.{
+                    continue
+                }
+                let mut middle = 0.;
+                if left.is_finite() && right.is_finite(){
+                    middle = left/2. + right/2.;
+                }
+                else if left.is_finite() {
+                    middle = 10. * left;                    
+                }
+                if middle.is_infinite(){
+                    continue
+                }
+                // println!("middle {:?}", middle);
+                let estimated_value = diff_exp_distribution.get(middle);
+                let calculated_value = calc_prob(middle);
+                diff_exp_distribution.insert(middle, calculated_value);
+                if (estimated_value.exp() - calculated_value.exp()).abs() > 0.01 {
+                    queue.push_back(Pair { left: left, right: middle });
+                    queue.push_back(Pair { left: middle, right: right });
+                    // if left > 1e10 {
+                    //     println!("left {:?}, right {:?}, middle {:?}, estimated_value {:?}, calculated_value {:?}", left, right, middle, estimated_value, calculated_value);
+                    //     println!("est-calc {:?}, .abs {:?}",(estimated_value - calculated_value), (estimated_value - calculated_value).abs() )
+                    // }
+                }
+                
             }
+            // // Step 2: For each fold change in determined range, calculate formula 9 and put in ProbabilityDistribution
+            // for f in left_window {
+            //     calc_prob(f);
+            // }
 
-            for f in right_window {
-                calc_prob(f);
-            }
+            // for f in right_window {
+            //     calc_prob(f);
+            // }
 
             // Step 3: Write output
             out_dir.serialize_value(feature_id, diff_exp_distribution)?;
