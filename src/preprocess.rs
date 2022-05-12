@@ -153,17 +153,7 @@ fn group_means(
 impl Estimates {
     fn new(kallisto_quant: &KallistoQuant) -> Result<Self> {
         let bootstrapped_counts = kallisto_quant.bootstrapped_counts()?;
-
-        dbg!(bootstrapped_counts[(0, 257)]);
-        dbg!(bootstrapped_counts[(0, 258)]);
-        dbg!(bootstrapped_counts[(0, 259)]);
-        dbg!(bootstrapped_counts[(0, 260)]);
         let means = bootstrapped_counts.mean_axis(Axis(0)).unwrap();
-        let len0 = bootstrapped_counts.len_of(Axis(0));
-        let len1 = bootstrapped_counts.len_of(Axis(1));
-        dbg!("len0 {:?}, len1 {:?}", len0, len1);
-        dbg!("259 {:?}", means[259]);
-        dbg!(means.len());
         let stds = bootstrapped_counts.std_axis(Axis(0), 1.0);
         let dispersions = stds / &means;
 

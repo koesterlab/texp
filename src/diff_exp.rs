@@ -1,17 +1,13 @@
 //! This implements formula 9 of the document and calculates the fold change / differential expression.
-
-use std::collections::LinkedList;
 use std::collections::VecDeque;
 use std::mem;
 use std::path::Path;
 
 use anyhow::Result;
 use bio::stats::LogProb;
-use noisy_float::types::N32;
-use noisy_float::types::N64;
 use rayon::prelude::*;
 
-use crate::common::{window_f, Outdir};
+use crate::common::Outdir;
 use crate::preprocess::Preprocessing;
 use crate::prob_distribution_1d::ProbDistribution1d;
 
@@ -57,37 +53,18 @@ pub(crate) fn diff_exp(
                 mem::swap(&mut max_prob_value1, &mut max_prob_value2);
             }
 
-            // Step 1: use window() to determine range around max_prob_fold_change
-            let (left_window, right_window) = window_f(max_prob_fold_change);
-
             let mut diff_exp_distribution = ProbDistribution1d::new();
 
-            let mut calc_prob = |f: f64| {
-                let f_max_i_k2 = (-f * c + c + max_prob_value1) / f;
-                // for x, iterate over values in prob_dist_i_k1, the value for looking up in prob_dist_i_k2 is f * (x + c) - c
-                // let prob = LogProb::ln_trapezoidal_integrate_grid_exp(
-                //     |i, &value| {
-                //         prob_dist_i_k1.get(&value)
-                //             + prob_dist_i_k2.get(&[(N32::new(f as f32) * (value[0] + N32::new(c))- N32::new(c))])
-                //     },
-                // &prob_dist_i_k1
-                //     .points
-                //     .keys()
-                //     .map(|value| **value)
-                //     .collect::<Vec<_>>(),
-                // );
-
+            let calc_prob = |f: f64| {
+                // let f_max_i_k2 = (-f * c + c + max_prob_value1) / f;
                 let density = |i: usize, x: f64| {
-                    prob_dist_i_k1.get(x) + (prob_dist_i_k2.get((f * (x + c) - c)))
+                    prob_dist_i_k1.get(x) + (prob_dist_i_k2.get(f * (x + c) - c))
                 };
 
-                let mut prob = LogProb::ln_simpsons_integrate_exp(density, 0., 15., 11);
-
-                // let prob = LogProb::ln_one();
-                // diff_exp_distribution.insert(f, prob);
-
+                let prob = LogProb::ln_simpsons_integrate_exp(density, 0., 15., 11);
                 prob
             };
+
             println!("max_prob_fold_change {:?}", max_prob_fold_change);
             let start_points = [
                 0.,
@@ -141,20 +118,8 @@ pub(crate) fn diff_exp(
                         left: middle,
                         right: right,
                     });
-                    // if left > 1e10 {
-                    //     println!("left {:?}, right {:?}, middle {:?}, estimated_value {:?}, calculated_value {:?}", left, right, middle, estimated_value, calculated_value);
-                    //     println!("est-calc {:?}, .abs {:?}",(estimated_value - calculated_value), (estimated_value - calculated_value).abs() )
-                    // }
                 }
             }
-            // // Step 2: For each fold change in determined range, calculate formula 9 and put in ProbabilityDistribution
-            // for f in left_window {
-            //     calc_prob(f);
-            // }
-
-            // for f in right_window {
-            //     calc_prob(f);
-            // }
 
             // Step 3: Write output
             out_dir.serialize_value(feature_id, diff_exp_distribution)?;

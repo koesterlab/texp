@@ -1,21 +1,15 @@
-use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::cmp::min;
-
 
 use anyhow::Result;
 use bio::stats::LogProb;
 use derefable::Derefable;
-use derive_new::new;
 use itertools_num::linspace;
 use noisy_float::prelude::Float;
 use noisy_float::types::N32;
-use noisy_float::types::N64;
 use rmp_serde::{Deserializer, Serializer};
 use serde::Deserialize as SerdeDeserialize;
 use serde::Serialize as SerdeSerialize;
-use serde_derive::{Deserialize, Serialize};
 
 use crate::errors::Error;
 
@@ -33,17 +27,17 @@ pub(crate) fn window_x(mean: f64) -> (impl Iterator<Item = f64>, impl Iterator<I
     (linspace(0.0, 50., 51), linspace(51., 500., 450))
 }
 
-pub(crate) fn window_f(
-    max_prob_fold_change: f64,
-) -> (impl Iterator<Item = f64>, impl Iterator<Item = f64>) {
-    // TODO: think about larger steps, binary search etc. to optimize instead of just having a fixed number of steps.
-    (
-        linspace(max_prob_fold_change / 5.0, max_prob_fold_change, 20)
-            .rev()
-            .skip(1),
-        linspace(max_prob_fold_change, 30.0 * max_prob_fold_change, 30),
-    )
-}
+// pub(crate) fn window_f(
+//     max_prob_fold_change: f64,
+// ) -> (impl Iterator<Item = f64>, impl Iterator<Item = f64>) {
+//     // TODO: think about larger steps, binary search etc. to optimize instead of just having a fixed number of steps.
+//     (
+//         linspace(max_prob_fold_change / 5.0, max_prob_fold_change, 20)
+//             .rev()
+//             .skip(1),
+//         linspace(max_prob_fold_change, 30.0 * max_prob_fold_change, 30),
+//     )
+// }
 
 pub(crate) fn interpolate_pmf(
     value: N32,
@@ -106,3 +100,5 @@ impl Outdir {
         )?))?)
     }
 }
+
+

@@ -3,19 +3,13 @@ use std::collections::BTreeMap;
 
 use anyhow::Result;
 use bio::stats::LogProb;
-use kdtree::distance::squared_euclidean;
-use kdtree::KdTree;
 use noisy_float::types::N64;
-use rmp_serde::{Deserializer, Serializer};
-use serde::Deserialize as SerdeDeserialize;
-use serde::Serialize as SerdeSerialize;
 use serde_derive::{Deserialize, Serialize};
 
 /// Datastructure for storing group expression probability distributions and fold change distributions. kdtree is a 1 dimensional kdTree with data = probability in LogProb.
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct ProbDistribution1d {
     points: BTreeMap<N64, (LogProb, f64, LogProb)>,
-    // pub kdtree: KdTree<f64, LogProb, [f64; 1]>,
     max_prob_value: Option<f64>,
     is_na: bool,
 }
@@ -24,7 +18,6 @@ impl ProbDistribution1d {
     pub(crate) fn new() -> Self {
         ProbDistribution1d {
             points: BTreeMap::default(),
-            // kdtree: KdTree::with_capacity(1, 32), // 2 dimensional kdTree
             max_prob_value: None,
             is_na: true,
         }
@@ -33,14 +26,12 @@ impl ProbDistribution1d {
     pub(crate) fn na() -> Self {
         ProbDistribution1d {
             points: BTreeMap::default(),
-            // kdtree: KdTree::new(1),
             max_prob_value: None,
             is_na: true,
         }
     }
 
     pub(crate) fn len(&self) -> usize {
-        // self.kdtree.size()
         self.points.len()
     }
 
@@ -72,9 +63,9 @@ impl ProbDistribution1d {
         }
         let mut d2 = LogProb::ln_zero();
         let mut new_s = s1;
-        if (s1 == s2) {
+        if s1 == s2 {
             d2 = left.ln_add_exp(right);
-        } else if (left < right) {
+        } else if left < right {
             new_s = s2;
             d2 = right.ln_sub_exp(left);
         } else {
@@ -114,11 +105,6 @@ impl ProbDistribution1d {
             println!("value inf, prob {:?}, size {:?}", prob, self.points.len());
         }
         let value2 = [value];
-        // if self.is_na || self.kdtree.nearest(&value2, 1, &squared_euclidean).unwrap()[0].1 < &prob {
-        //     self.max_prob_value = Some(value2[0]);
-        // }
-        // self.kdtree.add(value2, prob)?;
-
         if self.is_na
             || self
                 .points
@@ -226,7 +212,6 @@ impl ProbDistribution1d {
     }
 
     pub(crate) fn get(&self, value: f64) -> LogProb {
-        // println!("size {:?}", self.points.len());
         if self.is_na || value == f64::INFINITY {
             if value == 0.0 {
                 // mean or fold change 0
@@ -241,24 +226,17 @@ impl ProbDistribution1d {
             let mut lower_it = self.points.range(..=N64::new(value)).rev();
             let lower = lower_it.next();
             let lower2 = lower_it.next();
-            // println!("value {:?}, lower 2 {:?} upper2  {:?}", value ,lower2, upper2);
             let value = N64::new(value);
             if let Some((upper, (upper_prob, ud1, ud2))) = upper {
                 if let Some((lower, (lower_prob, ld1, ld2))) = lower {
                     // Upper and lower bound is there
-                    // let factor_u = 1. / (upper.raw() - value).abs();
-                    // let factor_l = 1. / (value - lower.raw()).abs();
-                    // return (upper_prob + LogProb(factor_u.ln())).ln_add_exp(lower_prob + LogProb(factor_l.ln())) - LogProb((factor_u + factor_l).ln());
-                    // println!("value {:?}, lower {:?} upper {:?}", value ,lower, upper);
                     let diff = *upper - *lower;
                     if diff <= 0. {
                         return *upper_prob; // if value is in data structure, upper and lower are the same, no interpolation needed
                     }
-                    // println!("diff {:?}", diff);
                     let factor_u = (value - *lower) / diff;
                     let factor_l = (*upper - value) / diff;
-                    // println!("factor l {:?} factor u  {:?}", factor_l, factor_u);
-                    let min_diff = min((value - lower), (*upper - value));
+                    let min_diff = min(value - lower, *upper - value);
                     let scaling = (2. * min_diff.raw()) / diff.raw();
                     let scaling_u = ud2 + (LogProb((factor_u.raw() * scaling).ln()));
                     let scaling_l = ld2 + (LogProb((factor_l.raw() * scaling).ln()));
@@ -272,7 +250,6 @@ impl ProbDistribution1d {
                                 result = LogProb::ln_zero();
                                 return result;
                             }
-                            // println!("result {:?} scaling l  {:?}", result, scaling_l);
                             result.ln_sub_exp(scaling_l);
                         } else {
                             result.ln_add_exp(scaling_l);
@@ -282,7 +259,6 @@ impl ProbDistribution1d {
                                 result = LogProb::ln_zero();
                                 return result;
                             }
-                            // println!("result {:?} scaling u  {:?}", result, scaling_u);
                             result.ln_sub_exp(scaling_u);
                         } else {
                             result.ln_add_exp(scaling_u);
@@ -293,7 +269,6 @@ impl ProbDistribution1d {
                                 result = LogProb::ln_zero();
                                 return result;
                             }
-                            // println!("result {:?} scaling u  {:?}", result, scaling_u);
                             result.ln_sub_exp(scaling_u);
                         } else {
                             result.ln_add_exp(scaling_u);
@@ -303,16 +278,11 @@ impl ProbDistribution1d {
                                 result = LogProb::ln_zero();
                                 return result;
                             }
-                            // println!("result {:?} scaling l  {:?}", result, scaling_l);
                             result.ln_sub_exp(scaling_l);
                         } else {
                             result.ln_add_exp(scaling_l);
                         }
                     }
-                    //     return (LogProb(factor_l.raw().ln())
-                    //             + (lower_prob.ln_add_exp(left))
-                    //         .ln_add_exp(LogProb(factor_u.raw().ln())
-                    //             + (upper_prob.ln_add_exp(*ud2 + LogProb(scaling.ln())))));
                     return result;
                 }
                 // Only upper bound
@@ -329,28 +299,9 @@ impl ProbDistribution1d {
     }
 
     pub(crate) fn normalize(&mut self) -> LogProb {
-        if (self.is_na) {
+        if self.is_na {
             return LogProb::ln_one();
         }
-        // let density = |i, value| self.get(value);
-        // let marginals = self
-        //     .kdtree
-        //     .iter_nearest(&[0.], &squared_euclidean)
-        //     .unwrap()
-        //     .map(|x| x.0)
-        //     .collect::<Vec<_>>()
-        //     .windows(2)
-        //     .map(|x| LogProb::ln_simpsons_integrate_exp(density, x[0], x[1], 3))
-        //     .collect::<Vec<_>>();
-        // let marginal = LogProb::ln_sum_exp(&marginals);
-        // self.kdtree
-        //     .iter_nearest_mut(&[0.], &squared_euclidean)
-        //     .unwrap()
-        //     .for_each(|x| *x.1 -= marginal );
-        // for (prob, d1,d2) in self.points.values_mut() {
-        //     *prob = *prob - marginal //Logspace / -> -
-        // // }
-
         let density = |i, value| self.get(value);
         let marginals = self
             .points
@@ -361,24 +312,11 @@ impl ProbDistribution1d {
             .map(|x| LogProb::ln_simpsons_integrate_exp(density, x[0].raw(), x[1].raw(), 3))
             .collect::<Vec<_>>();
         let marginal = LogProb::ln_sum_exp(&marginals);
-        // self.kdtree
-        //     .iter_nearest_mut(&[0.], &squared_euclidean)
-        //     .unwrap()
-        //     .for_each(|x| *x.1 -= marginal );
-        // for (prob, d1,d2) in self.points.values_mut() {
-        //     *prob = *prob - marginal //Logspace / -> -
-        // }
-        let marginal_map = LogProb::ln_trapezoidal_integrate_grid_exp(
-            |i, value| self.points.get(&value).unwrap().0,
-            &self.points.keys().map(|value| *value).collect::<Vec<_>>(),
-        );
         if marginal != LogProb::ln_zero() {
             for (prob, d1, d2) in self.points.values_mut() {
                 *prob = *prob - marginal //Logspace / -> -
             }
         }
-
-        // println!("marginals 1 {:?} btreemap  2{:?}", marginal, marginal_map);
-        marginal_map
+        marginal
     }
 }

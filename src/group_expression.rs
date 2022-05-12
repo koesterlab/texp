@@ -5,7 +5,6 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bio::stats::LogProb;
-use noisy_float::types::N32;
 use rayon::prelude::*;
 
 use crate::common::{window, Outdir};
@@ -72,7 +71,6 @@ pub(crate) fn group_expression(
                         let likelihoods: ProbDistribution2d = dir.deserialize_value(feature_id)?;
                         Ok(likelihoods)
                     } else {
-                        // println!("{:?}", feature_id);
                         Ok(ProbDistribution2d::na())
                     }
                 })
@@ -103,7 +101,7 @@ pub(crate) fn group_expression(
                     density,
                     prior.min_value(),
                     prior.max_value(),
-                    11,
+                    31,
                 );
                 prob_dist.insert(mu_ik, prob);
 
