@@ -5,7 +5,7 @@ use bio::stats::{LogProb, Prob};
 use rayon;
 use structopt::StructOpt;
 
-use crate::common::Outdir;
+// use crate::common::Outdir;
 
 mod common;
 mod diff_exp;
@@ -142,7 +142,7 @@ enum Cli {
         #[structopt(
             parse(from_os_str),
             long = "group_path2",
-            short = "g2",
+            short = "t2",
             help = "Path to group expressions of group 2."
         )]
         group_path2: PathBuf,
@@ -173,17 +173,17 @@ enum Cli {
         )]
         threads: usize,
     },
-    #[structopt(
-        name = "show-sample-expression",
-        about = "Decode mpk into JSON.",
-        setting = structopt::clap::AppSettings::ColoredHelp,
-    )]
-    ShowSampleExpressions {
-        #[structopt(parse(from_os_str), help = "Path to sample expressions dir.")]
-        path: PathBuf,
-        #[structopt(long = "feature-id", help = "ID of feature to show.")]
-        feature_id: String,
-    },
+    // #[structopt(
+    //     name = "show-sample-expression",
+    //     about = "Decode mpk into JSON.",
+    //     setting = structopt::clap::AppSettings::ColoredHelp,
+    // )]
+    // ShowSampleExpressions {
+    //     #[structopt(parse(from_os_str), help = "Path to sample expressions dir.")]
+    //     path: PathBuf,
+    //     #[structopt(long = "feature-id", help = "ID of feature to show.")]
+    //     feature_id: String,
+    // },
 }
 
 fn main() -> Result<()> {
@@ -253,12 +253,12 @@ fn main() -> Result<()> {
             // calculate differential expression between groups
             diff_exp::diff_exp(c, &preprocessing_path, &group_path1, &group_path2, &out_dir)
         }
-        Cli::ShowSampleExpressions { path, feature_id } => {
-            let dir = Outdir::open(&path)?;
+        // Cli::ShowSampleExpressions { path, feature_id } => {
+            // let dir = Outdir::open(&path)?;
             // let expr: ProbDistribution<MeanDispersionPair> = dir.deserialize_value(&feature_id)?;
             // TODO output as tsv (use csv crate)
             // dbg!(&expr);
-            Ok(())
-        }
+            // Ok(())
+        // }
     }
 }

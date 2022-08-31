@@ -5,15 +5,36 @@ use anyhow::Result;
 use bio::stats::LogProb;
 use derefable::Derefable;
 use itertools_num::linspace;
-use noisy_float::prelude::Float;
-use noisy_float::types::N32;
+// use noisy_float::prelude::Float;
+// use noisy_float::types::N32;
 use rmp_serde::{Deserializer, Serializer};
 use serde::Deserialize as SerdeDeserialize;
 use serde::Serialize as SerdeSerialize;
 
 use crate::errors::Error;
 
+
+pub(crate) struct Pair {
+    pub left: f64,
+    pub right: f64,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct Point {
+    pub x: f64,
+    pub y: f64,
+}
+
+#[derive(Debug)]
+pub(crate) struct Square {
+    pub top_left: usize,
+    pub top_right: usize,
+    pub bot_left: usize,
+    pub bot_right: usize,
+}
+
 /// Return left and right window around given parameter mean
+#[allow(unused)]
 pub(crate) fn window(mean: f64) -> (impl Iterator<Item = f64>, impl Iterator<Item = f64>) {
     // TODO: think about larger steps, binary search etc. to optimize instead of just having a fixed number of steps.
     (
@@ -22,6 +43,7 @@ pub(crate) fn window(mean: f64) -> (impl Iterator<Item = f64>, impl Iterator<Ite
     )
 }
 
+#[allow(unused)]
 pub(crate) fn window_x(mean: f64) -> (impl Iterator<Item = f64>, impl Iterator<Item = f64>) {
     // TODO: think about larger steps, binary search etc. to optimize instead of just having a fixed number of steps.
     (linspace(0.0, 50., 51), linspace(51., 500., 450))
@@ -39,17 +61,35 @@ pub(crate) fn window_x(mean: f64) -> (impl Iterator<Item = f64>, impl Iterator<I
 //     )
 // }
 
-pub(crate) fn interpolate_pmf(
-    value: N32,
-    lower: N32,
-    upper: N32,
-    prob_lower: LogProb,
-    prob_upper: LogProb,
-) -> LogProb {
-    let len = upper - lower;
-    (prob_lower + LogProb(f64::from(((upper - value) / len).ln())))
-        .ln_add_exp(prob_upper + LogProb(f64::from(((value - lower) / len).ln())))
+pub(crate) fn difference_to_big( // If difference is > than 1/10.000 of maximum probability
+    estimated_value: LogProb,
+    calculated_value: LogProb,
+    prob_dist_max: LogProb
+) -> bool {
+    // println!("est {:?}, calc {:?}, max {:?}", estimated_value, calculated_value, prob_dist_max);
+    if estimated_value > calculated_value {
+        // println!("est {:?}, calc {:?}, max {:?}", estimated_value, calculated_value, prob_dist_max);
+        // println!("ln_sub-max {:?}, thresh {:?}, diffToBig {:?}", estimated_value.ln_sub_exp(calculated_value)- prob_dist_max, LogProb::from(0.01_f64.ln()),estimated_value.ln_sub_exp(calculated_value) - prob_dist_max > LogProb::from(0.01_f64.ln()) );
+        return estimated_value.ln_sub_exp(calculated_value) - prob_dist_max > LogProb::from(0.01_f64.ln()); 
+    }else {
+        // println!("est {:?}, calc {:?}, max {:?}", estimated_value, calculated_value, prob_dist_max);
+        // println!("ln_sub-max {:?}, thresh {:?}, diffToBig {:?}", calculated_value.ln_sub_exp(estimated_value) - prob_dist_max, LogProb::from(0.01_f64.ln()), calculated_value.ln_sub_exp(estimated_value) - prob_dist_max > LogProb::from(0.01_f64.ln()) );
+        return calculated_value.ln_sub_exp(estimated_value) - prob_dist_max > LogProb::from(0.01_f64.ln()); 
+    }
+    // if (estimated_value.exp() - calculated_value.exp()).abs() / prob_dist_max > 0.0001 
 }
+
+// pub(crate) fn interpolate_pmf(
+//     value: N32,
+//     lower: N32,
+//     upper: N32,
+//     prob_lower: LogProb,
+//     prob_upper: LogProb,
+// ) -> LogProb {
+//     let len = upper - lower;
+//     (prob_lower + LogProb(f64::from(((upper - value) / len).ln())))
+//         .ln_add_exp(prob_upper + LogProb(f64::from(((value - lower) / len).ln())))
+// }
 
 //--------------------OutDir--------------------
 

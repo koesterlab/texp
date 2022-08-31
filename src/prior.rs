@@ -33,17 +33,20 @@ impl Prior {
             parameters
         ))?;
         let window = |a, b, left_exclusive: bool| {
-            linspace(a, b, 10)
+            linspace(a, b, 5)
                 .map(|x| x + parameters.shift)
                 .skip(if left_exclusive { 1 } else { 0 })
                 .collect()
         };
         let left_window = window(
-            inv_gamma.inverse_cdf(0.05),
+            inv_gamma.inverse_cdf(0.001),
             inv_gamma.mean().unwrap(),
             false,
         );
-        let right_window = window(inv_gamma.mean().unwrap(), inv_gamma.inverse_cdf(0.95), true);
+        let right_window = window(
+            inv_gamma.mean().unwrap(),
+            inv_gamma.inverse_cdf(0.999),
+            true);
 
         Ok(Prior {
             inv_gamma,
@@ -54,15 +57,17 @@ impl Prior {
     }
 
     pub(crate) fn prob(&self, x: f64) -> LogProb {
-        LogProb(self.inv_gamma.ln_pdf(x - self.shift))
+        LogProb(self.inv_gamma.ln_pdf(x - self.shift)) //TODO
     }
 
+    #[allow(unused)]
     pub(crate) fn mean(&self) -> f64 {
         self.inv_gamma.mean().unwrap() + self.shift
     }
 
     pub(crate) fn min_value(&self) -> f64 {
-        self.shift
+        self.inv_gamma.inverse_cdf(0.001)
+        // self.shift
     }
 
     pub(crate) fn max_value(&self) -> f64 {
