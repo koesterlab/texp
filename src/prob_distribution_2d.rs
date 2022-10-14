@@ -1,11 +1,9 @@
-// use std::collections::BTreeMap;
 use std::process::exit;
 use std::collections::VecDeque;
 use std::f64::consts::PI;
 
 use bio::stats::LogProb;
 use itertools::iproduct;
-// use kdtree::distance::euclidean;
 use kdtree::KdTree;
 use serde_derive::{Deserialize, Serialize};
 use num_traits::Float;
@@ -29,7 +27,7 @@ pub(crate) struct EntryForKdtree {
 /// Datastructure for storing sample expression probability distributions. kdtree is a 2 dimensional kdTree with data = probability in LogProb.
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct ProbDistribution2d {
-    pub points: Vec<EntryForKdtree>, // BTreeMap<[N64; 2], LogProb>,
+    pub points: Vec<EntryForKdtree>,
     pub kdtree: KdTree<f64, usize, [f64; 2]>,
     max_prob_entry_position: usize,
     max_distance: f64,
@@ -49,7 +47,7 @@ pub fn euclidean<T: Float>(a: &[T], b: &[T]) -> T {
 impl ProbDistribution2d {
     pub(crate) fn new() -> Self {
         ProbDistribution2d {
-            points: Vec::<EntryForKdtree>::new(),// BTreeMap::default(),
+            points: Vec::<EntryForKdtree>::new(),
             kdtree: KdTree::new(2), // 2 dimensional kdTree
             max_prob_entry_position: usize::MAX,
             max_distance: 0.,
@@ -60,7 +58,7 @@ impl ProbDistribution2d {
 
     pub(crate) fn na() -> Self {
         ProbDistribution2d {
-            points: Vec::<EntryForKdtree>::new(),// BTreeMap::default(),
+            points: Vec::<EntryForKdtree>::new(),
             kdtree: KdTree::new(2),
             max_prob_entry_position: usize::MAX,
             max_distance: 0.,
@@ -111,9 +109,6 @@ impl ProbDistribution2d {
     pub(crate) fn insert_grid<F>(&mut self, mut mus: Vec<f64>, mut thetas: Vec<f64>, calc: F) where F: Fn(f64, f64) -> LogProb {
         self.max_y = thetas[thetas.len()-1];
         self.max_x = mus[mus.len()-1];
-
-        // mus.push(10000.);
-        // thetas.push(f64::INFINITY);
         let len_mus = mus.len();
         let len_thetas = thetas.len();
         for (j, i) in iproduct!(0..len_thetas, 0..len_mus) {
@@ -201,13 +196,6 @@ impl ProbDistribution2d {
                     break;
                 }
             }
-            // // println!("middle {:?},est {:?}, calc {:?}, len {:?}", middle, estimated_value, calculated_value, queue.len());
-            // for ((point, calculated_value), index) in new_point_candidates.iter().zip(calced_values.iter()).zip(new_point_indices.iter()) {
-            //     if calculated_value.is_none() {
-            //         continue;
-            //     }
-            //     self.insert(point.x, point.y, calculated_value.unwrap(), );
-            // }
             if !calced_values[0].is_none() {
                 let point = new_point_candidates[0];
                 self.insert(point.x, point.y, calced_values[0].unwrap(), new_point_indices[2], square.bot_right, usize::MAX, square.bot_left);
@@ -339,6 +327,9 @@ impl ProbDistribution2d {
     }
 
     pub(crate) fn insert(&mut self, mu: f64, theta: f64, prob: LogProb, top: usize, right: usize, bottom: usize, left: usize) {
+        if mu > 47. && mu < 51. {
+            println!("insert: mu {:?}, theta {:?}, prob {:?}", mu, theta, prob.exp());
+        }
         // let value: [N64; 2] = [N64::new(mu), N64::new(theta)];
         // self.points.insert(value, prob);
         let value: [f64; 2] = [mu, theta];
@@ -367,11 +358,34 @@ impl ProbDistribution2d {
             } else {
                 LogProb::ln_zero()
             }
-        } else {
-            let nearest_corner = self.kdtree.nearest(&value, 1, &euclidean).unwrap()[0].1;
-            let nearest_square = self.find_square_for_point(&value, *nearest_corner);
-            // nearest_vec.iter().map(|x| { return (x.0, &self.points[*x.1]); }).collect::<Vec<_>>();
-            return self.smoothing(&value, nearest_square);
+        } else { // for nearest conrer in neares_iter:
+            // find square
+            // if not in square: continue
+                let mut result = LogProb::ln_zero();
+                let nearest_iter = self.kdtree.iter_nearest(&value, &euclidean).unwrap();
+                for nearest_corner in nearest_iter {
+                    let nearest_distance = nearest_corner.0;
+                    let nearest_corner_index = nearest_corner.1;
+                    let nearest_square = self.find_square_for_point(&value, *nearest_corner_index);
+                    if self.is_in_square(&value, &nearest_square){
+                        result = self.smoothing(&value, nearest_square);
+                        break;
+                    }                   
+                }
+            // let nearest_corner = self.kdtree.nearest(&value, 1, &euclidean).unwrap()[0].1;
+            // let nearest_square = self.find_square_for_point(&value, *nearest_corner);
+            // // nearest_vec.iter().map(|x| { return (x.0, &self.points[*x.1]); }).collect::<Vec<_>>();
+            // let result = self.smoothing(&value, nearest_square);
+            // // if (value[0] * 1000.).floor() == 98049. {
+            //     if value[0] >= 2119. && value[0] <= 2121. {
+            //         let nearest_point = &self.points[*nearest_corner];
+            //         println!("result nearest {:?}", self.kdtree.nearest(&value, 1, &euclidean).unwrap());
+            //         println!("get: value {:?},nearest_point {:?} result {:?}", value, nearest_point, result.exp());
+            //         println!("result nearest to value {:?}", self.kdtree.nearest(&value, 1, &euclidean).unwrap());
+            //         println!("result nearest to 2119.7375164232226{:?}", self.kdtree.nearest(&[2119.7375164232226, 125.], 1, &euclidean).unwrap());
+            //         println!("result nearest to 2119.7374922033596 {:?}", self.kdtree.nearest(&[2119.7374922033596, 125.], 1, &euclidean).unwrap());
+            //     }
+            return result;
         }
     }
 
@@ -501,9 +515,34 @@ impl ProbDistribution2d {
         return result;
     }
 
+
+    pub(crate) fn is_in_square(&self, value: &[f64], square: &Vec<usize> ) -> bool {
+        let mut min_x = f64::MAX;
+        let mut min_y = f64::MAX;
+        let mut max_x = f64::MIN;
+        let mut max_y = f64::MIN;
+        for index in square.iter(){
+            let p = &self.points[*index];
+            min_x = min_x.min(p.position[0]);
+            min_y = min_y.min(p.position[1]);
+            max_x = max_x.max(p.position[0]);
+            max_y = max_y.max(p.position[1]);
+        }
+        if value[0] >= min_x && value[0] <= max_x && value[1] >= min_y && value[1] <= max_y {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+
     pub(crate) fn smoothing(&self, value: &[f64], point_indices: Vec<usize>) -> LogProb {
         // println!("\n");
         let c = 1.;
+        let mut min_x = f64::MAX;
+        let mut min_y = f64::MAX;
+        let mut max_x = f64::MIN;
+        let mut max_y = f64::MIN;
         // let nearest_vec = point_indices.iter().map(|x| &self.points[*x]).collect::<Vec<_>>();
         let filtering = |x: &usize| {
             let p = &self.points[*x];
@@ -513,6 +552,10 @@ impl ProbDistribution2d {
             if denominator_left.is_infinite() {
                 return None;
             } else {
+                min_x = min_x.min(p.position[0]);
+                min_y = min_y.min(p.position[1]);
+                max_x = max_x.max(p.position[0]);
+                max_y = max_y.max(p.position[1]);
                 return Some(p);
             }
         };
@@ -521,16 +564,21 @@ impl ProbDistribution2d {
         if nearest_vec.len() == 0 {
             return LogProb::ln_zero();
         }
+        if value[0] >= 2119. && value[0] <= 2121. {
+            println!("\n nearest_vec {:?}", nearest_vec);
+        }
 
+        let middle_x =  (max_x - min_x) / 2.;
+        let middle_y =  (max_y - min_y) / 2.;
         let mut angle_values = vec![c; nearest_vec.len()];
         for i in 0..(nearest_vec.len() - 1){
             let point1 = nearest_vec[i].position;
-            let x1 = point1[0] - value[0];
-            let y1 = point1[1] - value[1];
+            let x1 = point1[0] - middle_x; //value[0];
+            let y1 = point1[1] - middle_y; // value[1];
             for j in (i+1)..nearest_vec.len(){
                 let point2 = nearest_vec[j].position;
-                let x2 = point2[0] - value[0];
-                let y2 = point2[1] - value[1];
+                let x2 = point2[0] - middle_x; //value[0];
+                let y2 = point2[1] - middle_y; //value[1];
                 let denominator_left = x1 * x1 + y1 * y1;
                 let denominator_right = x2 * x2 + y2 * y2;
                 // if denominator_left.is_infinite() || denominator_right.is_infinite(){
@@ -551,19 +599,52 @@ impl ProbDistribution2d {
                 // println!("(x1 * x2 + y1 * y2) / (denominator_left * denominator_right) {:?}, phi {:?}", (x1 * x2 + y1 * y2) / (denominator_left * denominator_right),phi);           
             }
         }
-        // println!("nearest_vec {:?}, angle_values {:?}",nearest_vec, angle_values);
+        if value[0] >= 202. && value[0] <= 204. {
+        //     println!("angle_values {:?}", angle_values);
+        
+            println!("value {:?}, min_x {:?}, max_x {:?}, min_y {:?}, max_y {:?}", value, min_x, max_x, min_y, max_y);
+        }
         let mut result = LogProb::ln_zero();
         let mut scaling_sum = 0.;
         for i in 0..nearest_vec.len() {
-            let distance = euclidean(&value, &nearest_vec[i].position);
-            scaling_sum += 1. / angle_values[i] / distance;
-            
-            result = result.ln_add_exp(nearest_vec[i].prob - LogProb(angle_values[i].ln()) - LogProb(distance.ln()));
-        }
+
+            let mut distance_to_edge_x = 0.;
+            let mut distance_to_edge_y = 0.;
+            // if nearest_vec[i].position[0] <= min_x + (max_x - min_x) / 2. { //nearest_vec.positiom[0]
+            //     distance_to_edge_x = (max_x - value[0]) / (max_x - min_x);  
+            // } else{
+            //     distance_to_edge_x = (value[0] - min_x) / (max_x - min_x); 
+            // }
+
+            // if nearest_vec[i].position[1] <= min_y + (max_y - min_y) / 2. {
+            //     distance_to_edge_y =  (max_y - value[1]) / (max_y - min_y); 
+            // } else{
+            //     distance_to_edge_y = (value[1] - min_y) / (max_y - min_y); 
+            // }
+            distance_to_edge_x = 1. - (value[0] - nearest_vec[i].position[0]).abs() / (max_x - min_x); 
+            distance_to_edge_y = 1. - (value[1] - nearest_vec[i].position[1]).abs() / (max_y - min_y); 
+
+            let scale_x = distance_to_edge_x.powf(4.); 
+            let scale_y = distance_to_edge_y.powf(4.);
+            // if (value[0] *1000.).floor() == 98049. {
+            //     println!("scale_x {:?}, scale_y {:?}", scale_x, scale_y);
+            // }
+
+            let distance = euclidean(&value, &nearest_vec[i].position).powf(2.);
+            scaling_sum += 1. * scale_x * scale_y; // distance   / angle_values[i]
+            if value[0] >= 202. && value[0] <= 204. {
+
+                println!("current {:?}, scale_x {:?}, scale_y {:?}, product {:?}, prob {:?}", nearest_vec[i].position, scale_x, scale_y, scale_x*scale_y, nearest_vec[i].prob.exp());
+            }
+            // println!("nearest_vec[i].prob {:?}", nearest_vec[i].prob);
+            result = result.ln_add_exp(nearest_vec[i].prob   + LogProb(scale_x.ln()) + LogProb(scale_y.ln()));
+        } // - LogProb(distance.ln())   - LogProb(angle_values[i].ln())
         if result == LogProb::ln_zero(){
             return result;
         }
-        // println!("scaling_sum {:?}, result without scaling {:?}, scaled_result {:?} ", LogProb(scaling_sum.ln()),  result, (result - LogProb(scaling_sum.ln())));
+        if value[0] >= 2119. && value[0] <= 2121. {
+            println!("scaling_sum {:?}, result without scaling {:?}, scaled_result {:?} ", LogProb(scaling_sum.ln()),  result, (result - LogProb(scaling_sum.ln())));
+        }
         result = result - LogProb(scaling_sum.ln());
         let distance_of_value =  euclidean(&value, &[0.0, 0.0]);
         // println!("distance_of_value {:?}", distance_of_value);
@@ -571,7 +652,9 @@ impl ProbDistribution2d {
             result = result - LogProb((distance_of_value - self.max_distance).ln());        
         }
         // println!("value {:?}, nearest_vec {:?}, result {:?}, outlier {:?}", value, nearest_vec, result, self.max_distance < distance_of_value);
-        // println!("value {:?}, result 2d smoothing {:?}", value, result);
+        // if (value[0] * 1000.).floor() == 98048. {
+        //     println!("value {:?}, result 2d smoothing {:?}", value, result);
+        // }
         return result;
     }
 }
