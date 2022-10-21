@@ -35,7 +35,6 @@ pub(crate) struct ProbDistribution2d {
     max_y: f64,
 }
 
-
 pub fn euclidean<T: Float>(a: &[T], b: &[T]) -> T {
     debug_assert_eq!(a.len(), b.len());
     a.iter()
@@ -67,14 +66,8 @@ impl ProbDistribution2d {
         }
     }
 
-    #[allow(unused)]
     pub(crate) fn len(&self) -> usize {
         self.points.len()
-    }
-
-    #[allow(unused)]
-    pub(crate) fn get_max_prob_position(&self) -> [f64; 2] {
-        self.points[self.max_prob_entry_position].position
     }
 
     pub(crate) fn get_max_prob(&self) -> LogProb {
@@ -142,15 +135,8 @@ impl ProbDistribution2d {
         }
 
         while queue.len() > 0 {
-            // if self.len() % 100 == 0 {
-            //     println!("len {:?}", self.len());
-            // }
             let mut debugPrint = false;
-            // println!("len of queue {:?}", queue.len());
-            // println!("--------------------------");
             let square = queue.pop_front().unwrap();
-            // println!("square tl {:?}, tr {:?}, bl {:?}, br {:?}", square.top_left, square.top_right, square.bot_left, square.bot_right);
-            // println!("square {:?}", square);
             let new_point_candidates = self.new_points(&square);
             let mut calced_values = Vec::<Option<LogProb>>::new();
             let mut estimated_values = Vec::<Option<LogProb>>::new();
@@ -168,7 +154,6 @@ impl ProbDistribution2d {
                 let distance_to_nearest = nearest.0;
                 // println!("counter {:?}, p.x {:?}, p.y {:?}, dist {:?}, nearst {:?}", counter, p.x, p.y, distance_to_nearest, self.points[*nearest.1]);
                 if ProbDistribution2d::check_if_different(p, &self.points[*nearest.1].position, &self.points[square.bot_left].position) {
-                // if distance_to_nearest / euclidean(&[p.x, p.y], &self.points[square.bot_left].position) > 1e-6 { // &[square.bot_left.x, square.bot_left.y]
                         let prob = calc(
                         p.x,  // mu_ik
                         p.y,  // *theta_i
