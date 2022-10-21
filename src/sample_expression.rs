@@ -15,7 +15,7 @@ use serde::Deserialize as SerdeDeserialize;
 use serde_derive::{Deserialize, Serialize};
 use statrs::function::beta::ln_beta;
 
-use crate::common::{window_x, Outdir}; // , Square, Point
+use crate::common::Outdir; // , Square, Point
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
 use crate::prob_distribution_2d::ProbDistribution2d;
@@ -89,21 +89,6 @@ pub(crate) fn sample_expression(
             }
             start_points_mu_ik.push(10001.);
 
-
-            // let mut start_points_mu_ik = vec![0.];
-            // if d_ik != 0. {
-            //     let mut cur_d_ik = d_ik / 10.;
-            //     for i in 1..4  {
-            //         if cur_d_ik >= 10000. { break; }
-            //         start_points_mu_ik.push(cur_d_ik);
-            //         cur_d_ik = cur_d_ik * 10.;
-            //     }
-            //     if start_points_mu_ik.len() == 1 {
-            //         start_points_mu_ik.push(5000.);
-            //     }
-            //     start_points_mu_ik.push(10000.);
-            // }
-            // println!("start_points_mu_ik {:?}",start_points_mu_ik);
             let mut start_points_theta_i = Vec::<f64>::new();
             start_points_theta_i.extend(prior.left_window());
             start_points_theta_i.extend(prior.right_window());
@@ -121,28 +106,6 @@ pub(crate) fn sample_expression(
                 )
             };
             likelihoods.insert_grid(start_points_mu_ik, start_points_theta_i, calc_prob);
-
-            
-            // let theta_i = 1000.;
-            // for mu_ik in [1., 100., 500., 1000., 2500., 5000.] {
-            //     let mut result = LogProb::ln_zero();
-            //     println!("mu {:?}, theta {:?}, s_j {:?}",mu_ik, theta_i, s_j);
-            //     for x in [0.,1.,10., 50.,100., 500., 1000., 5000., 10000., 50000.]{
-            //         let nb1 = neg_binom(d_ij, x, t_ij);
-            //         let nb2 = neg_binom(x, mu_ik * s_j, theta_i);
-            //         let sum = nb1 + nb2;
-            //         // result = result.ln_add_exp(sum);
-            //         println!("{:?} & {:?} & {:?} & {:?} \\\\", x, f64::from(nb1).exp(), f64::from(nb2).exp(), f64::from(sum).exp() );
-            //     }
-            //     for x in 0..50001 {
-            //         let nb1 = neg_binom(d_ij, x as f64, t_ij);
-            //         let nb2 = neg_binom(x as f64, mu_ik * s_j, theta_i);
-            //         let sum = nb1 + nb2;
-            //         result = result.ln_add_exp(sum);
-            //     }
-            //     println!("result {:?}", f64::from(result).exp());
-            // }
-            
 
             out_dir.serialize_value(feature_id, likelihoods)?;
             }
@@ -183,10 +146,6 @@ fn prob_mu_ik_theta_i_x(
     theta_i: f64,
     s_j: f64,
 ) -> LogProb {
-    // if d_ij == 0. {
-    //     // println!("############ prob_mu_ik_theta_i_x x {:?}, d_ij {:?}, mu_ik {:?}, t_ij {:?}, theta_i {:?}, s_j {:?}", x, d_ij, mu_ik, t_ij, theta_i, s_j);
-    //     println!("x {:?}, nb(d_ij, x, t_ij) {:?}, nb(x, mu_ik * s_j, theta_i) {:?}, res {:?}",x, neg_binom(d_ij, x, t_ij), neg_binom(x, mu_ik * s_j, theta_i),neg_binom(d_ij, x, t_ij) + neg_binom(x, mu_ik * s_j, theta_i));
-    // }
     neg_binom(d_ij, x, t_ij) + neg_binom(x, mu_ik * s_j, theta_i)
 }
 
@@ -201,10 +160,6 @@ fn likelihood_mu_ik_theta_i(
 ) -> LogProb {
     if d_ij != 0. && mu_ik == 0. {
         return LogProb::ln_zero();
-    }
-    if mu_ik == 3208600050.4032364 {
-        println!("############ likelihood_mu_ik_theta_i");
-        println!("mu_ik {:?}, theta_i {:?}, d_ij {:?}, t_ij {:?}, s_j {:?}", mu_ik, theta_i, d_ij, t_ij, s_j);
     }
     let mut max_prob = LogProb::ln_zero();
     let mut result = LogProb::ln_zero();
@@ -236,9 +191,6 @@ fn neg_binom(x: f64, mu: f64, theta: f64) -> LogProb {
         mem::swap(&mut p1, &mut p2);
     }
     // (p1 - b + p2).exp() / (x + n)
-    if x == 0. {
-        // println!("x {:?}, mu {:?}, theta {:?}, n {:?}, p {:?}, p1 {:?}, p2 {:?}, b {:?}", x, mu, theta, n, p ,p1, p2, b);
-    }
     LogProb((p1 - b + p2) - (x + n).ln()) // TODO is this the correct form for returning LogProb?
 }
 

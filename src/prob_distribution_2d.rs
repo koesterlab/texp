@@ -204,7 +204,6 @@ impl ProbDistribution2d {
             if calced_values[2].is_none() && new_point_indices[2] != usize::MAX {
                 self.points[new_point_indices[2]].trbl[B] = new_point_indices[0];
             }
-
                 // auch für die anderen Punkte testen, ob Sie schon existieren und dann top/left/... von denen entsprechend setzen
             }   
             
@@ -234,7 +233,6 @@ impl ProbDistribution2d {
                     self.points[new_point_indices[4]].trbl[B] = new_point_indices[2];
                 }
             }
-            
 
             if !calced_values[3].is_none() {
                 let point = new_point_candidates[3];
@@ -330,8 +328,6 @@ impl ProbDistribution2d {
         // if mu > 47. && mu < 51. {
         //     println!("insert: mu {:?}, theta {:?}, prob {:?}", mu, theta, prob.exp());
         // }
-        // let value: [N64; 2] = [N64::new(mu), N64::new(theta)];
-        // self.points.insert(value, prob);
         let value: [f64; 2] = [mu, theta];
         let entry = EntryForKdtree{position: value, prob: prob, trbl: [top, right, bottom, left]};
         let entry_position = self.points.len();
@@ -372,20 +368,6 @@ impl ProbDistribution2d {
                         break;
                     }                   
                 }
-            // let nearest_corner = self.kdtree.nearest(&value, 1, &euclidean).unwrap()[0].1;
-            // let nearest_square = self.find_square_for_point(&value, *nearest_corner);
-            // // nearest_vec.iter().map(|x| { return (x.0, &self.points[*x.1]); }).collect::<Vec<_>>();
-            // let result = self.smoothing(&value, nearest_square);
-            // // if (value[0] * 1000.).floor() == 98049. {
-            //     if value[0] >= 2119. && value[0] <= 2121. {
-                    // let nearest_point = &self.points[*nearest_corner];
-            //         println!("result nearest {:?}", self.kdtree.nearest(&value, 1, &euclidean).unwrap());
-                    // println!("get: value {:?},nearest_point {:?} result {:?}", value, nearest_point, result.exp());
-            //         println!("result nearest to value {:?}", self.kdtree.nearest(&value, 1, &euclidean).unwrap());
-            //         println!("result nearest to 2119.7375164232226{:?}", self.kdtree.nearest(&[2119.7375164232226, 125.], 1, &euclidean).unwrap());
-            //         println!("result nearest to 2119.7374922033596 {:?}", self.kdtree.nearest(&[2119.7374922033596, 125.], 1, &euclidean).unwrap());
-            //     }
-            // println!("get: value {:?} result {:?}", value, result.exp());
             return result;
         }
     }

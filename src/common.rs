@@ -4,15 +4,11 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bio::stats::LogProb;
 use derefable::Derefable;
-use itertools_num::linspace;
-// use noisy_float::prelude::Float;
-// use noisy_float::types::N32;
 use rmp_serde::{Deserializer, Serializer};
 use serde::Deserialize as SerdeDeserialize;
 use serde::Serialize as SerdeSerialize;
 
 use crate::errors::Error;
-
 
 pub(crate) struct Pair {
     pub left: f64,
@@ -33,34 +29,6 @@ pub(crate) struct Square {
     pub bot_right: usize,
 }
 
-/// Return left and right window around given parameter mean
-#[allow(unused)]
-pub(crate) fn window(mean: f64) -> (impl Iterator<Item = f64>, impl Iterator<Item = f64>) {
-    // TODO: think about larger steps, binary search etc. to optimize instead of just having a fixed number of steps.
-    (
-        linspace(mean / 5.0, mean, 20).rev().skip(1),
-        linspace(mean, 10000.0 * mean, 120),
-    )
-}
-
-#[allow(unused)]
-pub(crate) fn window_x(mean: f64) -> (impl Iterator<Item = f64>, impl Iterator<Item = f64>) {
-    // TODO: think about larger steps, binary search etc. to optimize instead of just having a fixed number of steps.
-    (linspace(0.0, 50., 51), linspace(51., 500., 450))
-}
-
-// pub(crate) fn window_f(
-//     max_prob_fold_change: f64,
-// ) -> (impl Iterator<Item = f64>, impl Iterator<Item = f64>) {
-//     // TODO: think about larger steps, binary search etc. to optimize instead of just having a fixed number of steps.
-//     (
-//         linspace(max_prob_fold_change / 5.0, max_prob_fold_change, 20)
-//             .rev()
-//             .skip(1),
-//         linspace(max_prob_fold_change, 30.0 * max_prob_fold_change, 30),
-//     )
-// }
-
 pub(crate) fn difference_to_big( // If difference is > than 1/10.000 of maximum probability
     estimated_value: LogProb,
     calculated_value: LogProb,
@@ -79,17 +47,6 @@ pub(crate) fn difference_to_big( // If difference is > than 1/10.000 of maximum 
     // if (estimated_value.exp() - calculated_value.exp()).abs() / prob_dist_max > 0.0001 
 }
 
-// pub(crate) fn interpolate_pmf(
-//     value: N32,
-//     lower: N32,
-//     upper: N32,
-//     prob_lower: LogProb,
-//     prob_upper: LogProb,
-// ) -> LogProb {
-//     let len = upper - lower;
-//     (prob_lower + LogProb(f64::from(((upper - value) / len).ln())))
-//         .ln_add_exp(prob_upper + LogProb(f64::from(((value - lower) / len).ln())))
-// }
 
 //--------------------OutDir--------------------
 

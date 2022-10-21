@@ -6,9 +6,7 @@ use std::collections::VecDeque;
 
 use anyhow::Result;
 use bio::stats::LogProb;
-use bio::stats::probs::adaptive_integration::ln_integrate_exp;
 use rayon::prelude::*;
-use ordered_float::NotNan;
 
 use crate::common::{Outdir, Pair, difference_to_big};
 use crate::errors::Error;
@@ -101,69 +99,17 @@ pub(crate) fn group_expression(
                     return LogProb::ln_zero();
                 }
                 let density = |_, theta_i| {
-                // let density = |theta_i: NotNan<f64>| {
                     let d = sample_expression_likelihoods
                         .iter()
-                        // .skip(1)
-                        // .take(1)
                         .map(|sample_expression_likelihood| {
                             sample_expression_likelihood
                                 .get(&[mu_ik, theta_i])
-                                // .get(&[mu_ik, theta_i.into_inner()])
                         })
-                        // .inspect(|x| {
-                        //     if mu_ik.floor() == 98. { 
-                        //         println!("sample exp {:?} for mu_ik {mu_ik} and theta {theta_i}", x);
-                        //     }
-                        // })
                         .sum::<LogProb>() + //Formula 5
                         LogProb(*prior.prob(theta_i) * 2.0); // square of Pr(theta_i), formula 8
-                        // LogProb(*prior.prob(theta_i.into_inner()) * 2.0); // square of Pr(theta_i), formula 8
-                    // if mu_ik >= 50. && mu_ik <= 65. {
-                    //     println!("mu_ik {:?}, density {:?} \n\n", mu_ik, d.exp());
-                    // }
                     d
                 };
 
-
-                // let prob = density(0., 100.);
-                // let prob = LogProb::ln_zero();
-                // let prob = ln_integrate_exp(
-                //     density,
-                //     NotNan::new(prior.min_value()).unwrap(),
-                //     NotNan::new(prior.max_value()).unwrap(),
-                //     NotNan::new(0.001).unwrap()
-                //     // prior.min_value(),
-                //     // prior.max_value(),
-                //     // 0.1
-                // );
-                // let prob1 = ln_integrate_exp(
-                //     density,
-                //     NotNan::new(prior.min_value()).unwrap(),
-                //     NotNan::new(25.).unwrap(),
-                //     NotNan::new(0.001).unwrap()
-                //     // prior.min_value(),
-                //     // prior.max_value(),
-                //     // 0.1
-                // );
-                // let prob2 = ln_integrate_exp(
-                //     density,
-                //     NotNan::new(25.).unwrap(),
-                //     NotNan::new(100.).unwrap(),
-                //     NotNan::new(0.001).unwrap()
-                //     // prior.min_value(),
-                //     // prior.max_value(),
-                //     // 0.1
-                // );
-                // let prob3 = ln_integrate_exp(
-                //     density,
-                //     NotNan::new(100.).unwrap(),
-                //     NotNan::new(prior.max_value()).unwrap(),
-                //     NotNan::new(0.001).unwrap()
-                //     // prior.min_value(),
-                //     // prior.max_value(),
-                //     // 0.1
-                // );
                 // Result of formula 7.
                 let prob= LogProb::ln_simpsons_integrate_exp(
                     density,
@@ -171,32 +117,6 @@ pub(crate) fn group_expression(
                     prior.max_value(),
                     451,
                 );
-
-
-                // let prob1 = LogProb::ln_simpsons_integrate_exp(
-                //     density,
-                //     prior.min_value(),
-                //     25.,
-                //     201,
-                // );
-                
-                // let prob2 = LogProb::ln_simpsons_integrate_exp(
-                //     density,
-                //     25.,
-                //     100.,
-                //     201,
-                // );
-                // let prob3 = LogProb::ln_simpsons_integrate_exp(
-                //     density,
-                //     100.,
-                //     prior.max_value(),
-                //     51,
-                // );
-                // let prob = prob1.ln_add_exp(prob2).ln_add_exp(prob3);
-                // if mu_ik == 10000.{
-                //     println!("prob1 {:?}, prob2 {:?}, prob3 {:?}, prob {:?}", prob1, prob2, prob3, prob);
-                // }
-                // let prob = prob1;
                 prob
 
             };
@@ -261,9 +181,6 @@ pub(crate) fn group_expression(
                 if middle - left < 1e-3 || prob_dist.len() > 10000{
                     continue;
                 }
-                // if middle.floor() == 98. {
-                //     println!("mu_ik {:?}, est {:?}, calc {:?}, max {:?}", middle, estimated_value, calculated_value, prob_dist_max);
-                // }
                 if difference_to_big(estimated_value, calculated_value, prob_dist_max) {
                     queue.push_back(Pair {
                         left: left,

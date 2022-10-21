@@ -92,24 +92,6 @@ pub(crate) fn diff_exp(
                 prob
             };
 
-            // println!("max_prob_fold_change {:?}", max_prob_fold_change);
-            // let start_points = [
-            //     0.,
-            //     max_prob_fold_change / 10.,
-            //     max_prob_fold_change,
-            //     max_prob_fold_change * 10.,
-            //     f64::INFINITY,
-            // ];
-            // println!("start points mu_ik {:?}", start_points);
-            // diff_exp_distribution.insert(
-            //     max_prob_fold_change / 10.,
-            //     calc_prob(max_prob_fold_change / 10.),
-            // );
-            // diff_exp_distribution.insert(max_prob_fold_change, calc_prob(max_prob_fold_change));
-            // diff_exp_distribution.insert(
-            //     max_prob_fold_change * 10.,
-            //     calc_prob(max_prob_fold_change * 10.),
-            // );
             let mut start_points = vec![0.];
             let mut cur_prob = LogProb::ln_zero();
             // diff_exp_distribution.insert(0., cur_prob);            
