@@ -267,20 +267,6 @@ impl ProbDistribution2d {
         }
     }
 
-    // TODO
-    pub(crate) fn find_next_in_direction(&mut self, index: usize, mut direction: usize) -> usize {
-        direction = (direction + 3) % 4;
-        let mut next = self.points[index].trbl[direction];
-        if next == usize::MAX {
-            return usize::MAX;
-        }
-        direction = (direction + 1) % 4;
-        next = self.points[index].trbl[direction];
-        if next == usize::MAX {
-            return usize::MAX;
-        }
-        return next;
-    }
 
     pub(crate) fn new_points(&mut self, square: &Square) -> Vec<Point> {
         let mut result = Vec::<Point>::new();
@@ -505,13 +491,11 @@ impl ProbDistribution2d {
 
 
     pub(crate) fn smoothing(&self, value: &[f64], point_indices: Vec<usize>) -> LogProb {
-        // println!("\n");
         let c = 1.;
         let mut min_x = f64::MAX;
         let mut min_y = f64::MAX;
         let mut max_x = f64::MIN;
         let mut max_y = f64::MIN;
-        // let nearest_vec = point_indices.iter().map(|x| &self.points[*x]).collect::<Vec<_>>();
         let filtering = |x: &usize| {
             let p = &self.points[*x];
             let x1 = p.position[0] - value[0];
@@ -532,151 +516,29 @@ impl ProbDistribution2d {
         if nearest_vec.len() == 0 {
             return LogProb::ln_zero();
         }
-        // if value[0] >= 8000. && value[0] <= 8200. {
-        //     println!("\n nearest_vec {:?}", nearest_vec);
-        // }
-
-        let middle_x =  (max_x - min_x) / 2.;
-        let middle_y =  (max_y - min_y) / 2.;
-        let mut angle_values = vec![c; nearest_vec.len()];
-        for i in 0..(nearest_vec.len() - 1){
-            let point1 = nearest_vec[i].position;
-            let x1 = point1[0] - middle_x; //value[0];
-            let y1 = point1[1] - middle_y; // value[1];
-            for j in (i+1)..nearest_vec.len(){
-                let point2 = nearest_vec[j].position;
-                let x2 = point2[0] - middle_x; //value[0];
-                let y2 = point2[1] - middle_y; //value[1];
-                let denominator_left = x1 * x1 + y1 * y1;
-                let denominator_right = x2 * x2 + y2 * y2;
-                // if denominator_left.is_infinite() || denominator_right.is_infinite(){
-                //     continue
-                // }
-                let mut temp : f64 = (x1 * x2 + y1 * y2) / (denominator_left * denominator_right).sqrt();
-                if temp >= 1. {
-                    temp = 1.;
-                } else if temp <= -1. {
-                    temp = -1.;
-                }
-                let phi = temp.acos();
-                let scale = c * (PI - phi) / PI;
-                angle_values[i] += scale;
-                angle_values[j] += scale; 
-                // println!("x1 {:?}, x2 {:?}, y1 {:?}, y2 {:?}", x1, x2, y1, y2); 
-                // println!("denominator_left {:?}, denominator_right {:?},(x1 * x2 + y1 * y2) {:?}", denominator_left, denominator_right, (x1 * x2 + y1 * y2));
-                // println!("(x1 * x2 + y1 * y2) / (denominator_left * denominator_right) {:?}, phi {:?}", (x1 * x2 + y1 * y2) / (denominator_left * denominator_right),phi);           
-            }
-        }
-        // if value[0] >= 8000. && value[0] <= 8200. {
-        // //     println!("angle_values {:?}", angle_values);
-        
-        //     println!("value {:?}, min_x {:?}, max_x {:?}, min_y {:?}, max_y {:?}", value, min_x, max_x, min_y, max_y);
-        // }
         let mut result = LogProb::ln_zero();
         let mut scaling_sum = 0.;
         let mut distances_x = vec![0.; nearest_vec.len()];
         let mut distances_y = vec![0.; nearest_vec.len()];
-        let mut closest_higher_x = f64::MAX;
-        let mut closest_lower_x = f64::MIN;
-        let mut closest_higher_y = f64::MAX;
-        let mut closest_lower_y = f64::MIN;
+
         for i in 0..nearest_vec.len() {
-            distances_x[i] = (value[0] - nearest_vec[i].position[0]).abs();// / (max_x - min_x); 
-            distances_y[i] = (value[1] - nearest_vec[i].position[1]).abs() ;// / (max_y - min_y); 
-            if  nearest_vec[i].position[0] > value[0] {
-                closest_higher_x = closest_higher_x.min(nearest_vec[i].position[0]);
-            } else{
-                closest_lower_x = closest_lower_x.max(nearest_vec[i].position[0]);
-            }
-            if  nearest_vec[i].position[1] > value[1] {
-                closest_higher_y = closest_higher_y.min(nearest_vec[i].position[1]);
-            } else{
-                closest_lower_y = closest_lower_y.max(nearest_vec[i].position[1]);
-            }
+            distances_x[i] = (value[0] - nearest_vec[i].position[0]).abs();//
+            distances_y[i] = (value[1] - nearest_vec[i].position[1]).abs() ;//
         }
-        let min_distance_x = distances_x.iter().fold(f64::INFINITY, |a, &b| a.min(b));
-        let min_distance_y = distances_y.iter().fold(f64::INFINITY, |a, &b| a.min(b));
-        let nearest_x = nearest_vec.iter().filter_map(|a| {
-                if a.position[0] == closest_lower_x || a.position[0] == closest_higher_x {
-                    return Some(a)
-                } else{ return None}
-            }).collect::<Vec<_>>();
-        let nearest_y = nearest_vec.iter().filter_map(|a| {
-                if a.position[1] == closest_lower_y || a.position[1] == closest_higher_y {
-                    return Some(a)
-                } else{ return None}
-            }).collect::<Vec<_>>();
-
-        // if value[0] >= 8000. && value[0] <= 8200. {
-        //     println!("closest_lower_x {:?}, closest_higher_x {:?}, nearest_x {:?}",  closest_lower_x, closest_higher_x, nearest_x);
-        //     println!("closest_lower_y {:?}, closest_higher_y {:?}, nearest_y {:?}",  closest_lower_y, closest_higher_y, nearest_y);
-        // }
 
         for i in 0..nearest_vec.len() {
-
-            let mut scale_x = 1.;
-            let mut scale_y = 1.;
-            if distances_x[i] != 0.{
-                scale_x = min_distance_x / distances_x[i] ;
-            }
-            if distances_y[i] != 0.{
-                scale_y = min_distance_y / distances_y[i];
-            }
-            scale_x = 1.;//scale_x.powi(4);
-            scale_y = 1.;//scale_y.powi(4);
-
             let mut edge_scale_x = (1. - distances_x[i] / (max_x - min_x)).powi(8);
             let mut edge_scale_y = (1. - distances_y[i] / (max_y - min_y)).powi(8);
             edge_scale_x = (-1. / edge_scale_x).exp();
             edge_scale_y = (-1. / edge_scale_y).exp();
-            // if nearest_vec[i].position[0] != closest_lower_x && nearest_vec[i].position[0] != closest_higher_x {
-            //     edge_scale_x = 1. - edge_scale_x;
-            // }
-            // if nearest_vec[i].position[1] != closest_lower_y && nearest_vec[i].position[1] != closest_higher_y {
-            //     edge_scale_y = 1. - edge_scale_y;
-            // }
 
-
-
-
-
-            // let mut distance_to_edge_x = 0.;
-            // let mut distance_to_edge_y = 0.;
-            // if nearest_vec[i].position[0] <= min_x + (max_x - min_x) / 2. { //nearest_vec.positiom[0]
-            //     distance_to_edge_x = (max_x - value[0]) / (max_x - min_x);  
-            // } else{
-            //     distance_to_edge_x = (value[0] - min_x) / (max_x - min_x); 
-            // }
-
-            // if nearest_vec[i].position[1] <= min_y + (max_y - min_y) / 2. {
-            //     distance_to_edge_y =  (max_y - value[1]) / (max_y - min_y); 
-            // } else{
-            //     distance_to_edge_y = (value[1] - min_y) / (max_y - min_y); 
-            // }
-            // distance_to_edge_x = 1. - (value[0] - nearest_vec[i].position[0]).abs() / (max_x - min_x); 
-            // distance_to_edge_y = 1. - (value[1] - nearest_vec[i].position[1]).abs() / (max_y - min_y); 
-
-            // let scale_x = distance_to_edge_x.powf(4.); 
-            // let scale_y = distance_to_edge_y.powf(4.);
-            // if (value[0] *1000.).floor() == 98049. {
-            //     println!("scale_x {:?}, scale_y {:?}", scale_x, scale_y);
-            // }
-
-            // let distance = euclidean(&value, &nearest_vec[i].position).powf(2.);
-            scaling_sum += 1. * scale_x * scale_y * edge_scale_x * edge_scale_y; // distance   / angle_values[i]
-            // if value[0] >= 50. && value[0] <= 65. {
-            //     println!("cur {:?}, scale_x {:?}, scale_y {:?}, prod {:?}, edge_x {:?}, edge_y {:?}, prob {:?}", 
-            //         nearest_vec[i].position, scale_x, scale_y, scale_x*scale_y*edge_scale_x*edge_scale_y, edge_scale_x, edge_scale_y, nearest_vec[i].prob.exp());
-            // }
-            // println!("nearest_vec[i].prob {:?}", nearest_vec[i].prob);
-            result = result.ln_add_exp(nearest_vec[i].prob   + LogProb(scale_x.ln()) + LogProb(scale_y.ln()) + LogProb(edge_scale_x.ln()) + LogProb(edge_scale_y.ln()));
-        } // - LogProb(distance.ln())   - LogProb(angle_values[i].ln())
+            scaling_sum += 1. * edge_scale_x * edge_scale_y; 
+            result = result.ln_add_exp(nearest_vec[i].prob    + LogProb(edge_scale_x.ln()) + LogProb(edge_scale_y.ln()));
+        } 
         if result == LogProb::ln_zero(){
             return result;
         }
-        // if value[0] >= 50. && value[0] <= 65. {
-        //     println!("scaling_sum {:?}, result without scaling {:?}, scaled_result {:?} ", scaling_sum,  result.exp(), (result - LogProb(scaling_sum.ln())).exp());
-        // }
+
         result = result - LogProb(scaling_sum.ln());
         let distance_of_value =  euclidean(&value, &[0.0, 0.0]);
         // println!("distance_of_value {:?}", distance_of_value);
@@ -684,10 +546,6 @@ impl ProbDistribution2d {
             result = result - LogProb((distance_of_value - self.max_distance).ln());  
             println!("Is outlier. New result {:?}", result.exp())      
         }
-        // println!("value {:?}, nearest_vec {:?}, result {:?}, outlier {:?}", value, nearest_vec, result, self.max_distance < distance_of_value);
-        // if (value[0] * 1000.).floor() == 98048. {
-        //     println!("value {:?}, result 2d smoothing {:?}", value, result);
-        // }
         return result;
     }
 }
