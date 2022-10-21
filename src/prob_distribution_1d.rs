@@ -57,32 +57,8 @@ impl ProbDistribution1d {
         x2: f64,
         y2: LogProb,
         s2: f64,
-    ) -> (f64, LogProb, f64) {
-        // if (x1 == 0. && y1 == LogProb::ln_zero()) || (x2 == 0. && y2 == LogProb::ln_zero()) {
-        //     println!("Some vec is zero x1 {:?} or x2 {:?}", x1, x2);
-        //     return (0., LogProb::ln_zero(), 0. );
-        // }
-        
+    ) -> (f64, LogProb, f64) {     
         let d1 = 0.; // is f64
-        // let denominator_left = (x1 * x1 + f64::from(y1) * f64::from(y1)).sqrt();
-        // let denominator_right = (x2 * x2 + f64::from(y2) * f64::from(y2)).sqrt();
-        // let phi = ((x1 * x2 + (f64::from(y1) * f64::from(y2))) / (denominator_left * denominator_right)).acos();
-        // let scale = (PI - phi) / PI;
-
-        // let mut d2 = LogProb::ln_zero();
-        // let mut new_s = s1;
-        // if s1 == s2 {
-        //     d2 = y1.ln_add_exp(y2);
-        // } else if y1 < y2 {
-        //     new_s = s2;
-        //     d2 = y2.ln_sub_exp(y1);
-        // } else {
-        //     d2 = y1.ln_sub_exp(y2);
-        // }
-        // d2 += LogProb(scale.ln());
-        // new_s *= -1.;
-
-        // println!("phi {:?}, scale {:?}, x1 {:?}, y1 {:?}, s1 {:?}, x2 {:?}, y2 {:?}, s2 {:?},", phi, scale, x1, y1, s1, x2, y2, s2);
 
         let mut len_left = LogProb::ln_one();
         let mut len_right = LogProb::ln_one();
@@ -209,8 +185,6 @@ impl ProbDistribution1d {
                 let (sign1, param1, sign2, param2) =
                     ProbDistribution1d::calc_sign_params(prob, *upper_prob, un_d2);
                 let (_, local_d2, local_s) = ProbDistribution1d::calc_directions( // local_d1
-                    // lower.raw()-value, lower_prob.ln_sub_exp(prob), upper.raw()-value, upper_prob.ln_sub_exp(prob));
-                    // value-upper.raw(), prob.ln_sub_exp(*upper_prob), un_d1-upper.raw(), un_d2.ln_sub_exp(*upper_prob));
                     value - upper.raw(),
                     param1,
                     sign1,
@@ -229,8 +203,6 @@ impl ProbDistribution1d {
                 let (sign1, param1, sign2, param2) =
                     ProbDistribution1d::calc_sign_params(lp_d2, *lower_prob, prob);
                 let (_, local_d2, local_s) = ProbDistribution1d::calc_directions( //local_d1
-                    // lower.raw()-value, lower_prob.ln_sub_exp(prob), upper.raw()-value, upper_prob.ln_sub_exp(prob));
-                    // lp_d1-lower.raw(), lp_d2.ln_sub_exp(*lower_prob), value-lower.raw(), prob.ln_sub_exp(*lower_prob));
                     lp_d1 - lower.raw(),
                     param1,
                     sign1,
@@ -257,12 +229,8 @@ impl ProbDistribution1d {
         } else {
             let mut upper_it = self.points.range(N64::new(value)..);
             let upper = upper_it.next();
-            // let upper2 = upper_it.next();
-            // let upper3 = upper_it.next();
             let mut lower_it = self.points.range(..=N64::new(value)).rev();
             let lower = lower_it.next();
-            // let lower2 = lower_it.next();
-            // let lower3 = lower_it.next();
             // println!("lower3 {:?}, lower2 {:?}, lower {:?}, value {:?}, upper {:?}, upper2 {:?}, upper3 {:?}", lower3, lower2, lower, value, upper, upper2, upper3);
             let value = N64::new(value);
             if let Some((upper, (upper_prob, ud1, ud2))) = upper {
@@ -354,6 +322,7 @@ impl ProbDistribution1d {
             for (prob, _, _) in self.points.values_mut() {  // d1, d2
                 *prob = *prob - marginal //Logspace / -> -
             }
+            self.max_prob = Some(self.max_prob.unwrap() - marginal);
         }
         marginal
     }

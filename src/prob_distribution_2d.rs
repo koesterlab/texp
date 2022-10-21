@@ -327,9 +327,9 @@ impl ProbDistribution2d {
     }
 
     pub(crate) fn insert(&mut self, mu: f64, theta: f64, prob: LogProb, top: usize, right: usize, bottom: usize, left: usize) {
-        if mu > 47. && mu < 51. {
-            println!("insert: mu {:?}, theta {:?}, prob {:?}", mu, theta, prob.exp());
-        }
+        // if mu > 47. && mu < 51. {
+        //     println!("insert: mu {:?}, theta {:?}, prob {:?}", mu, theta, prob.exp());
+        // }
         // let value: [N64; 2] = [N64::new(mu), N64::new(theta)];
         // self.points.insert(value, prob);
         let value: [f64; 2] = [mu, theta];
@@ -378,13 +378,14 @@ impl ProbDistribution2d {
             // let result = self.smoothing(&value, nearest_square);
             // // if (value[0] * 1000.).floor() == 98049. {
             //     if value[0] >= 2119. && value[0] <= 2121. {
-            //         let nearest_point = &self.points[*nearest_corner];
+                    // let nearest_point = &self.points[*nearest_corner];
             //         println!("result nearest {:?}", self.kdtree.nearest(&value, 1, &euclidean).unwrap());
-            //         println!("get: value {:?},nearest_point {:?} result {:?}", value, nearest_point, result.exp());
+                    // println!("get: value {:?},nearest_point {:?} result {:?}", value, nearest_point, result.exp());
             //         println!("result nearest to value {:?}", self.kdtree.nearest(&value, 1, &euclidean).unwrap());
             //         println!("result nearest to 2119.7375164232226{:?}", self.kdtree.nearest(&[2119.7375164232226, 125.], 1, &euclidean).unwrap());
             //         println!("result nearest to 2119.7374922033596 {:?}", self.kdtree.nearest(&[2119.7374922033596, 125.], 1, &euclidean).unwrap());
             //     }
+            // println!("get: value {:?} result {:?}", value, result.exp());
             return result;
         }
     }
@@ -564,9 +565,9 @@ impl ProbDistribution2d {
         if nearest_vec.len() == 0 {
             return LogProb::ln_zero();
         }
-        if value[0] >= 2119. && value[0] <= 2121. {
-            println!("\n nearest_vec {:?}", nearest_vec);
-        }
+        // if value[0] >= 8000. && value[0] <= 8200. {
+        //     println!("\n nearest_vec {:?}", nearest_vec);
+        // }
 
         let middle_x =  (max_x - min_x) / 2.;
         let middle_y =  (max_y - min_y) / 2.;
@@ -599,17 +600,81 @@ impl ProbDistribution2d {
                 // println!("(x1 * x2 + y1 * y2) / (denominator_left * denominator_right) {:?}, phi {:?}", (x1 * x2 + y1 * y2) / (denominator_left * denominator_right),phi);           
             }
         }
-        if value[0] >= 202. && value[0] <= 204. {
-        //     println!("angle_values {:?}", angle_values);
+        // if value[0] >= 8000. && value[0] <= 8200. {
+        // //     println!("angle_values {:?}", angle_values);
         
-            println!("value {:?}, min_x {:?}, max_x {:?}, min_y {:?}, max_y {:?}", value, min_x, max_x, min_y, max_y);
-        }
+        //     println!("value {:?}, min_x {:?}, max_x {:?}, min_y {:?}, max_y {:?}", value, min_x, max_x, min_y, max_y);
+        // }
         let mut result = LogProb::ln_zero();
         let mut scaling_sum = 0.;
+        let mut distances_x = vec![0.; nearest_vec.len()];
+        let mut distances_y = vec![0.; nearest_vec.len()];
+        let mut closest_higher_x = f64::MAX;
+        let mut closest_lower_x = f64::MIN;
+        let mut closest_higher_y = f64::MAX;
+        let mut closest_lower_y = f64::MIN;
+        for i in 0..nearest_vec.len() {
+            distances_x[i] = (value[0] - nearest_vec[i].position[0]).abs();// / (max_x - min_x); 
+            distances_y[i] = (value[1] - nearest_vec[i].position[1]).abs() ;// / (max_y - min_y); 
+            if  nearest_vec[i].position[0] > value[0] {
+                closest_higher_x = closest_higher_x.min(nearest_vec[i].position[0]);
+            } else{
+                closest_lower_x = closest_lower_x.max(nearest_vec[i].position[0]);
+            }
+            if  nearest_vec[i].position[1] > value[1] {
+                closest_higher_y = closest_higher_y.min(nearest_vec[i].position[1]);
+            } else{
+                closest_lower_y = closest_lower_y.max(nearest_vec[i].position[1]);
+            }
+        }
+        let min_distance_x = distances_x.iter().fold(f64::INFINITY, |a, &b| a.min(b));
+        let min_distance_y = distances_y.iter().fold(f64::INFINITY, |a, &b| a.min(b));
+        let nearest_x = nearest_vec.iter().filter_map(|a| {
+                if a.position[0] == closest_lower_x || a.position[0] == closest_higher_x {
+                    return Some(a)
+                } else{ return None}
+            }).collect::<Vec<_>>();
+        let nearest_y = nearest_vec.iter().filter_map(|a| {
+                if a.position[1] == closest_lower_y || a.position[1] == closest_higher_y {
+                    return Some(a)
+                } else{ return None}
+            }).collect::<Vec<_>>();
+
+        // if value[0] >= 8000. && value[0] <= 8200. {
+        //     println!("closest_lower_x {:?}, closest_higher_x {:?}, nearest_x {:?}",  closest_lower_x, closest_higher_x, nearest_x);
+        //     println!("closest_lower_y {:?}, closest_higher_y {:?}, nearest_y {:?}",  closest_lower_y, closest_higher_y, nearest_y);
+        // }
+
         for i in 0..nearest_vec.len() {
 
-            let mut distance_to_edge_x = 0.;
-            let mut distance_to_edge_y = 0.;
+            let mut scale_x = 1.;
+            let mut scale_y = 1.;
+            if distances_x[i] != 0.{
+                scale_x = min_distance_x / distances_x[i] ;
+            }
+            if distances_y[i] != 0.{
+                scale_y = min_distance_y / distances_y[i];
+            }
+            scale_x = 1.;//scale_x.powi(4);
+            scale_y = 1.;//scale_y.powi(4);
+
+            let mut edge_scale_x = (1. - distances_x[i] / (max_x - min_x)).powi(8);
+            let mut edge_scale_y = (1. - distances_y[i] / (max_y - min_y)).powi(8);
+            edge_scale_x = (-1. / edge_scale_x).exp();
+            edge_scale_y = (-1. / edge_scale_y).exp();
+            // if nearest_vec[i].position[0] != closest_lower_x && nearest_vec[i].position[0] != closest_higher_x {
+            //     edge_scale_x = 1. - edge_scale_x;
+            // }
+            // if nearest_vec[i].position[1] != closest_lower_y && nearest_vec[i].position[1] != closest_higher_y {
+            //     edge_scale_y = 1. - edge_scale_y;
+            // }
+
+
+
+
+
+            // let mut distance_to_edge_x = 0.;
+            // let mut distance_to_edge_y = 0.;
             // if nearest_vec[i].position[0] <= min_x + (max_x - min_x) / 2. { //nearest_vec.positiom[0]
             //     distance_to_edge_x = (max_x - value[0]) / (max_x - min_x);  
             // } else{
@@ -621,35 +686,36 @@ impl ProbDistribution2d {
             // } else{
             //     distance_to_edge_y = (value[1] - min_y) / (max_y - min_y); 
             // }
-            distance_to_edge_x = 1. - (value[0] - nearest_vec[i].position[0]).abs() / (max_x - min_x); 
-            distance_to_edge_y = 1. - (value[1] - nearest_vec[i].position[1]).abs() / (max_y - min_y); 
+            // distance_to_edge_x = 1. - (value[0] - nearest_vec[i].position[0]).abs() / (max_x - min_x); 
+            // distance_to_edge_y = 1. - (value[1] - nearest_vec[i].position[1]).abs() / (max_y - min_y); 
 
-            let scale_x = distance_to_edge_x.powf(4.); 
-            let scale_y = distance_to_edge_y.powf(4.);
+            // let scale_x = distance_to_edge_x.powf(4.); 
+            // let scale_y = distance_to_edge_y.powf(4.);
             // if (value[0] *1000.).floor() == 98049. {
             //     println!("scale_x {:?}, scale_y {:?}", scale_x, scale_y);
             // }
 
-            let distance = euclidean(&value, &nearest_vec[i].position).powf(2.);
-            scaling_sum += 1. * scale_x * scale_y; // distance   / angle_values[i]
-            if value[0] >= 202. && value[0] <= 204. {
-
-                println!("current {:?}, scale_x {:?}, scale_y {:?}, product {:?}, prob {:?}", nearest_vec[i].position, scale_x, scale_y, scale_x*scale_y, nearest_vec[i].prob.exp());
-            }
+            // let distance = euclidean(&value, &nearest_vec[i].position).powf(2.);
+            scaling_sum += 1. * scale_x * scale_y * edge_scale_x * edge_scale_y; // distance   / angle_values[i]
+            // if value[0] >= 50. && value[0] <= 65. {
+            //     println!("cur {:?}, scale_x {:?}, scale_y {:?}, prod {:?}, edge_x {:?}, edge_y {:?}, prob {:?}", 
+            //         nearest_vec[i].position, scale_x, scale_y, scale_x*scale_y*edge_scale_x*edge_scale_y, edge_scale_x, edge_scale_y, nearest_vec[i].prob.exp());
+            // }
             // println!("nearest_vec[i].prob {:?}", nearest_vec[i].prob);
-            result = result.ln_add_exp(nearest_vec[i].prob   + LogProb(scale_x.ln()) + LogProb(scale_y.ln()));
+            result = result.ln_add_exp(nearest_vec[i].prob   + LogProb(scale_x.ln()) + LogProb(scale_y.ln()) + LogProb(edge_scale_x.ln()) + LogProb(edge_scale_y.ln()));
         } // - LogProb(distance.ln())   - LogProb(angle_values[i].ln())
         if result == LogProb::ln_zero(){
             return result;
         }
-        if value[0] >= 2119. && value[0] <= 2121. {
-            println!("scaling_sum {:?}, result without scaling {:?}, scaled_result {:?} ", LogProb(scaling_sum.ln()),  result, (result - LogProb(scaling_sum.ln())));
-        }
+        // if value[0] >= 50. && value[0] <= 65. {
+        //     println!("scaling_sum {:?}, result without scaling {:?}, scaled_result {:?} ", scaling_sum,  result.exp(), (result - LogProb(scaling_sum.ln())).exp());
+        // }
         result = result - LogProb(scaling_sum.ln());
         let distance_of_value =  euclidean(&value, &[0.0, 0.0]);
         // println!("distance_of_value {:?}", distance_of_value);
         if self.max_distance < distance_of_value { //is_outlier
-            result = result - LogProb((distance_of_value - self.max_distance).ln());        
+            result = result - LogProb((distance_of_value - self.max_distance).ln());  
+            println!("Is outlier. New result {:?}", result.exp())      
         }
         // println!("value {:?}, nearest_vec {:?}, result {:?}, outlier {:?}", value, nearest_vec, result, self.max_distance < distance_of_value);
         // if (value[0] * 1000.).floor() == 98048. {

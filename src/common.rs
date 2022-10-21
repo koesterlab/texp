@@ -69,11 +69,11 @@ pub(crate) fn difference_to_big( // If difference is > than 1/10.000 of maximum 
     // println!("est {:?}, calc {:?}, max {:?}", estimated_value, calculated_value, prob_dist_max);
     if estimated_value > calculated_value {
         // println!("est {:?}, calc {:?}, max {:?}", estimated_value, calculated_value, prob_dist_max);
-        // println!("ln_sub-max {:?}, thresh {:?}, diffToBig {:?}", estimated_value.ln_sub_exp(calculated_value)- prob_dist_max, LogProb::from(0.01_f64.ln()),estimated_value.ln_sub_exp(calculated_value) - prob_dist_max > LogProb::from(0.01_f64.ln()) );
+        // println!("ln_sub-max1 {:?}, thresh {:?}, diffToBig {:?}", estimated_value.ln_sub_exp(calculated_value)- prob_dist_max, LogProb::from(0.01_f64.ln()),estimated_value.ln_sub_exp(calculated_value) - prob_dist_max > LogProb::from(0.01_f64.ln()) );
         return estimated_value.ln_sub_exp(calculated_value) - prob_dist_max > LogProb::from(0.01_f64.ln()); 
     }else {
         // println!("est {:?}, calc {:?}, max {:?}", estimated_value, calculated_value, prob_dist_max);
-        // println!("ln_sub-max {:?}, thresh {:?}, diffToBig {:?}", calculated_value.ln_sub_exp(estimated_value) - prob_dist_max, LogProb::from(0.01_f64.ln()), calculated_value.ln_sub_exp(estimated_value) - prob_dist_max > LogProb::from(0.01_f64.ln()) );
+        // println!("ln_sub-max2 {:?}, thresh {:?}, diffToBig {:?}", calculated_value.ln_sub_exp(estimated_value) - prob_dist_max, LogProb::from(0.01_f64.ln()), calculated_value.ln_sub_exp(estimated_value) - prob_dist_max > LogProb::from(0.01_f64.ln()) );
         return calculated_value.ln_sub_exp(estimated_value) - prob_dist_max > LogProb::from(0.01_f64.ln()); 
     }
     // if (estimated_value.exp() - calculated_value.exp()).abs() / prob_dist_max > 0.0001 

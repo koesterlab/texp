@@ -1,12 +1,14 @@
 //! This implements formula 5,6,7 of the document.
 
-// use std::fs;
+
 use std::path::{Path, PathBuf};
 use std::collections::VecDeque;
 
 use anyhow::Result;
 use bio::stats::LogProb;
+use bio::stats::probs::adaptive_integration::ln_integrate_exp;
 use rayon::prelude::*;
+use ordered_float::NotNan;
 
 use crate::common::{Outdir, Pair, difference_to_big};
 use crate::errors::Error;
@@ -14,6 +16,8 @@ use crate::preprocess::Preprocessing;
 use crate::prob_distribution_1d::ProbDistribution1d;
 use crate::prob_distribution_2d::ProbDistribution2d;
 use crate::sample_expression::SampleInfo;
+
+
 
 pub(crate) fn group_expression(
     preprocessing: &Path,
@@ -24,11 +28,19 @@ pub(crate) fn group_expression(
     let prior = preprocessing.prior()?;
     let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
 
+    let subsampled_ids = vec!["ENST00000671775.2", "ENST00000643797.1", "ENST00000496791.1", 
+        "ENST00000651279.1", "ENST00000533357.5", "ENST00000538709.1", "ENST00000539934.5", 
+        "ENST00000541259.1", "ENST00000542241.5", "ENST00000543262.5", "ENST00000549259.5", 
+        "ENST00000551671.5", "ENST00000553379.6", "ENST00000553786.1", "ENST00000563608.2", "ENST00000566566.2"];
+
     let out_dir = Outdir::create(out_dir)?;
     feature_ids.truncate(10000);
     feature_ids
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
+            if subsampled_ids.contains(&feature_id.as_str()) {
+            // if feature_id.as_str() == "ENST00000566566.2" {    
+            
             // println!("FEATURE --------------------------");
             let maximum_likelihood_means: Vec<f64> = sample_expression_paths
                 .iter()
@@ -83,73 +95,137 @@ pub(crate) fn group_expression(
 
             let mut prob_dist = ProbDistribution1d::new();
 
-            let calc_prob = |mu_ik| {
+            let calc_prob = |mu_ik : f64| {
+                // println!("mu_ik {:?}", mu_ik);
                 if mu_ik == 0. {
                     return LogProb::ln_zero();
                 }
                 let density = |_, theta_i| {
+                // let density = |theta_i: NotNan<f64>| {
                     let d = sample_expression_likelihoods
                         .iter()
+                        // .skip(1)
+                        // .take(1)
                         .map(|sample_expression_likelihood| {
                             sample_expression_likelihood
                                 .get(&[mu_ik, theta_i])
+                                // .get(&[mu_ik, theta_i.into_inner()])
                         })
+                        // .inspect(|x| {
+                        //     if mu_ik.floor() == 98. { 
+                        //         println!("sample exp {:?} for mu_ik {mu_ik} and theta {theta_i}", x);
+                        //     }
+                        // })
                         .sum::<LogProb>() + //Formula 5
                         LogProb(*prior.prob(theta_i) * 2.0); // square of Pr(theta_i), formula 8
-                    
-                    // println!("d {:?}", d);
+                        // LogProb(*prior.prob(theta_i.into_inner()) * 2.0); // square of Pr(theta_i), formula 8
+                    // if mu_ik >= 50. && mu_ik <= 65. {
+                    //     println!("mu_ik {:?}, density {:?} \n\n", mu_ik, d.exp());
+                    // }
                     d
                 };
 
+
+                // let prob = density(0., 100.);
+                // let prob = LogProb::ln_zero();
+                // let prob = ln_integrate_exp(
+                //     density,
+                //     NotNan::new(prior.min_value()).unwrap(),
+                //     NotNan::new(prior.max_value()).unwrap(),
+                //     NotNan::new(0.001).unwrap()
+                //     // prior.min_value(),
+                //     // prior.max_value(),
+                //     // 0.1
+                // );
+                // let prob1 = ln_integrate_exp(
+                //     density,
+                //     NotNan::new(prior.min_value()).unwrap(),
+                //     NotNan::new(25.).unwrap(),
+                //     NotNan::new(0.001).unwrap()
+                //     // prior.min_value(),
+                //     // prior.max_value(),
+                //     // 0.1
+                // );
+                // let prob2 = ln_integrate_exp(
+                //     density,
+                //     NotNan::new(25.).unwrap(),
+                //     NotNan::new(100.).unwrap(),
+                //     NotNan::new(0.001).unwrap()
+                //     // prior.min_value(),
+                //     // prior.max_value(),
+                //     // 0.1
+                // );
+                // let prob3 = ln_integrate_exp(
+                //     density,
+                //     NotNan::new(100.).unwrap(),
+                //     NotNan::new(prior.max_value()).unwrap(),
+                //     NotNan::new(0.001).unwrap()
+                //     // prior.min_value(),
+                //     // prior.max_value(),
+                //     // 0.1
+                // );
                 // Result of formula 7.
-                let prob = LogProb::ln_simpsons_integrate_exp(
+                let prob= LogProb::ln_simpsons_integrate_exp(
                     density,
                     prior.min_value(),
                     prior.max_value(),
-                    31,
+                    451,
                 );
-                // prob_dist.insert(mu_ik, prob);
+
+
+                // let prob1 = LogProb::ln_simpsons_integrate_exp(
+                //     density,
+                //     prior.min_value(),
+                //     25.,
+                //     201,
+                // );
+                
+                // let prob2 = LogProb::ln_simpsons_integrate_exp(
+                //     density,
+                //     25.,
+                //     100.,
+                //     201,
+                // );
+                // let prob3 = LogProb::ln_simpsons_integrate_exp(
+                //     density,
+                //     100.,
+                //     prior.max_value(),
+                //     51,
+                // );
+                // let prob = prob1.ln_add_exp(prob2).ln_add_exp(prob3);
+                // if mu_ik == 10000.{
+                //     println!("prob1 {:?}, prob2 {:?}, prob3 {:?}, prob {:?}", prob1, prob2, prob3, prob);
+                // }
+                // let prob = prob1;
                 prob
+
             };
             // println!("\n i {:?}, maximum_likelihood_mean {:?}", i, maximum_likelihood_mean);
             let mut start_points = vec![0.];
-            prob_dist.insert(0., calc_prob(0.));
-            let mut cur_maximum_likelihood_mean = maximum_likelihood_mean / 10.;
-            for i in 1..4  {
-                if cur_maximum_likelihood_mean >= 10000. { break; }
-                start_points.push(cur_maximum_likelihood_mean);
-                prob_dist.insert(cur_maximum_likelihood_mean, calc_prob(cur_maximum_likelihood_mean));
-                cur_maximum_likelihood_mean = cur_maximum_likelihood_mean * 10.;
+            let mut cur_prob = calc_prob(0.);
+            prob_dist.insert(0., cur_prob);            
+            // println!("insert mu {:?}, prob {:?}", 0., f64::from(cur_prob.exp()));
+            let mut cur_maximum_likelihood_mean = maximum_likelihood_mean / 16.;
+            if (cur_maximum_likelihood_mean > 0.) {
+                while cur_maximum_likelihood_mean < 10000. {
+                    start_points.push(cur_maximum_likelihood_mean);
+                    cur_prob = calc_prob(cur_maximum_likelihood_mean);
+                    prob_dist.insert(cur_maximum_likelihood_mean, cur_prob);
+                    // println!("insert mu {:?}, prob {:?}", cur_maximum_likelihood_mean, f64::from(cur_prob.exp()));
+                    cur_maximum_likelihood_mean = cur_maximum_likelihood_mean * 2.;
+                }
             }
             if start_points.len() == 1 {
                 start_points.push(5000.);
-                prob_dist.insert(5000., calc_prob(5000.));
+                cur_prob = calc_prob(5000.);
+                prob_dist.insert(5000., cur_prob);
+                // println!("insert mu {:?}, prob {:?}", 5000., f64::from(cur_prob.exp()));
             }
             start_points.push(10000.);
-            prob_dist.insert(10000., calc_prob(10000.));
+            cur_prob = calc_prob(10000.);
+            prob_dist.insert(10000., cur_prob);
+            // println!("insert mu {:?}, prob {:?}", 10000., f64::from(cur_prob.exp()));
             
-
-            // let start_points = [
-            //     0.,
-            //     maximum_likelihood_mean / 10.,
-            //     maximum_likelihood_mean,
-            //     maximum_likelihood_mean * 10.,
-            //     maximum_likelihood_mean * 100.,
-            //     maximum_likelihood_mean * 1000.,
-            //     maximum_likelihood_mean * 10000.,
-            //     f64::INFINITY,
-            // ];
-
-            // prob_dist.insert(0., calc_prob(0.));
-            // prob_dist.insert(
-            //     maximum_likelihood_mean / 10.,
-            //     calc_prob(maximum_likelihood_mean / 10.),
-            // );
-            // prob_dist.insert(maximum_likelihood_mean, calc_prob(maximum_likelihood_mean));
-            // prob_dist.insert(
-            //     maximum_likelihood_mean * 10.,
-            //     calc_prob(maximum_likelihood_mean * 10.),
-            // );
             let mut queue = VecDeque::<Pair>::new();
             start_points.windows(2).for_each(|w| {
                 queue.push_back(Pair {
@@ -157,7 +233,6 @@ pub(crate) fn group_expression(
                     right: w[1],
                 })
             });
-            // let mut count = 0;
             while queue.len() > 0 {
                 // println!("--------------------------");
                 let pair = queue.pop_front().unwrap();
@@ -179,10 +254,16 @@ pub(crate) fn group_expression(
                 let calculated_value = calc_prob(middle);
                 // println!("middle {:?},est {:?}, calc {:?}, len {:?}", middle, estimated_value, calculated_value, queue.len());
                 prob_dist.insert(middle, calculated_value);
-                // count += 1;
+                // println!("insert mu {:?}, prob {:?}", middle, f64::from(calculated_value.exp()));
                 // println!("left {:?}, middle {:?}, right {:?}", left, middle, right);
-                // println!("est {:?}, calc {:?}, diff {:?}", estimated_value, calculated_value);
+                // println!("est {:?}, calc {:?}", estimated_value, calculated_value);
                 let prob_dist_max = prob_dist.get_max_prob();
+                if middle - left < 1e-3 || prob_dist.len() > 10000{
+                    continue;
+                }
+                // if middle.floor() == 98. {
+                //     println!("mu_ik {:?}, est {:?}, calc {:?}, max {:?}", middle, estimated_value, calculated_value, prob_dist_max);
+                // }
                 if difference_to_big(estimated_value, calculated_value, prob_dist_max) {
                     queue.push_back(Pair {
                         left: left,
@@ -193,16 +274,11 @@ pub(crate) fn group_expression(
                         right: right,
                     });
                 }
-                // if count > 20 {
-                //     break;
-                // }
             }
 
             let norm_factor = prob_dist.normalize(); // remove factor c_ik
-            // if **feature_id == String::from("ENST00000671775.2") {
-            //     println!("norm faktor {:?}", norm_factor);
-            // }
             out_dir.serialize_value(feature_id, prob_dist)?;
+            }
             Ok(())
         })?;
 

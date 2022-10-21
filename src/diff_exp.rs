@@ -27,11 +27,18 @@ pub(crate) fn diff_exp(
 
     let preprocessing = Preprocessing::from_path(preprocessing)?;
     let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
+
+    let subsampled_ids = vec!["ENST00000671775.2", "ENST00000643797.1", "ENST00000496791.1", 
+    "ENST00000651279.1", "ENST00000533357.5", "ENST00000538709.1", "ENST00000539934.5", 
+    "ENST00000541259.1", "ENST00000542241.5", "ENST00000543262.5", "ENST00000549259.5", 
+    "ENST00000551671.5", "ENST00000553379.6", "ENST00000553786.1", "ENST00000563608.2", "ENST00000566566.2"];
+
     feature_ids.truncate(10000);
     feature_ids
         .par_iter()
         .try_for_each(|(_, feature_id)| -> Result<()> {
-            // if feature_id.as_str() == "ENST00000641952.1" {
+            if subsampled_ids.contains(&feature_id.as_str()) {
+            // if feature_id.as_str() == "ENST00000566566.2" { 
             let mut prob_dist_i_k1: ProbDistribution1d = in_dir1.deserialize_value(feature_id)?;
             let mut prob_dist_i_k2: ProbDistribution1d = in_dir2.deserialize_value(feature_id)?;
 
@@ -86,23 +93,49 @@ pub(crate) fn diff_exp(
             };
 
             // println!("max_prob_fold_change {:?}", max_prob_fold_change);
-            let start_points = [
-                0.,
-                max_prob_fold_change / 10.,
-                max_prob_fold_change,
-                max_prob_fold_change * 10.,
-                f64::INFINITY,
-            ];
-            // println!("Len of start points mu_ik {:?}", start_points.len());
-            diff_exp_distribution.insert(
-                max_prob_fold_change / 10.,
-                calc_prob(max_prob_fold_change / 10.),
-            );
-            diff_exp_distribution.insert(max_prob_fold_change, calc_prob(max_prob_fold_change));
-            diff_exp_distribution.insert(
-                max_prob_fold_change * 10.,
-                calc_prob(max_prob_fold_change * 10.),
-            );
+            // let start_points = [
+            //     0.,
+            //     max_prob_fold_change / 10.,
+            //     max_prob_fold_change,
+            //     max_prob_fold_change * 10.,
+            //     f64::INFINITY,
+            // ];
+            // println!("start points mu_ik {:?}", start_points);
+            // diff_exp_distribution.insert(
+            //     max_prob_fold_change / 10.,
+            //     calc_prob(max_prob_fold_change / 10.),
+            // );
+            // diff_exp_distribution.insert(max_prob_fold_change, calc_prob(max_prob_fold_change));
+            // diff_exp_distribution.insert(
+            //     max_prob_fold_change * 10.,
+            //     calc_prob(max_prob_fold_change * 10.),
+            // );
+            let mut start_points = vec![0.];
+            let mut cur_prob = LogProb::ln_zero();
+            // diff_exp_distribution.insert(0., cur_prob);            
+            // println!("insert mu {:?}, prob {:?}", 0., f64::from(cur_prob.exp()));
+            let mut cur_max_prob_fold_change = max_prob_fold_change / 16.;
+            if (cur_max_prob_fold_change > 0.) {
+                while cur_max_prob_fold_change < 10. {
+                    start_points.push(cur_max_prob_fold_change);
+                    cur_prob = calc_prob(cur_max_prob_fold_change);
+                    diff_exp_distribution.insert(cur_max_prob_fold_change, cur_prob);
+                    // println!("insert mu {:?}, prob {:?}", cur_maximum_likelihood_mean, f64::from(cur_prob.exp()));
+                    cur_max_prob_fold_change = cur_max_prob_fold_change * 2.;
+                }
+            }
+            if start_points.len() == 1 {
+                start_points.push(5.);
+                cur_prob = calc_prob(5.);
+                diff_exp_distribution.insert(5., cur_prob);
+                // println!("insert mu {:?}, prob {:?}", 5000., f64::from(cur_prob.exp()));
+            }
+            start_points.push(10.);
+            cur_prob = calc_prob(10.);
+            diff_exp_distribution.insert(10., cur_prob);
+            println!("start points mu_ik {:?}", start_points);
+
+
             let mut queue = VecDeque::<Pair>::new();
             start_points.windows(2).for_each(|w| {
                 queue.push_back(Pair {
@@ -130,11 +163,11 @@ pub(crate) fn diff_exp(
                     continue;
                 }
                 let estimated_value = diff_exp_distribution.get(middle);
-                // println!("est: {:?}", estimated_value);
+                // println!("", );
                 let calculated_value = calc_prob(middle);
-                // println!("calc: {:?}", calculated_value);
+                println!("middle {:?}, est: {:?}, calc: {:?}", middle, estimated_value.exp(), calculated_value.exp());
                 diff_exp_distribution.insert(middle, calculated_value);
-                if (estimated_value.exp() - calculated_value.exp()).abs() > 0.01 {
+                if (estimated_value.exp() - calculated_value.exp()).abs() > 0.001 {
                     queue.push_back(Pair {
                         left: left,
                         right: middle,
@@ -145,9 +178,10 @@ pub(crate) fn diff_exp(
                     });
                 }
             }
-
+            
             // Step 3: Write output
             out_dir.serialize_value(feature_id, diff_exp_distribution)?;
+        }
             Ok(())
         })?;
 

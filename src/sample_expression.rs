@@ -2,21 +2,18 @@
 use std::fs;
 use std::mem;
 use std::path::Path;
-// use std::collections::VecDeque;
-use std::process::exit;
+// use std::process::exit;
 
 
 use anyhow::Result;
 use bio::stats::LogProb;
 use getset::Getters;
-use itertools_num::linspace;
-// use itertools::iproduct;
+// use itertools_num::linspace;
 use rayon::prelude::*;
 use rmp_serde::Deserializer;
 use serde::Deserialize as SerdeDeserialize;
 use serde_derive::{Deserialize, Serialize};
 use statrs::function::beta::ln_beta;
-// use kdtree::distance::squared_euclidean;
 
 use crate::common::{window_x, Outdir}; // , Square, Point
 use crate::errors::Error;
@@ -47,13 +44,18 @@ pub(crate) fn sample_expression(
         .clone();
 
     let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
-
+    
+    let subsampled_ids = vec!["ENST00000671775.2", "ENST00000643797.1", "ENST00000496791.1", 
+        "ENST00000651279.1", "ENST00000533357.5", "ENST00000538709.1", "ENST00000539934.5", 
+        "ENST00000541259.1", "ENST00000542241.5", "ENST00000543262.5", "ENST00000549259.5", 
+        "ENST00000551671.5", "ENST00000553379.6", "ENST00000553786.1", "ENST00000563608.2", "ENST00000566566.2"];
     let out_dir = Outdir::create(out_dir)?;
     feature_ids.truncate(10000);
     feature_ids
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
-            if feature_id.as_str() == "ENST00000533357.5" {
+            if subsampled_ids.contains(&feature_id.as_str()) {
+            // if feature_id.as_str() == "ENST00000566566.2" {   
 
             let d_ij = mean_disp_estimates.means()[*i]; //TODO Do we need group mean mu_ik instead of sample mean
             let mut d_ik = group_means[*i];
@@ -69,58 +71,46 @@ pub(crate) fn sample_expression(
                 // TODO log message
                 return Ok(());
             };
-            println!("\n\n -------------------------- feature {:?}", i);
-            println!("d_ij {:?}, d_ik {:?}, t_ij {:?}", d_ij, d_ik, t_ij);
-
-            // if *i == 246_usize {
-
-            // let max_prob = prob_mu_ik_theta_i_x(d_ij, d_ij, d_ij, t_ij, prior.mean(), s_j);
-            // let prob_threshold = LogProb(*max_prob - 10.0f64.ln());
-            // let (mu_ik_left_window, mu_ik_right_window) = window(d_ik);
+            // println!("\n\n -------------------------- feature {:?}", i);
+            // println!("d_ij {:?}, d_ik {:?}, t_ij {:?}", d_ij, d_ik, t_ij);
 
             let mut likelihoods = ProbDistribution2d::new();
             // println!("--------------------------3");
-            let mut start_points_mu_ik = vec![
-                0.,
-                // d_ik / 5.,
-                // d_ik,
-                // d_ik * 10.,
-                // d_ik * 100.,
-            ];
-            if d_ik != 0. {
-                let mut cur_d_ik = d_ik / 10.;
-                // for (int i = 0; i < 4 && cur_d_ik < 10000; ++i, cur_d_ik *= 10.)
-                for i in 1..4  {
-                    if cur_d_ik >= 10000. { break; }
+            let mut start_points_mu_ik = vec![0.];
+            let mut cur_d_ik = d_ik / 16.;
+            if (cur_d_ik > 0.) {
+                while cur_d_ik < 10000. {
                     start_points_mu_ik.push(cur_d_ik);
-                    cur_d_ik = cur_d_ik * 10.;
+                    cur_d_ik = cur_d_ik * 2.;
                 }
-                if start_points_mu_ik.len() == 1 {
-                    start_points_mu_ik.push(5000.);
-                }
-                start_points_mu_ik.push(10000.);
             }
-            println!("start_points_mu_ik {:?}",start_points_mu_ik);
+            if start_points_mu_ik.len() == 1 {
+                start_points_mu_ik.push(5000.);
+            }
+            start_points_mu_ik.push(10001.);
+
+
+            // let mut start_points_mu_ik = vec![0.];
+            // if d_ik != 0. {
+            //     let mut cur_d_ik = d_ik / 10.;
+            //     for i in 1..4  {
+            //         if cur_d_ik >= 10000. { break; }
+            //         start_points_mu_ik.push(cur_d_ik);
+            //         cur_d_ik = cur_d_ik * 10.;
+            //     }
+            //     if start_points_mu_ik.len() == 1 {
+            //         start_points_mu_ik.push(5000.);
+            //     }
+            //     start_points_mu_ik.push(10000.);
+            // }
+            // println!("start_points_mu_ik {:?}",start_points_mu_ik);
             let mut start_points_theta_i = Vec::<f64>::new();
             start_points_theta_i.extend(prior.left_window());
             start_points_theta_i.extend(prior.right_window());
             start_points_theta_i.sort_by(|a, b| a.partial_cmp(b).unwrap());
-            // println!("start_points_theta_i {:?}", start_points_theta_i);
-            // println!("--------------------------4");
-            // for (m, t) in iproduct!(&start_points_mu_ik, &start_points_theta_i) {
-            //     let prob = likelihood_mu_ik_theta_i(
-            //         d_ij,
-            //         *m,  // mu_ik
-            //         t_ij,
-            //         *t,  // *theta_i
-            //         s_j,
-            //         epsilon,
-            //     );
-            //     println!("mu {:?}, theta {:?}, prob {:?}", m ,t ,prob);
-            //     likelihoods.insert(*m, *t, prob);
-            // }
 
             let calc_prob = |m, t| {
+                // println!("XXX mu {:?}, theta {:?}", m, t);
                 likelihood_mu_ik_theta_i(
                     d_ij,
                     m,  // mu_ik
@@ -132,93 +122,27 @@ pub(crate) fn sample_expression(
             };
             likelihoods.insert_grid(start_points_mu_ik, start_points_theta_i, calc_prob);
 
-            // start_points_mu_ik.push(f64::INFINITY);
-            // start_points_theta_i.push(f64::INFINITY);
-
-            // let mut queue = VecDeque::<Square>::new();
-            // for (m, t) in iproduct!(start_points_mu_ik.windows(2), start_points_theta_i.windows(2)) {
-            //     queue.push_back(Square { top_left: Point{x: m[0], y: t[1]},
-            //         top_right: Point{x: m[1], y: t[1]},
-            //         bot_left: Point{x: m[0], y: t[0]},
-            //         bot_right: Point{x: m[1], y: t[0]},
-            //     });
+            
+            // let theta_i = 1000.;
+            // for mu_ik in [1., 100., 500., 1000., 2500., 5000.] {
+            //     let mut result = LogProb::ln_zero();
+            //     println!("mu {:?}, theta {:?}, s_j {:?}",mu_ik, theta_i, s_j);
+            //     for x in [0.,1.,10., 50.,100., 500., 1000., 5000., 10000., 50000.]{
+            //         let nb1 = neg_binom(d_ij, x, t_ij);
+            //         let nb2 = neg_binom(x, mu_ik * s_j, theta_i);
+            //         let sum = nb1 + nb2;
+            //         // result = result.ln_add_exp(sum);
+            //         println!("{:?} & {:?} & {:?} & {:?} \\\\", x, f64::from(nb1).exp(), f64::from(nb2).exp(), f64::from(sum).exp() );
+            //     }
+            //     for x in 0..50001 {
+            //         let nb1 = neg_binom(d_ij, x as f64, t_ij);
+            //         let nb2 = neg_binom(x as f64, mu_ik * s_j, theta_i);
+            //         let sum = nb1 + nb2;
+            //         result = result.ln_add_exp(sum);
+            //     }
+            //     println!("result {:?}", f64::from(result).exp());
             // }
-
-            // while queue.len() > 0 {
-            //     println!("\n\n len {:?}", queue.len());
-            //     // println!("--------------------------");
-            //     let square = queue.pop_front().unwrap();
-            //     // println!("square tl {:?}, tr {:?}, bl {:?}, br {:?}", square.top_left, square.top_right, square.bot_left, square.bot_right);
-            //     println!("square {:?}", square);
-            //     let new_point_candidates = new_points(&square);
-            //     let mut calced_values = Vec::<Option<LogProb>>::new();
-            //     let mut estimated_values = Vec::<Option<LogProb>>::new();
-            //     for p in &new_point_candidates {
-            //         if p.x.is_infinite() || p.y.is_infinite(){
-            //             calced_values.push(None);
-            //             estimated_values.push(None);
-            //             continue;
-            //         }
-            //         let distance_to_nearest = likelihoods.kdtree.nearest(&[p.x, p.y], 1, &squared_euclidean).unwrap()[0].0;
-            //         println!("p.x {:?}, p.y {:?}, dist {:?}", p.x, p.y, distance_to_nearest);
-            //         if distance_to_nearest / squared_euclidean(&[p.x, p.y], &[square.bot_left.x, square.bot_left.y]) > 1e-6 {
-            //             let prob = likelihood_mu_ik_theta_i(
-            //                 d_ij,
-            //                 p.x,  // mu_ik
-            //                 t_ij,
-            //                 p.y,  // *theta_i
-            //                 s_j,
-            //                 epsilon,
-            //             );
-            //             // println!("prob {:?}, d_ij {:?}, p.x {:?}, t_ij {:?}, p.y {:?}", prob, d_ij, p.x, t_ij, p.y);
-            //             calced_values.push(Some(prob));
-            //             estimated_values.push(Some(likelihoods.get(&[p.x, p.y])));
-            //         } else {
-            //             calced_values.push(None);
-            //             estimated_values.push(None);
-            //         }
-            //     }
-            //     let mut need_iteration = false;
-            //     for (estimated_value, calculated_value) in estimated_values.iter().zip(calced_values.iter()) {
-            //         if estimated_value.is_none() {
-            //             continue;
-            //         }
-            //         let prob_dist_max = likelihoods.get_max_prob();
-            //         if difference_to_big(estimated_value.unwrap(), calculated_value.unwrap(), prob_dist_max) {
-            //             need_iteration = true;
-            //             break;
-            //         }
-            //     }
-            //     // // println!("middle {:?},est {:?}, calc {:?}, len {:?}", middle, estimated_value, calculated_value, queue.len());
-            //     for (point, calculated_value) in new_point_candidates.iter().zip(calced_values.iter()) {
-            //         if calculated_value.is_none() {
-            //             continue;
-            //         }
-            //         likelihoods.insert(point.x, point.y, calculated_value.unwrap());
-            //     }
-            //     if need_iteration {
-            //         queue.push_back(Square { top_left: square.top_left,
-            //             top_right: new_point_candidates[4],
-            //             bot_left: new_point_candidates[1],
-            //             bot_right: new_point_candidates[2],
-            //         });
-            //         queue.push_back(Square { top_left: new_point_candidates[4],
-            //             top_right: square.top_right,
-            //             bot_left: new_point_candidates[2],
-            //             bot_right: new_point_candidates[3],
-            //         });
-            //         queue.push_back(Square { top_left: new_point_candidates[1],
-            //             top_right: new_point_candidates[2],
-            //             bot_left: square.bot_left,
-            //             bot_right: new_point_candidates[0],
-            //         });
-            //         queue.push_back(Square { top_left: new_point_candidates[2],
-            //             top_right: new_point_candidates[3],
-            //             bot_left: new_point_candidates[0],
-            //             bot_right: square.bot_right,
-            //         });
-            //     }
-            // }
+            
 
             out_dir.serialize_value(feature_id, likelihoods)?;
             }
@@ -235,34 +159,6 @@ pub(crate) fn sample_expression(
 
     Ok(())
 }
-
-// #[allow(unused)]
-// pub(crate) fn new_points(
-//     square: &Square,
-// ) -> Vec<Point> {
-//     let mut result = Vec::<Point>::new();
-
-//     let new_point = |p1: Point, p2: Point| {
-//         let new_coord = |left: f64, right: f64| {
-//             let middle; //= 0.;
-//             if right.is_finite() {
-//                 middle = left / 2. + right / 2.;
-//             } else {
-//                 middle = 10. * left;
-//             }
-//             return middle;
-//         };
-//         return Point{x:new_coord(p1.x, p2.x), y:new_coord(p1.y, p2.y)};
-//     };
-
-//     result.push(new_point(square.bot_left, square.bot_right));
-//     result.push(new_point(square.bot_left, square.top_left));
-//     result.push(new_point(square.bot_left, square.top_right));
-//     result.push(new_point(square.bot_right, square.top_right));
-//     result.push(new_point(square.top_left, square.top_right));
-
-//     return result;
-// }
 
 #[derive(Debug, Deserialize, Serialize, Getters)]
 #[getset(get = "pub(crate)")]
@@ -287,10 +183,10 @@ fn prob_mu_ik_theta_i_x(
     theta_i: f64,
     s_j: f64,
 ) -> LogProb {
-    if d_ij == 0. {
-        println!("############ prob_mu_ik_theta_i_x x {:?}, d_ij {:?}, mu_ik {:?}, t_ij {:?}, theta_i {:?}, s_j {:?}", x, d_ij, mu_ik, t_ij, theta_i, s_j);
-        println!("neg_binom(d_ij, x, t_ij) {:?}, neg_binom(x, mu_ik * s_j, theta_i) {:?},result {:?}", neg_binom(d_ij, x, t_ij), neg_binom(x, mu_ik * s_j, theta_i),neg_binom(d_ij, x, t_ij) + neg_binom(x, mu_ik * s_j, theta_i));
-    }
+    // if d_ij == 0. {
+    //     // println!("############ prob_mu_ik_theta_i_x x {:?}, d_ij {:?}, mu_ik {:?}, t_ij {:?}, theta_i {:?}, s_j {:?}", x, d_ij, mu_ik, t_ij, theta_i, s_j);
+    //     println!("x {:?}, nb(d_ij, x, t_ij) {:?}, nb(x, mu_ik * s_j, theta_i) {:?}, res {:?}",x, neg_binom(d_ij, x, t_ij), neg_binom(x, mu_ik * s_j, theta_i),neg_binom(d_ij, x, t_ij) + neg_binom(x, mu_ik * s_j, theta_i));
+    // }
     neg_binom(d_ij, x, t_ij) + neg_binom(x, mu_ik * s_j, theta_i)
 }
 
@@ -303,29 +199,14 @@ fn likelihood_mu_ik_theta_i(
     s_j: f64,
     _: LogProb,   // epsilon
 ) -> LogProb {
-    if mu_ik == 0. {
+    if d_ij != 0. && mu_ik == 0. {
         return LogProb::ln_zero();
     }
     if mu_ik == 3208600050.4032364 {
         println!("############ likelihood_mu_ik_theta_i");
         println!("mu_ik {:?}, theta_i {:?}, d_ij {:?}, t_ij {:?}, s_j {:?}", mu_ik, theta_i, d_ij, t_ij, s_j);
     }
-    // TODO determine whether this is the best window given that we also have access to mu_ik here.
-    // let (x_left_window, x_right_window) = window_x(d_ij);
-    // let window = linspace::<f64>(0., 1001., 1000);
     let mut max_prob = LogProb::ln_zero();
-    // let prob = |x| {
-    //     let calced_prob = prob_mu_ik_theta_i_x(x, d_ij, mu_ik, t_ij, theta_i, s_j);
-    //     if calced_prob > max_prob{
-    //         max_prob = calced_prob
-    //     }       
-    //     calced_prob
-    // }; 
-
-    // let max_prob = prob(d_ij);
-    // let threshold = LogProb(*max_prob - 10.0f64.ln());
-    // let is_informative = |prob: &LogProb| *prob >= threshold; // TODO maybe better relative to the maximum?
-
     let mut result = LogProb::ln_zero();
     let mut x : u64 = 0;
     while true{
@@ -337,21 +218,10 @@ fn likelihood_mu_ik_theta_i(
         if x > 500 && calced_prob - max_prob < LogProb(0.01_f64.ln()){
             break;
         }
-        // if x as i64 % 1000 == 0{
-        //     println!("x {:?}, calced prob {:?}, max_prob {:?}", x, calced_prob, max_prob);
-        //     println!("mu_ik {:?}, theta_i {:?}, d_ij {:?}, t_ij {:?}, s_j {:?}", mu_ik, theta_i, d_ij, t_ij, s_j);
-        // } 
         x = x+1;
     }
     // println!("mu_ik {:?}, theta_i {:?}, x {:?}", mu_ik, theta_i, x);
     result
-    // LogProb::ln_sum_exp(&probs)
-    // LogProb::ln_sum_exp(
-    //     &window
-    //         .map(&prob)
-    //         // .take_while(&is_informative)
-    //         .collect::<Vec<_>>(),
-    // )
 }
 
 fn neg_binom(x: f64, mu: f64, theta: f64) -> LogProb {
@@ -371,6 +241,20 @@ fn neg_binom(x: f64, mu: f64, theta: f64) -> LogProb {
     }
     LogProb((p1 - b + p2) - (x + n).ln()) // TODO is this the correct form for returning LogProb?
 }
+
+#[cfg(test)]
+mod tests{
+    use super::*;
+    use approx::assert_relative_eq;
+    #[test]
+    fn test_neg_binom(){
+        assert_relative_eq!(neg_binom(0., 10., 2.38).exp(), 0.2594752460369642);
+        assert_relative_eq!(neg_binom(0., 30., 2.38).exp(), 0.16542351363026533);
+        assert_relative_eq!(neg_binom(0., 30., 500.38).exp(), 0.9809648435381609, epsilon=1e-7);
+        
+    }
+}
+
 
 // def neg_binom(x, mu, theta):
 //     """ Own implementation of the negative negative binomial distribution using betaln

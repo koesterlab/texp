@@ -18,7 +18,7 @@ serde_derive = "1.0"
 rmp-serde = "0.15"
 itertools-num = "0.1"
 statrs = "0.15"
-bio = "0.37"
+bio = { git = "https://github.com/rust-bio/rust-bio.git", branch="fix/ordered-float"}
 getset = "0.1"
 derive-new = "0.5"
 derefable = "0.1"
@@ -27,6 +27,8 @@ typed-builder = "0.9"
 kdtree = { version = "0.6", features = ["serialize"] }
 itertools = "0.10.3"
 num-traits = "0.2"
+approx = "0.5"
+ordered-float = "3.1"
 
 [profile.release]
 panic = "abort"

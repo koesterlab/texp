@@ -146,7 +146,7 @@ fn group_means(
         .iter()
         .fold(means, |acc, x| acc + &mean_disp_estimates[x].means);
     let number_of_samples = sample_ids.len() as f64;
-    means = means.map(|x| x / number_of_samples);
+    means = means.map(|x| -> f64 {x / number_of_samples});
     Ok(means)
 }
 
