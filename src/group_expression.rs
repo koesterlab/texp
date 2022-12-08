@@ -24,7 +24,7 @@ pub(crate) fn group_expression(
 ) -> Result<()> {
     let preprocessing = Preprocessing::from_path(preprocessing)?;
     let prior = preprocessing.prior()?;
-    let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
+    let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect();
 
     let subsampled_ids = vec!["ENST00000671775.2", "ENST00000643797.1", "ENST00000496791.1", 
         "ENST00000651279.1", "ENST00000533357.5", "ENST00000538709.1", "ENST00000539934.5", 
@@ -32,12 +32,12 @@ pub(crate) fn group_expression(
         "ENST00000551671.5", "ENST00000553379.6", "ENST00000553786.1", "ENST00000563608.2", "ENST00000566566.2"];
 
     let out_dir = Outdir::create(out_dir)?;
-    feature_ids.truncate(10000);
+    // feature_ids.truncate(10000);
     feature_ids
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
-            if subsampled_ids.contains(&feature_id.as_str()) {
-            // if feature_id.as_str() == "ENST00000566566.2" {    
+            // if subsampled_ids.contains(&feature_id.as_str()) {
+            if feature_id.as_str() == "ERCC-00130" {    
             
             // println!("FEATURE --------------------------");
             let maximum_likelihood_means: Vec<f64> = sample_expression_paths
@@ -117,6 +117,8 @@ pub(crate) fn group_expression(
                     prior.max_value(),
                     451,
                 );
+                // let prob = density(0., prior.mean());
+                // println!("mu_ik {:?}, prob {:?}", mu_ik, prob);
                 prob
 
             };

@@ -35,6 +35,7 @@ pub(crate) fn sample_expression(
             .ok_or(Error::UnknownSampleId {
                 sample_id: sample_id.to_owned(),
             })?;
+    // dbg!(mean_disp_estimates.dispersions());
     let group_means = preprocessing.group_means();
 
     let s_j = preprocessing
@@ -43,19 +44,20 @@ pub(crate) fn sample_expression(
         .unwrap()
         .clone();
 
-    let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
-    
+    let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect();
+    // println!("{:?} features", feature_ids.len());
+    // println!("{:?}", feature_ids);
     let subsampled_ids = vec!["ENST00000671775.2", "ENST00000643797.1", "ENST00000496791.1", 
         "ENST00000651279.1", "ENST00000533357.5", "ENST00000538709.1", "ENST00000539934.5", 
         "ENST00000541259.1", "ENST00000542241.5", "ENST00000543262.5", "ENST00000549259.5", 
         "ENST00000551671.5", "ENST00000553379.6", "ENST00000553786.1", "ENST00000563608.2", "ENST00000566566.2"];
     let out_dir = Outdir::create(out_dir)?;
-    feature_ids.truncate(10000);
+    // feature_ids.truncate(10000);
     feature_ids
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
-            if subsampled_ids.contains(&feature_id.as_str()) {
-            // if feature_id.as_str() == "ENST00000566566.2" {   
+            // if subsampled_ids.contains(&feature_id.as_str()) {
+            if feature_id.as_str() == "ERCC-00130" {   
 
             let d_ij = mean_disp_estimates.means()[*i]; //TODO Do we need group mean mu_ik instead of sample mean
             let mut d_ik = group_means[*i];
@@ -68,6 +70,7 @@ pub(crate) fn sample_expression(
             } else if let Some(t_ij) = preprocessing.interpolate_dispersion(*i) {
                 t_ij
             } else {
+                println!("skipped {:?}", feature_id);
                 // TODO log message
                 return Ok(());
             };
@@ -95,7 +98,7 @@ pub(crate) fn sample_expression(
             start_points_theta_i.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
             let calc_prob = |m, t| {
-                // println!("XXX mu {:?}, theta {:?}", m, t);
+                // println!("mu {:?}, theta {:?}", m, t);
                 likelihood_mu_ik_theta_i(
                     d_ij,
                     m,  // mu_ik
@@ -164,22 +167,24 @@ fn likelihood_mu_ik_theta_i(
     let mut max_prob = LogProb::ln_zero();
     let mut result = LogProb::ln_zero();
     let mut x : u64 = 0;
-    while true{
+    loop {
         let calced_prob = prob_mu_ik_theta_i_x(x as f64, d_ij, mu_ik, t_ij, theta_i, s_j);
         if calced_prob > max_prob{
             max_prob = calced_prob;
         }       
         result = result.ln_add_exp(calced_prob);
-        if x > 500 && calced_prob - max_prob < LogProb(0.01_f64.ln()){
+        if x > 500 && calced_prob - max_prob < LogProb(0.00001_f64.ln()) {
             break;
         }
-        x = x+1;
+        x = x + 1;
     }
-    // println!("mu_ik {:?}, theta_i {:?}, x {:?}", mu_ik, theta_i, x);
+    // if theta_i < 0.3 {
+    //     println!("mu_ik {:?}, theta_i {:?}, x {:?}, result {:?}, max_prob {:?}", mu_ik, theta_i, x, result, max_prob);
+    // }
     result
 }
 
-fn neg_binom(x: f64, mu: f64, theta: f64) -> LogProb {
+pub(crate) fn neg_binom(x: f64, mu: f64, theta: f64) -> LogProb {
     let n = 1.0 / theta;
     let p = n / (n + mu);
 

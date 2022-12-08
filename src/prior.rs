@@ -74,3 +74,63 @@ impl Prior {
         self.inv_gamma.inverse_cdf(0.995)
     }
 }
+
+
+
+
+// #[derive(Debug, Getters)]
+// pub(crate) struct Prior {
+//     estimated_dispersion: f64,
+//     #[get = "pub(crate)"]
+//     left_window: Vec<f64>,
+//     #[get = "pub(crate)"]
+//     right_window: Vec<f64>,
+// }
+
+
+
+// impl Prior {
+//     /// Initialize inverse gamma prior. alpha=shape, beta=scale or rate.
+//     pub(crate) fn new(parameter: f64) -> Result<Self> {
+//         let window = |a, b, left_exclusive: bool| {
+//             linspace(a, b, 5)
+//                 // .map(|x| x + parameters.shift)
+//                 .skip(if left_exclusive { 1 } else { 0 })
+//                 .collect()
+//         };
+//         let left_window = window(
+//             parameter/2.,
+//             parameter,
+//             false,
+//         );
+//         let right_window = window(
+//             parameter,
+//             parameter *2.,
+//             true);
+//         Ok(Prior {estimated_dispersion:parameter,
+//             left_window,
+//             right_window,})
+//     }
+
+//     pub(crate) fn prob(&self, x: f64) -> LogProb {
+//         if x == self.estimated_dispersion {
+//             LogProb::ln_one()
+//         }else {
+//             LogProb::ln_zero()
+//         }
+       
+//     }
+
+//     #[allow(unused)]
+//     pub(crate) fn mean(&self) -> f64 {
+//         self.estimated_dispersion
+//     }
+
+//     pub(crate) fn min_value(&self) -> f64 {
+//         self.estimated_dispersion /2.
+//     }
+
+//     pub(crate) fn max_value(&self) -> f64 {
+//         self.estimated_dispersion *2.
+//     }
+// }

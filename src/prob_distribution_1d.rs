@@ -214,7 +214,6 @@ impl ProbDistribution1d {
                 *ld2 = local_d2;
             }
         }
-
         self.points.insert(N64::new(value), (prob, d1, d2));
     }
 
@@ -242,7 +241,7 @@ impl ProbDistribution1d {
                     }
                     let factor_u = (value - *lower) / diff;
                     let factor_l = (*upper - value) / diff;
-                    let min_diff = min(value - lower, *upper - value);
+                    let min_diff = min(value - *lower, *upper - value);
                     let scaling = (2. * min_diff.raw()) / diff.raw();
                     let scaling_u = ud2 + (LogProb((factor_u.raw() * scaling).ln()));
                     let scaling_l = ld2 + (LogProb((factor_l.raw() * scaling).ln()));

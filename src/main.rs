@@ -157,7 +157,7 @@ enum Cli {
         preprocessing_path: PathBuf,
         #[structopt(
             short = "c",
-            default_value = "10",
+            default_value = "0",
             help = "Pseudo counts c for fold change calculation."
         )]
         c: f64,

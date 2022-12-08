@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::stdout;
 use std::path::{Path, PathBuf};
+use std::thread;
 
 use anyhow::Result;
 use getset::Getters;
@@ -24,17 +25,22 @@ pub(crate) fn preprocess(
     sample_ids: &[String],
     prior_parameters: PriorParameters,
 ) -> Result<()> {
-    if kallisto_quants.len() < 2 {
+    if kallisto_quants.len() < 1 {
         return Err(Error::NotEnoughQuants.into());
     }
-
     let quants: Result<Vec<_>> = kallisto_quants
         .iter()
         .map(|kallisto_quant| KallistoQuant::new(kallisto_quant))
         .collect();
     let quants = quants?;
 
-    let scale_factors = scale_factors(&quants, sample_ids)?;
+    let mut scale_factors: HashMap<String, f64>;
+    if kallisto_quants.len() > 1 {
+        scale_factors = calc_scale_factors(&quants, sample_ids)?;
+    } else {
+        scale_factors =  HashMap::new();
+        scale_factors.insert((*sample_ids[0]).to_string(), 1.);
+    }
     dbg!(&scale_factors);
 
     let mean_disp_estimates = mean_disp_estimates(&quants, sample_ids)?;
@@ -75,6 +81,10 @@ impl Preprocessing {
         Prior::new(self.prior_parameters())
     }
 
+    // pub(crate) fn prior(&self) -> Result<Prior> {
+    //     Prior::new(0.25)
+    // }
+
     pub(crate) fn interpolate_dispersion(&self, feature_idx: usize) -> Option<f64> {
         let disp = |estimates: &Estimates| estimates.dispersions[feature_idx];
         let count = self.mean_disp_estimates.values().filter_map(&disp).count();
@@ -92,7 +102,7 @@ impl Preprocessing {
     }
 }
 
-fn scale_factors(
+fn calc_scale_factors(
     kallisto_quants: &[KallistoQuant],
     sample_ids: &[String],
 ) -> Result<HashMap<String, f64>> {
@@ -104,7 +114,8 @@ fn scale_factors(
         .collect();
     let mut counts = counts?;
 
-    let upper_quartiles: Array1<N64> = counts
+    let child = thread::Builder::new().stack_size(32 * 1024 * 1024).spawn(move || {
+        let upper_quartiles: Array1<N64> = counts
         .iter_mut()
         .map(|feature_counts| {
             feature_counts
@@ -113,10 +124,22 @@ fn scale_factors(
                 .clone()
         })
         .collect();
+        return upper_quartiles;
+    }).unwrap();
 
+    let upper_quartiles = child.join().unwrap();
+
+    // let upper_quartiles: Array1<N64> = counts
+    //     .iter_mut()
+    //     .map(|feature_counts| {
+    //         feature_counts
+    //             .quantile_mut(N64::unchecked_new(0.75), &interpolate::Linear)
+    //             .unwrap()
+    //             .clone()
+    //     })
+    //     .collect();
     let max_quartile = upper_quartiles.max()?.clone();
     let scale_factors = upper_quartiles.mapv(|quartile| max_quartile / quartile);
-
     Ok(sample_ids
         .iter()
         .cloned()
@@ -126,6 +149,7 @@ fn scale_factors(
                 .map(|scale_factor| (*scale_factor).into()),
         )
         .collect())
+    
 }
 
 #[derive(Serialize, Deserialize, Debug, Getters)]

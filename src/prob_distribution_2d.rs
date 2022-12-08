@@ -334,6 +334,7 @@ impl ProbDistribution2d {
                     let nearest_distance = nearest_corner.0;
                     let nearest_corner_index = nearest_corner.1;
                     let nearest_square = self.find_square_for_point(&value, *nearest_corner_index);
+                    // println!("2d get neares_square {:?}", nearest_square);
                     if self.is_in_square(&value, &nearest_square){
                         result = self.smoothing(&value, nearest_square);
                         break;
@@ -513,6 +514,7 @@ impl ProbDistribution2d {
         };
         
         let nearest_vec = point_indices.iter().filter_map(filtering).collect::<Vec<_>>();
+        // println!("nearest_vec {:?}", nearest_vec);
         if nearest_vec.len() == 0 {
             return LogProb::ln_zero();
         }
@@ -541,7 +543,6 @@ impl ProbDistribution2d {
 
         result = result - LogProb(scaling_sum.ln());
         let distance_of_value =  euclidean(&value, &[0.0, 0.0]);
-        // println!("distance_of_value {:?}", distance_of_value);
         if self.max_distance < distance_of_value { //is_outlier
             result = result - LogProb((distance_of_value - self.max_distance).ln());  
             println!("Is outlier. New result {:?}", result.exp())      
