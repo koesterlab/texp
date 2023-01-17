@@ -28,6 +28,8 @@ kdtree = { version = "0.6", features = ["serialize"] }
 itertools = "0.10.3"
 num-traits = "0.2"
 approx = "0.5"
+ordered-float ={ version = "3.4", features = ["serde"] }
+
 
 [profile.release]
 panic = "abort"

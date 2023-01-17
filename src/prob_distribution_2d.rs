@@ -1,12 +1,15 @@
 use std::process::exit;
 use std::collections::VecDeque;
-use std::f64::consts::PI;
+use std::collections::HashMap;
+use std::collections::BTreeMap;
+use std::ops::Bound::Included;
 
 use bio::stats::LogProb;
 use itertools::iproduct;
 use kdtree::KdTree;
 use serde_derive::{Deserialize, Serialize};
 use num_traits::Float;
+use ordered_float::OrderedFloat;
 
 use crate::common::{Square, Point, difference_to_big};
 
@@ -33,6 +36,7 @@ pub(crate) struct ProbDistribution2d {
     max_distance: f64,
     max_x:f64,
     max_y: f64,
+    range_per_theta: BTreeMap<OrderedFloat<f64>, [f64; 2]>
 }
 
 pub fn euclidean<T: Float>(a: &[T], b: &[T]) -> T {
@@ -52,6 +56,7 @@ impl ProbDistribution2d {
             max_distance: 0.,
             max_x: 0.,
             max_y: 0.,
+            range_per_theta: BTreeMap::new(),
         }
     }
 
@@ -63,6 +68,7 @@ impl ProbDistribution2d {
             max_distance: 0.,
             max_x: 0.,
             max_y: 0.,
+            range_per_theta: BTreeMap::new(),
         }
     }
 
@@ -73,6 +79,25 @@ impl ProbDistribution2d {
     pub(crate) fn get_max_prob(&self) -> LogProb {
         self.points[self.max_prob_entry_position].prob
     }
+
+    pub(crate) fn get_range_per_theta(&self, theta: f64) -> [f64; 2] {
+        if self.range_per_theta.is_empty(){
+            return [0.,10000.]; //TODO set variables as defaults
+        }
+        else if self.range_per_theta.contains_key(&OrderedFloat(theta)){
+            return self.range_per_theta[&OrderedFloat(theta)]
+        } else {
+            // println!("theta {:?} not in map", theta);
+            // let range = self.range_per_theta.range((Included(&OrderedFloat(theta/2.)), Included(&OrderedFloat(theta*2.))));
+            // println!("range {:?}", range);
+            // let mina = range.min_by(|x, y| ((x.0 - theta).abs()).cmp(&(y.0 - OrderedFloat(theta)).abs())).unwrap();
+            // println!("mina {:?}", mina);
+            *self.range_per_theta.range((Included(&OrderedFloat(theta/2.)), Included(&OrderedFloat(theta*2.))))
+                .min_by(|x, y|((x.0 - theta).abs()).cmp(&(y.0 - OrderedFloat(theta)).abs()))
+                .unwrap().1
+        }
+    }
+
 
     pub(crate) fn is_na(&self) -> bool {
         self.max_prob_entry_position == usize::MAX
@@ -314,6 +339,19 @@ impl ProbDistribution2d {
                 self.max_distance = distance;
             }
             self.kdtree.add(value, entry_position).ok();
+        }
+        if prob > LogProb::ln_zero(){
+            if self.range_per_theta.contains_key(&OrderedFloat(theta)){
+                let mu_range = self.range_per_theta.get(&OrderedFloat(theta)).unwrap();
+                    if mu < mu_range[0]{
+                        self.range_per_theta.insert(OrderedFloat(theta), [mu, mu_range[1]]);
+                    } else if mu > mu_range[1]{
+                        self.range_per_theta.insert(OrderedFloat(theta), [mu_range[0], mu]);
+                    }
+            } else {
+                self.range_per_theta.insert(OrderedFloat(theta), [mu, mu]);
+            }
+
         }
     }
 
