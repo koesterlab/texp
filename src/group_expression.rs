@@ -3,10 +3,12 @@
 
 use std::path::{Path, PathBuf};
 use std::collections::VecDeque;
+use std::fs::File;
 
 use anyhow::Result;
 use bio::stats::LogProb;
 use rayon::prelude::*;
+use csv;
 
 use crate::common::{Outdir, Pair, difference_to_big};
 use crate::errors::Error;
@@ -26,18 +28,26 @@ pub(crate) fn group_expression(
     let prior = preprocessing.prior()?;
     let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect();
 
-    let subsampled_ids = vec!["ENST00000671775.2", "ENST00000643797.1", "ENST00000496791.1", 
-        "ENST00000651279.1", "ENST00000533357.5", "ENST00000538709.1", "ENST00000539934.5", 
-        "ENST00000541259.1", "ENST00000542241.5", "ENST00000543262.5", "ENST00000549259.5", 
-        "ENST00000551671.5", "ENST00000553379.6", "ENST00000553786.1", "ENST00000563608.2", "ENST00000566566.2"];
+    let file = File::open("/vol/nano/bayesian-diff-exp-analysis/texp-evaluation/estimated_dispersion.csv")?;
+    let mut rdr = csv::Reader::from_reader(file);
+    let mut thetas = Vec::<f64>::new();
+    for result in rdr.records() {
+        let record = result?;
+        let dispersion: f64 = record[1].parse().unwrap();
+        thetas.push(dispersion);
+    }
+
+
+    let subsampled_ids = vec!["ERCC-00130","ERCC-00004", "ERCC-00136", "ERCC-00096", "ERCC-00171", "ERCC-00009",
+    "ERCC-00074", "ERCC-00113", "ERCC-00145", "ERCC-00002", "ERCC-00046", "ERCC-00003"];
 
     let out_dir = Outdir::create(out_dir)?;
     // feature_ids.truncate(10000);
     feature_ids
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
-            // if subsampled_ids.contains(&feature_id.as_str()) {
-            if feature_id.as_str() == "ERCC-00130" {    
+            if subsampled_ids.contains(&feature_id.as_str()) {
+            // if feature_id.as_str() == "ERCC-00130" {    
             
             // println!("FEATURE --------------------------");
             let maximum_likelihood_means: Vec<f64> = sample_expression_paths
@@ -99,14 +109,15 @@ pub(crate) fn group_expression(
                 if mu_ik == 0. {
                     return LogProb::ln_zero();
                 }
-                let prob= sample_expression_likelihoods
+                let mut prob = sample_expression_likelihoods
                     .iter()
                     .map(|sample_expression_likelihood| {
                         sample_expression_likelihood
-                            .get(&[mu_ik, theta_i])
+                        .get(&[mu_ik, theta_i])
                     })
-                    .sum::<LogProb>() + //Formula 5
-                    LogProb(*prior.prob(theta_i));
+                    .sum::<LogProb>();  //Formula 5
+                    // +LogProb(*prior.prob(theta_i));
+                // prob = LogProb(f64::from(prob) * 8.);
 
                 // Result of formula 7.
                 // let prob= LogProb::ln_simpsons_integrate_exp(
@@ -135,18 +146,21 @@ pub(crate) fn group_expression(
                 }
             }
             if start_points_mu_ik.len() == 1 {
-                start_points_mu_ik.push(5000.);
+                start_points_mu_ik.push(2500.);
             //     cur_prob = calc_prob(5000.);
             //     prob_dist.insert(5000., cur_prob);
             //     // println!("insert mu {:?}, prob {:?}", 5000., f64::from(cur_prob.exp()));
             }
-            start_points_mu_ik.push(10000.);
+            start_points_mu_ik.push(5000.);
             // cur_prob = calc_prob(10000.);
             // prob_dist.insert(10000., cur_prob);
             // // println!("insert mu {:?}, prob {:?}", 10000., f64::from(cur_prob.exp()));
             
+            let theta = thetas[i-190432];
+
             let mut start_points_theta_i = Vec::<f64>::new();
             start_points_theta_i.extend(prior.left_window());
+            start_points_theta_i.push(theta);
             start_points_theta_i.extend(prior.right_window());
             start_points_theta_i.sort_by(|a, b| a.partial_cmp(b).unwrap());
 

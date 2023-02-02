@@ -40,12 +40,12 @@ impl Prior {
         };
         let left_window = window(
             inv_gamma.inverse_cdf(0.001),
-            inv_gamma.mean().unwrap(),
+            10., //inv_gamma.mean().unwrap(),
             false,
         );
         let right_window = window(
-            inv_gamma.mean().unwrap(),
-            inv_gamma.inverse_cdf(0.99), // TODO parameter  mit default 0.99
+            10., //inv_gamma.mean().unwrap(),
+            20., //inv_gamma.inverse_cdf(0.99), // TODO parameter  mit default 0.99
             true);
 
         Ok(Prior {
@@ -71,7 +71,8 @@ impl Prior {
     }
 
     pub(crate) fn max_value(&self) -> f64 {
-        self.inv_gamma.inverse_cdf(0.99)
+        20.
+        //self.inv_gamma.inverse_cdf(0.99)
     }
 }
 

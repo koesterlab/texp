@@ -2,7 +2,7 @@ use std::process::exit;
 use std::collections::VecDeque;
 use std::collections::HashMap;
 use std::collections::BTreeMap;
-use std::ops::Bound::Included;
+use std::ops::Bound::{Included, Unbounded};
 
 use bio::stats::LogProb;
 use itertools::iproduct;
@@ -87,14 +87,18 @@ impl ProbDistribution2d {
         else if self.range_per_theta.contains_key(&OrderedFloat(theta)){
             return self.range_per_theta[&OrderedFloat(theta)]
         } else {
-            // println!("theta {:?} not in map", theta);
-            // let range = self.range_per_theta.range((Included(&OrderedFloat(theta/2.)), Included(&OrderedFloat(theta*2.))));
-            // println!("range {:?}", range);
-            // let mina = range.min_by(|x, y| ((x.0 - theta).abs()).cmp(&(y.0 - OrderedFloat(theta)).abs())).unwrap();
-            // println!("mina {:?}", mina);
-            *self.range_per_theta.range((Included(&OrderedFloat(theta/2.)), Included(&OrderedFloat(theta*2.))))
-                .min_by(|x, y|((x.0 - theta).abs()).cmp(&(y.0 - OrderedFloat(theta)).abs()))
-                .unwrap().1
+            let (lower, range_l) = self.range_per_theta.range(..OrderedFloat(theta)).next_back().unwrap();
+            let (upper, range_u) = self.range_per_theta.range(OrderedFloat(theta)..).next().unwrap();
+            // println!("range_l {:?}", range_l);
+            // println!("range_u {:?}", range_u);
+            if (lower - theta).abs() < (upper - theta).abs(){
+                return *range_l;
+            } else {
+                return *range_u;
+            }
+            // *self.range_per_theta.range((Included(&OrderedFloat(theta/2.)), Included(&OrderedFloat(theta*2.))))
+                // .min_by(|x, y|((x.0 - theta).abs()).cmp(&(y.0 - OrderedFloat(theta)).abs()))
+                // .unwrap().1
         }
     }
 
@@ -127,6 +131,7 @@ impl ProbDistribution2d {
     pub(crate) fn insert_grid<F>(&mut self, mut mus: Vec<f64>, mut thetas: Vec<f64>, calc: F) where F: Fn(f64, f64) -> LogProb {
         self.max_y = thetas[thetas.len()-1];
         self.max_x = mus[mus.len()-1];
+        // println!("max_x {:?}, max_y {:?}", self.max_x, self.max_y);
         let len_mus = mus.len();
         let len_thetas = thetas.len();
         for (j, i) in iproduct!(0..len_thetas, 0..len_mus) {

@@ -3,8 +3,9 @@ use std::fs;
 use std::mem;
 use std::path::Path;
 // use std::process::exit;
+use std::fs::File;
 
-
+use csv;
 use anyhow::Result;
 use bio::stats::LogProb;
 use getset::Getters;
@@ -44,20 +45,33 @@ pub(crate) fn sample_expression(
         .unwrap()
         .clone();
 
+    // let temp: Vec<_>= mean_disp_estimates.means().iter().enumerate().skip(190432).collect();
+    // println!("mean_disp_estimates {:?}", temp);
+
+    let file = File::open("/vol/nano/bayesian-diff-exp-analysis/texp-evaluation/estimated_dispersion.csv")?;
+    let mut rdr = csv::Reader::from_reader(file);
+    let mut thetas = Vec::<f64>::new();
+    for result in rdr.records() {
+        let record = result?;
+        let dispersion: f64 = record[1].parse().unwrap();
+        thetas.push(dispersion);
+    }
+
+
+
     let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect();
     // println!("{:?} features", feature_ids.len());
     // println!("{:?}", feature_ids);
-    let subsampled_ids = vec!["ENST00000671775.2", "ENST00000643797.1", "ENST00000496791.1", 
-        "ENST00000651279.1", "ENST00000533357.5", "ENST00000538709.1", "ENST00000539934.5", 
-        "ENST00000541259.1", "ENST00000542241.5", "ENST00000543262.5", "ENST00000549259.5", 
-        "ENST00000551671.5", "ENST00000553379.6", "ENST00000553786.1", "ENST00000563608.2", "ENST00000566566.2"];
+    let subsampled_ids = vec!["ERCC-00130","ERCC-00004", "ERCC-00136", "ERCC-00096", "ERCC-00171", "ERCC-00009",
+    "ERCC-00074", "ERCC-00113", "ERCC-00145", "ERCC-00002", "ERCC-00046", "ERCC-00003"];
+
     let out_dir = Outdir::create(out_dir)?;
     // feature_ids.truncate(10000);
     feature_ids
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
-            // if subsampled_ids.contains(&feature_id.as_str()) {
-            if feature_id.as_str() == "ERCC-00130" {   
+            if subsampled_ids.contains(&feature_id.as_str()) {
+            // if feature_id.as_str() == "ERCC-00130" {   
 
             let d_ij = mean_disp_estimates.means()[*i]; //TODO Do we need group mean mu_ik instead of sample mean
             let mut d_ik = group_means[*i];
@@ -88,14 +102,17 @@ pub(crate) fn sample_expression(
                 }
             }
             if start_points_mu_ik.len() == 1 {
-                start_points_mu_ik.push(5000.);
+                start_points_mu_ik.push(2500.);
             }
-            start_points_mu_ik.push(10001.);
+            start_points_mu_ik.push(5001.);
 
+            let theta = thetas[i-190432];
             let mut start_points_theta_i = Vec::<f64>::new();
             start_points_theta_i.extend(prior.left_window());
+            start_points_theta_i.push(theta);
             start_points_theta_i.extend(prior.right_window());
             start_points_theta_i.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            // println!("start_points_theta_i {:?}", start_points_theta_i);
 
             let calc_prob = |m, t| {
                 // println!("mu {:?}, theta {:?}", m, t);
