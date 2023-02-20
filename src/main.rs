@@ -13,7 +13,6 @@ mod common;
 mod diff_exp;
 mod errors;
 mod group_expression;
-mod group_means;
 mod kallisto;
 mod preprocess;
 mod prior;
@@ -80,13 +79,6 @@ enum Cli {
             help = "Path to preprocessed Kallisto results."
         )]
         preprocessing_path: PathBuf,
-        #[structopt(
-            parse(from_os_str),
-            long = "group_means_path",
-            short = "m",
-            help = "Path to calculated group means."
-        )]
-        group_means_path: PathBuf,
         #[structopt(
             parse(from_os_str),
             long = "output",
@@ -229,7 +221,6 @@ fn main() -> Result<()> {
         }
         Cli::SampleExp {
             preprocessing_path,
-            group_means_path,
             epsilon,
             sample_id,
             c,
@@ -244,7 +235,6 @@ fn main() -> Result<()> {
             // calculate per sample likelihoods
             sample_expression::sample_expression(
                 &preprocessing_path,
-                &group_means_path,
                 &sample_id,
                 LogProb::from(Prob::checked(epsilon)?),
                 c,

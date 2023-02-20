@@ -21,12 +21,10 @@ use crate::common::QueryPoints;
 // , Square, Point
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
-use crate::group_means::GroupMeans;
 use crate::prob_distribution_2d::ProbDistribution2d;
 
 pub(crate) fn sample_expression(
     preprocessing: &Path,
-    group_means_path: &Path,
     sample_id: &str,
     epsilon: LogProb,
     c : f64,
@@ -45,8 +43,6 @@ pub(crate) fn sample_expression(
                 sample_id: sample_id.to_owned(),
             })?;
     // dbg!(mean_disp_estimates.dispersions());
-    let group_means = GroupMeans::from_path(group_means_path)?;
-
 
     let s_j = preprocessing
         .scale_factors()
@@ -86,10 +82,6 @@ pub(crate) fn sample_expression(
             // println!("\n--------------feature {:?} {:?}", i, feature_id);
 
             let d_ij = mean_disp_estimates.means()[*i]; //TODO Do we need group mean mu_ik instead of sample mean
-            let mut d_ik = group_means.group_means()[*i];
-            if d_ik < 1e-8 { //TODO SEnsible? Filter at different position better?
-                d_ik = 0.;
-            }
             // METHOD: If the per-sample dispersion is unknown, fall back to a mean interpolated from the other samples.
             let t_ij = if let Some(t_ij) = mean_disp_estimates.dispersions()[*i] {
                 t_ij
