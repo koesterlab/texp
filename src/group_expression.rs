@@ -9,8 +9,9 @@ use anyhow::Result;
 use bio::stats::LogProb;
 use rayon::prelude::*;
 use csv;
+use itertools_num::linspace;
 
-use crate::common::{Outdir, Pair, difference_to_big};
+use crate::common::{QueryPoints, Outdir, Pair, difference_to_big};
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
 use crate::prob_distribution_1d::ProbDistribution1d;
@@ -22,11 +23,15 @@ use crate::sample_expression::SampleInfo;
 pub(crate) fn group_expression(
     preprocessing: &Path,
     sample_expression_paths: &[PathBuf],
+    c: f64,
     out_dir: &Path,
 ) -> Result<()> {
+    let query_points = QueryPoints::new(c)?;
+    let mu_ik_points = query_points.all_mu_ik();
+    let start_points_theta_i = query_points.thetas();
     let preprocessing = Preprocessing::from_path(preprocessing)?;
     let prior = preprocessing.prior()?;
-    let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect();
+    let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190400).collect(); //190432
 
     let file = File::open("/vol/nano/bayesian-diff-exp-analysis/texp-evaluation/estimated_dispersion.csv")?;
     let mut rdr = csv::Reader::from_reader(file);
@@ -46,10 +51,10 @@ pub(crate) fn group_expression(
     feature_ids
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
-            if subsampled_ids.contains(&feature_id.as_str()) {
+            // if subsampled_ids.contains(&feature_id.as_str()) {
             // if feature_id.as_str() == "ERCC-00130" {    
             
-            // println!("FEATURE --------------------------");
+            println!("--------------feature {:?} {:?}", i, feature_id);
             let maximum_likelihood_means: Vec<f64> = sample_expression_paths
                 .iter()
                 .map(|sample_expression_path| {
@@ -64,7 +69,7 @@ pub(crate) fn group_expression(
                         .means()[*i])
                 })
                 .collect::<Result<Vec<_>>>()?;
-
+            // println!("1");
             let sample_expression_likelihoods = sample_expression_paths
                 .iter()
                 .map(|sample_expression_path| {
@@ -98,12 +103,17 @@ pub(crate) fn group_expression(
                     }
                 })
                 .collect::<Result<Vec<_>>>()?;
+                if sample_expression_likelihoods.iter().all(|x| x.is_na()){
+                    out_dir.serialize_value(feature_id, ProbDistribution2d::na())?;
+                    return Ok(());
+                }
+            // println!("2");
             let maximum_likelihood_mean = maximum_likelihood_means.iter().sum::<f64>()
                 / maximum_likelihood_means.len() as f64;
 
             // let mut prob_dist = ProbDistribution1d::new();
             let mut prob_dist = ProbDistribution2d::new();
-
+            // println!("3");
             let calc_prob = |mu_ik : f64, theta_i: f64| {
                 // println!("mu_ik {:?}", mu_ik);
                 if mu_ik == 0. {
@@ -131,38 +141,40 @@ pub(crate) fn group_expression(
                 prob
 
             };
-            let mut start_points_mu_ik = vec![0.];
-            // let mut cur_prob = calc_prob(0.);
-            // prob_dist.insert(0., cur_prob);            
-            // // println!("insert mu {:?}, prob {:?}", 0., f64::from(cur_prob.exp()));
-            let mut cur_maximum_likelihood_mean = maximum_likelihood_mean / 16.;
-            if (cur_maximum_likelihood_mean > 0.) {
-                while cur_maximum_likelihood_mean < 10000. {
-                    start_points_mu_ik.push(cur_maximum_likelihood_mean);
-            //         cur_prob = calc_prob(cur_maximum_likelihood_mean);
-            //         prob_dist.insert(cur_maximum_likelihood_mean, cur_prob);
-            //         // println!("insert mu {:?}, prob {:?}", cur_maximum_likelihood_mean, f64::from(cur_prob.exp()));
-                    cur_maximum_likelihood_mean = cur_maximum_likelihood_mean * 2.;
-                }
-            }
-            if start_points_mu_ik.len() == 1 {
-                start_points_mu_ik.push(2500.);
-            //     cur_prob = calc_prob(5000.);
-            //     prob_dist.insert(5000., cur_prob);
-            //     // println!("insert mu {:?}, prob {:?}", 5000., f64::from(cur_prob.exp()));
-            }
-            start_points_mu_ik.push(5000.);
-            // cur_prob = calc_prob(10000.);
-            // prob_dist.insert(10000., cur_prob);
-            // // println!("insert mu {:?}, prob {:?}", 10000., f64::from(cur_prob.exp()));
+            // let mut start_points_mu_ik = vec![0.];
+            // // let mut cur_prob = calc_prob(0.);
+            // // prob_dist.insert(0., cur_prob);            
+            // // // println!("insert mu {:?}, prob {:?}", 0., f64::from(cur_prob.exp()));
+            // let mut cur_maximum_likelihood_mean = maximum_likelihood_mean / 16.;
+            // if (cur_maximum_likelihood_mean > 0.) {
+            //     while cur_maximum_likelihood_mean < 10000. {
+            //         start_points_mu_ik.push(cur_maximum_likelihood_mean);
+            // //         cur_prob = calc_prob(cur_maximum_likelihood_mean);
+            // //         prob_dist.insert(cur_maximum_likelihood_mean, cur_prob);
+            // //         // println!("insert mu {:?}, prob {:?}", cur_maximum_likelihood_mean, f64::from(cur_prob.exp()));
+            //         cur_maximum_likelihood_mean = cur_maximum_likelihood_mean * 2.;
+            //     }
+            // }
+            // if start_points_mu_ik.len() == 1 {
+            //     start_points_mu_ik.push(2500.);
+            // //     cur_prob = calc_prob(5000.);
+            // //     prob_dist.insert(5000., cur_prob);
+            // //     // println!("insert mu {:?}, prob {:?}", 5000., f64::from(cur_prob.exp()));
+            // }
+            // start_points_mu_ik.push(5000.);
+            // // cur_prob = calc_prob(10000.);
+            // // prob_dist.insert(10000., cur_prob);
+            // // // println!("insert mu {:?}, prob {:?}", 10000., f64::from(cur_prob.exp()));
+            let mut start_points_mu_ik = mu_ik_points.clone();
             
-            let theta = thetas[i-190432];
+            // let theta = thetas[i-190432];
 
-            let mut start_points_theta_i = Vec::<f64>::new();
-            start_points_theta_i.extend(prior.left_window());
-            start_points_theta_i.push(theta);
-            start_points_theta_i.extend(prior.right_window());
-            start_points_theta_i.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            // let mut start_points_theta_i = Vec::<f64>::new();
+            // start_points_theta_i.extend(prior.left_window());
+            // start_points_theta_i.push(theta);
+            // start_points_theta_i.extend(prior.right_window());
+            // start_points_theta_i.sort_by(|a, b| a.partial_cmp(b).unwrap());
+           
 
 
 
@@ -213,11 +225,12 @@ pub(crate) fn group_expression(
             //     }
             // }
 
-            prob_dist.insert_grid(start_points_mu_ik, start_points_theta_i, calc_prob);
-
+            // println!("4");
+            prob_dist.insert_grid(start_points_mu_ik, start_points_theta_i.clone(), calc_prob);
+            // println!("5");
             // let norm_factor = prob_dist.normalize(); // remove factor c_ik
             out_dir.serialize_value(feature_id, prob_dist)?;
-            }
+            // }
             Ok(())
         })?;
 

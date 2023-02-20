@@ -9,24 +9,32 @@ use csv;
 use anyhow::Result;
 use bio::stats::LogProb;
 use getset::Getters;
-// use itertools_num::linspace;
 use rayon::prelude::*;
 use rmp_serde::Deserializer;
 use serde::Deserialize as SerdeDeserialize;
 use serde_derive::{Deserialize, Serialize};
 use statrs::function::beta::ln_beta;
+// use itertools_num::linspace;
 
-use crate::common::Outdir; // , Square, Point
+use crate::common::Outdir; 
+use crate::common::QueryPoints;
+// , Square, Point
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
+use crate::group_means::GroupMeans;
 use crate::prob_distribution_2d::ProbDistribution2d;
 
 pub(crate) fn sample_expression(
     preprocessing: &Path,
+    group_means_path: &Path,
     sample_id: &str,
     epsilon: LogProb,
+    c : f64,
     out_dir: &Path,
 ) -> Result<()> {
+    let query_points = QueryPoints::new(c)?;
+    let mu_ik_points = query_points.all_mu_ik();
+    let start_points_theta_i = query_points.thetas();
     let preprocessing = Preprocessing::from_path(preprocessing)?;
     let prior = preprocessing.prior()?;
     let mean_disp_estimates =
@@ -37,7 +45,8 @@ pub(crate) fn sample_expression(
                 sample_id: sample_id.to_owned(),
             })?;
     // dbg!(mean_disp_estimates.dispersions());
-    let group_means = preprocessing.group_means();
+    let group_means = GroupMeans::from_path(group_means_path)?;
+
 
     let s_j = preprocessing
         .scale_factors()
@@ -59,7 +68,7 @@ pub(crate) fn sample_expression(
 
 
 
-    let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect();
+    let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190400).collect();
     // println!("{:?} features", feature_ids.len());
     // println!("{:?}", feature_ids);
     let subsampled_ids = vec!["ERCC-00130","ERCC-00004", "ERCC-00136", "ERCC-00096", "ERCC-00171", "ERCC-00009",
@@ -70,11 +79,14 @@ pub(crate) fn sample_expression(
     feature_ids
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
-            if subsampled_ids.contains(&feature_id.as_str()) {
+            
+            // if subsampled_ids.contains(&feature_id.as_str()) {
             // if feature_id.as_str() == "ERCC-00130" {   
 
+            // println!("\n--------------feature {:?} {:?}", i, feature_id);
+
             let d_ij = mean_disp_estimates.means()[*i]; //TODO Do we need group mean mu_ik instead of sample mean
-            let mut d_ik = group_means[*i];
+            let mut d_ik = group_means.group_means()[*i];
             if d_ik < 1e-8 { //TODO SEnsible? Filter at different position better?
                 d_ik = 0.;
             }
@@ -88,31 +100,34 @@ pub(crate) fn sample_expression(
                 // TODO log message
                 return Ok(());
             };
-            // println!("\n\n -------------------------- feature {:?}", i);
+            
             // println!("d_ij {:?}, d_ik {:?}, t_ij {:?}", d_ij, d_ik, t_ij);
 
             let mut likelihoods = ProbDistribution2d::new();
             // println!("--------------------------3");
-            let mut start_points_mu_ik = vec![0.];
-            let mut cur_d_ik = d_ik / 16.;
-            if (cur_d_ik > 0.) {
-                while cur_d_ik < 10000. {
-                    start_points_mu_ik.push(cur_d_ik);
-                    cur_d_ik = cur_d_ik * 2.;
-                }
-            }
-            if start_points_mu_ik.len() == 1 {
-                start_points_mu_ik.push(2500.);
-            }
-            start_points_mu_ik.push(5001.);
 
-            let theta = thetas[i-190432];
-            let mut start_points_theta_i = Vec::<f64>::new();
-            start_points_theta_i.extend(prior.left_window());
-            start_points_theta_i.push(theta);
-            start_points_theta_i.extend(prior.right_window());
-            start_points_theta_i.sort_by(|a, b| a.partial_cmp(b).unwrap());
-            // println!("start_points_theta_i {:?}", start_points_theta_i);
+            
+
+            // let mut start_points_mu_ik = vec![0.];
+            // let mut cur_d_ik = d_ik / 16.;
+            // if (cur_d_ik > 0.) {
+            //     while cur_d_ik < 10000. {
+            //         start_points_mu_ik.push(cur_d_ik);
+            //         cur_d_ik = cur_d_ik * 2.;
+            //     }
+            // }
+            // if start_points_mu_ik.len() == 1 {
+            //     start_points_mu_ik.push(2500.);
+            // }
+            // start_points_mu_ik.push(5001.);
+
+            // let theta = thetas[i-190432];
+            // let mut start_points_theta_i: Vec<f64> = Vec::<f64>::new();
+
+            // let mut start_points_theta_i: Vec<f64> = linspace(0.1, 1., 10).collect();
+            // start_points_theta_i.extend( linspace(1.5, 10., 18));
+            // start_points_theta_i.extend( linspace(11., 165., 155));
+            // // println!("start_points_theta_i {:?}", start_points_theta_i);
 
             let calc_prob = |m, t| {
                 // println!("mu {:?}, theta {:?}", m, t);
@@ -125,10 +140,10 @@ pub(crate) fn sample_expression(
                     epsilon,
                 )
             };
-            likelihoods.insert_grid(start_points_mu_ik, start_points_theta_i, calc_prob);
+            likelihoods.insert_grid(mu_ik_points.clone(), start_points_theta_i.clone(), calc_prob);
 
             out_dir.serialize_value(feature_id, likelihoods)?;
-            }
+            // }
             Ok(())
             
         })?;

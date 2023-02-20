@@ -45,12 +45,9 @@ pub(crate) fn preprocess(
 
     let mean_disp_estimates = mean_disp_estimates(&quants, sample_ids)?;
 
-    let group_means = group_means(&mean_disp_estimates, sample_ids)?;
-
     let preprocessing = Preprocessing {
         scale_factors,
         mean_disp_estimates,
-        group_means,
         feature_ids: quants[0].feature_ids()?,
         prior_parameters,
     };
@@ -65,7 +62,6 @@ pub(crate) fn preprocess(
 pub(crate) struct Preprocessing {
     scale_factors: HashMap<String, f64>,
     mean_disp_estimates: HashMap<String, Estimates>,
-    group_means: Array1<f64>,
     feature_ids: Array1<String>,
     prior_parameters: PriorParameters,
 }
@@ -159,20 +155,6 @@ pub(crate) struct Estimates {
     means: Array1<f64>,
 }
 
-fn group_means(
-    mean_disp_estimates: &HashMap<String, Estimates>,
-    sample_ids: &[String],
-) -> Result<Array1<f64>> {
-    dbg!("function group_means");
-
-    let mut means = Array1::zeros(Dim([mean_disp_estimates[&sample_ids[0]].means.len()]));
-    means = sample_ids
-        .iter()
-        .fold(means, |acc, x| acc + &mean_disp_estimates[x].means);
-    let number_of_samples = sample_ids.len() as f64;
-    means = means.map(|x| -> f64 {x / number_of_samples});
-    Ok(means)
-}
 
 impl Estimates {
     fn new(kallisto_quant: &KallistoQuant) -> Result<Self> {
@@ -199,3 +181,4 @@ fn mean_disp_estimates(
 
     Ok(sample_ids.iter().cloned().zip(estimates?).collect())
 }
+

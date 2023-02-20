@@ -155,146 +155,146 @@ impl ProbDistribution2d {
             }
         }
         
-        let mut queue = VecDeque::<Square>::new();
-        for (j, i) in iproduct!(0..len_thetas - 1, 0..len_mus - 1) {
-            queue.push_back( Square { top_left: i + j * len_mus + len_mus,
-                top_right: i + j * len_mus + len_mus + 1,
-                bot_left: i + j * len_mus,
-                bot_right: i + j * len_mus + 1,
-            });
-        }
+        // let mut queue = VecDeque::<Square>::new();
+        // for (j, i) in iproduct!(0..len_thetas - 1, 0..len_mus - 1) {
+        //     queue.push_back( Square { top_left: i + j * len_mus + len_mus,
+        //         top_right: i + j * len_mus + len_mus + 1,
+        //         bot_left: i + j * len_mus,
+        //         bot_right: i + j * len_mus + 1,
+        //     });
+        // }
 
-        while queue.len() > 0 {
-            let mut debugPrint = false;
-            let square = queue.pop_front().unwrap();
-            let new_point_candidates = self.new_points(&square);
-            let mut calced_values = Vec::<Option<LogProb>>::new();
-            let mut estimated_values = Vec::<Option<LogProb>>::new();
-            let mut new_point_indices = Vec::<usize>::new();
-            let mut counter = self.len();
-            for p in &new_point_candidates {
-                if p.x.is_infinite() || p.y.is_infinite(){
-                    calced_values.push(Some(LogProb::ln_zero()));
-                    estimated_values.push(Some(LogProb::ln_zero()));
-                    new_point_indices.push(counter);
-                    counter += 1;
-                    continue;
-                }
-                let nearest = self.kdtree.nearest(&[p.x, p.y], 1, &euclidean).unwrap()[0];
-                let distance_to_nearest = nearest.0;
-                // println!("counter {:?}, p.x {:?}, p.y {:?}, dist {:?}, nearst {:?}", counter, p.x, p.y, distance_to_nearest, self.points[*nearest.1]);
-                if ProbDistribution2d::check_if_different(p, &self.points[*nearest.1].position, &self.points[square.bot_left].position) {
-                        let prob = calc(
-                        p.x,  // mu_ik
-                        p.y,  // *theta_i
-                    );
-                    // println!("prob {:?}, p.x {:?}, p.y {:?}", prob, p.x, p.y);
-                    calced_values.push(Some(prob));
-                    estimated_values.push(Some(self.get(&[p.x, p.y])));
-                    new_point_indices.push(counter);
-                    counter += 1;
-                } else {
-                    calced_values.push(None);
-                    estimated_values.push(None);
-                    new_point_indices.push(*nearest.1);
-                }
-            }
-            // println!("calced {:?}, est {:?}, new_p_index {:?}", calced_values, estimated_values, new_point_indices);
-            let mut need_iteration = false;
-            for (estimated_value, calculated_value) in estimated_values.iter().zip(calced_values.iter()) {
-                if estimated_value.is_none() {
-                    continue;
-                }
-                let prob_dist_max = self.get_max_prob();
-                if difference_to_big(estimated_value.unwrap(), calculated_value.unwrap(), prob_dist_max) {
-                    need_iteration = true;
-                    break;
-                }
-            }
-            if !calced_values[0].is_none() {
-                let point = new_point_candidates[0];
-                self.insert(point.x, point.y, calced_values[0].unwrap(), new_point_indices[2], square.bot_right, usize::MAX, square.bot_left);
-                self.points[square.bot_right].trbl[L] = new_point_indices[0];
-            self.points[square.bot_left].trbl[R] = new_point_indices[0];
-            if calced_values[2].is_none() && new_point_indices[2] != usize::MAX {
-                self.points[new_point_indices[2]].trbl[B] = new_point_indices[0];
-            }
-                // auch für die anderen Punkte testen, ob Sie schon existieren und dann top/left/... von denen entsprechend setzen
-            }   
+        // while queue.len() > 0 {
+        //     let mut debugPrint = false;
+        //     let square = queue.pop_front().unwrap();
+        //     let new_point_candidates = self.new_points(&square);
+        //     let mut calced_values = Vec::<Option<LogProb>>::new();
+        //     let mut estimated_values = Vec::<Option<LogProb>>::new();
+        //     let mut new_point_indices = Vec::<usize>::new();
+        //     let mut counter = self.len();
+        //     for p in &new_point_candidates {
+        //         if p.x.is_infinite() || p.y.is_infinite(){
+        //             calced_values.push(Some(LogProb::ln_zero()));
+        //             estimated_values.push(Some(LogProb::ln_zero()));
+        //             new_point_indices.push(counter);
+        //             counter += 1;
+        //             continue;
+        //         }
+        //         let nearest = self.kdtree.nearest(&[p.x, p.y], 1, &euclidean).unwrap()[0];
+        //         let distance_to_nearest = nearest.0;
+        //         // println!("counter {:?}, p.x {:?}, p.y {:?}, dist {:?}, nearst {:?}", counter, p.x, p.y, distance_to_nearest, self.points[*nearest.1]);
+        //         if ProbDistribution2d::check_if_different(p, &self.points[*nearest.1].position, &self.points[square.bot_left].position) {
+        //                 let prob = calc(
+        //                 p.x,  // mu_ik
+        //                 p.y,  // *theta_i
+        //             );
+        //             // println!("prob {:?}, p.x {:?}, p.y {:?}", prob, p.x, p.y);
+        //             calced_values.push(Some(prob));
+        //             estimated_values.push(Some(self.get(&[p.x, p.y])));
+        //             new_point_indices.push(counter);
+        //             counter += 1;
+        //         } else {
+        //             calced_values.push(None);
+        //             estimated_values.push(None);
+        //             new_point_indices.push(*nearest.1);
+        //         }
+        //     }
+        //     // println!("calced {:?}, est {:?}, new_p_index {:?}", calced_values, estimated_values, new_point_indices);
+        //     let mut need_iteration = false;
+        //     for (estimated_value, calculated_value) in estimated_values.iter().zip(calced_values.iter()) {
+        //         if estimated_value.is_none() {
+        //             continue;
+        //         }
+        //         let prob_dist_max = self.get_max_prob();
+        //         if difference_to_big(estimated_value.unwrap(), calculated_value.unwrap(), prob_dist_max) {
+        //             need_iteration = true;
+        //             break;
+        //         }
+        //     }
+        //     if !calced_values[0].is_none() {
+        //         let point = new_point_candidates[0];
+        //         self.insert(point.x, point.y, calced_values[0].unwrap(), new_point_indices[2], square.bot_right, usize::MAX, square.bot_left);
+        //         self.points[square.bot_right].trbl[L] = new_point_indices[0];
+        //     self.points[square.bot_left].trbl[R] = new_point_indices[0];
+        //     if calced_values[2].is_none() && new_point_indices[2] != usize::MAX {
+        //         self.points[new_point_indices[2]].trbl[B] = new_point_indices[0];
+        //     }
+        //         // auch für die anderen Punkte testen, ob Sie schon existieren und dann top/left/... von denen entsprechend setzen
+        //     }   
             
-            if !calced_values[1].is_none() {
-                let point = new_point_candidates[1];
-                self.insert(point.x, point.y, calced_values[1].unwrap(), square.top_left, new_point_indices[2], square.bot_left, usize::MAX);
-                self.points[square.top_left].trbl[B] = new_point_indices[1];
-                self.points[square.bot_left].trbl[T] = new_point_indices[1];
-                if calced_values[2].is_none() && new_point_indices[2] != usize::MAX {
-                    self.points[new_point_indices[2]].trbl[L] = new_point_indices[1];
-                }
-            }
+        //     if !calced_values[1].is_none() {
+        //         let point = new_point_candidates[1];
+        //         self.insert(point.x, point.y, calced_values[1].unwrap(), square.top_left, new_point_indices[2], square.bot_left, usize::MAX);
+        //         self.points[square.top_left].trbl[B] = new_point_indices[1];
+        //         self.points[square.bot_left].trbl[T] = new_point_indices[1];
+        //         if calced_values[2].is_none() && new_point_indices[2] != usize::MAX {
+        //             self.points[new_point_indices[2]].trbl[L] = new_point_indices[1];
+        //         }
+        //     }
             
-            if !calced_values[2].is_none() {
-                let point = new_point_candidates[2];
-                self.insert(point.x, point.y, calced_values[2].unwrap(), new_point_indices[4], new_point_indices[3], new_point_indices[0], new_point_indices[1]);
-                if new_point_indices[0] != usize::MAX {
-                    self.points[new_point_indices[0]].trbl[T] = new_point_indices[2];
-                }
-                if new_point_indices[1] != usize::MAX {
-                    self.points[new_point_indices[1]].trbl[R] = new_point_indices[2];
-                }
-                if new_point_indices[3] < self.len() {
-                    self.points[new_point_indices[3]].trbl[L] = new_point_indices[2];
-                }
-                if new_point_indices[4] < self.len() {
-                    self.points[new_point_indices[4]].trbl[B] = new_point_indices[2];
-                }
-            }
+        //     if !calced_values[2].is_none() {
+        //         let point = new_point_candidates[2];
+        //         self.insert(point.x, point.y, calced_values[2].unwrap(), new_point_indices[4], new_point_indices[3], new_point_indices[0], new_point_indices[1]);
+        //         if new_point_indices[0] != usize::MAX {
+        //             self.points[new_point_indices[0]].trbl[T] = new_point_indices[2];
+        //         }
+        //         if new_point_indices[1] != usize::MAX {
+        //             self.points[new_point_indices[1]].trbl[R] = new_point_indices[2];
+        //         }
+        //         if new_point_indices[3] < self.len() {
+        //             self.points[new_point_indices[3]].trbl[L] = new_point_indices[2];
+        //         }
+        //         if new_point_indices[4] < self.len() {
+        //             self.points[new_point_indices[4]].trbl[B] = new_point_indices[2];
+        //         }
+        //     }
 
-            if !calced_values[3].is_none() {
-                let point = new_point_candidates[3];
-                self.insert(point.x, point.y, calced_values[3].unwrap(), square.top_right, usize::MAX, square.bot_right, new_point_indices[2]);
-                self.points[square.top_right].trbl[B] = new_point_indices[3];
-                self.points[square.bot_right].trbl[T] = new_point_indices[3];
-                if calced_values[2].is_none() && new_point_indices[2] != usize::MAX {
-                    self.points[new_point_indices[2]].trbl[R] = new_point_indices[3];
-                }
-            }
+        //     if !calced_values[3].is_none() {
+        //         let point = new_point_candidates[3];
+        //         self.insert(point.x, point.y, calced_values[3].unwrap(), square.top_right, usize::MAX, square.bot_right, new_point_indices[2]);
+        //         self.points[square.top_right].trbl[B] = new_point_indices[3];
+        //         self.points[square.bot_right].trbl[T] = new_point_indices[3];
+        //         if calced_values[2].is_none() && new_point_indices[2] != usize::MAX {
+        //             self.points[new_point_indices[2]].trbl[R] = new_point_indices[3];
+        //         }
+        //     }
             
-            if !calced_values[4].is_none() {
-                let point = new_point_candidates[4];
-                self.insert(point.x, point.y, calced_values[4].unwrap(), usize::MAX, square.top_right, new_point_indices[2], square.top_left);
-                self.points[square.top_right].trbl[L] = new_point_indices[4];
-                self.points[square.top_left].trbl[R] = new_point_indices[4];
-                if calced_values[2].is_none() && new_point_indices[2] != usize::MAX {
-                    self.points[new_point_indices[2]].trbl[T] = new_point_indices[4];
-                }
-            }
+        //     if !calced_values[4].is_none() {
+        //         let point = new_point_candidates[4];
+        //         self.insert(point.x, point.y, calced_values[4].unwrap(), usize::MAX, square.top_right, new_point_indices[2], square.top_left);
+        //         self.points[square.top_right].trbl[L] = new_point_indices[4];
+        //         self.points[square.top_left].trbl[R] = new_point_indices[4];
+        //         if calced_values[2].is_none() && new_point_indices[2] != usize::MAX {
+        //             self.points[new_point_indices[2]].trbl[T] = new_point_indices[4];
+        //         }
+        //     }
             
-            if self.len() > 10000 {
-                need_iteration = false;
-            }
-            if need_iteration {
-                queue.push_back(Square { top_left: square.top_left,
-                    top_right: new_point_indices[4],
-                    bot_left: new_point_indices[1],
-                    bot_right: new_point_indices[2],
-                });
-                queue.push_back(Square { top_left: new_point_indices[4],
-                    top_right: square.top_right,
-                    bot_left: new_point_indices[2],
-                    bot_right: new_point_indices[3],
-                });
-                queue.push_back(Square { top_left: new_point_indices[1],
-                    top_right: new_point_indices[2],
-                    bot_left: square.bot_left,
-                    bot_right: new_point_indices[0],
-                });
-                queue.push_back(Square { top_left: new_point_indices[2],
-                    top_right: new_point_indices[3],
-                    bot_left: new_point_indices[0],
-                    bot_right: square.bot_right,
-                });
-            }
-        }
+        //     if self.len() > 10000 {
+        //         need_iteration = false;
+        //     }
+        //     if need_iteration {
+        //         queue.push_back(Square { top_left: square.top_left,
+        //             top_right: new_point_indices[4],
+        //             bot_left: new_point_indices[1],
+        //             bot_right: new_point_indices[2],
+        //         });
+        //         queue.push_back(Square { top_left: new_point_indices[4],
+        //             top_right: square.top_right,
+        //             bot_left: new_point_indices[2],
+        //             bot_right: new_point_indices[3],
+        //         });
+        //         queue.push_back(Square { top_left: new_point_indices[1],
+        //             top_right: new_point_indices[2],
+        //             bot_left: square.bot_left,
+        //             bot_right: new_point_indices[0],
+        //         });
+        //         queue.push_back(Square { top_left: new_point_indices[2],
+        //             top_right: new_point_indices[3],
+        //             bot_left: new_point_indices[0],
+        //             bot_right: square.bot_right,
+        //         });
+        //     }
+        // }
     }
 
 
@@ -371,18 +371,36 @@ impl ProbDistribution2d {
         } else { // for nearest conrer in neares_iter:
             // find square
             // if not in square: continue
+                // println!("query mu {:?} theta {:?}",value[0], value[1]);
                 let mut result = LogProb::ln_zero();
-                let nearest_iter = self.kdtree.iter_nearest(&value, &euclidean).unwrap();
-                for nearest_corner in nearest_iter {
-                    let nearest_distance = nearest_corner.0;
-                    let nearest_corner_index = nearest_corner.1;
-                    let nearest_square = self.find_square_for_point(&value, *nearest_corner_index);
-                    // println!("2d get neares_square {:?}", nearest_square);
-                    if self.is_in_square(&value, &nearest_square){
-                        result = self.smoothing(&value, nearest_square);
-                        break;
-                    }                   
+                if value[0] < 0. { // can happen in fold change calculation depending on constant c
+                    // println!("query negative, return 0");
+                    return result;
                 }
+                let mut nearest_iter = self.kdtree.iter_nearest(&value, &euclidean).unwrap();
+                let nearest_corner_index = nearest_iter.next().unwrap().1;
+                let nearest_point = &self.points[*nearest_corner_index];
+                result = nearest_point.prob;
+
+                if value[0] != nearest_point.position[0] {
+                    println!("query mu {:?} theta {:?}",value[0], value[1]);
+                    println!("nearest_point {:?} prob {:?}", nearest_point, nearest_point.prob);
+                }
+
+                // let nearest_iter = self.kdtree.iter_nearest(&value, &euclidean).unwrap();
+                // for nearest_corner in nearest_iter {
+                //     let nearest_distance = nearest_corner.0;
+                //     let nearest_corner_index = nearest_corner.1;
+                //     let nearest_point = &self.points[*nearest_corner_index];
+                // println!("nearest_point {:?} prob {:?}", nearest_point, nearest_point.prob);
+                    // let nearest_square = self.find_square_for_point(&value, *nearest_corner_index);
+                    // // println!("2d get neares_square {:?}", nearest_square);
+                    // if self.is_in_square(&value, &nearest_square){
+                    //     result = self.smoothing(&value, nearest_square);
+                    //     break;
+                    // }                   
+                // }
+            // println!("Result {:?}", result);
             return result;
         }
     }
@@ -491,6 +509,9 @@ impl ProbDistribution2d {
             current_point_index = nearest_point.trbl[direction];
             // println!("CHANGE dir {:?}, dir_change {:?}, curr_in {:?}", direction, direction_change, current_point_index);
         }
+        if current_point_index == usize::MAX {
+            return result;
+        }
         while current_point_index != nearest_point_index {
             ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
             let next_direction = (direction + direction_change) % 4;
@@ -500,6 +521,8 @@ impl ProbDistribution2d {
                 // println!("curr {:?}, point {:?}, dir {:?}, dir_change {:?}, next_dir {:?}, value {:?}", current_point_index, self.points[current_point_index], direction, direction_change, next_direction, self.points[current_point_index].trbl[next_direction]);
                 if current_point_index == nearest_point_index {
                     break;
+                } else if current_point_index == usize::MAX {
+                    return result;
                 }
                 ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
             }
@@ -508,6 +531,9 @@ impl ProbDistribution2d {
             }
             direction = next_direction;
             current_point_index = self.points[current_point_index].trbl[direction];
+            if current_point_index == usize::MAX {
+                return result;
+            }
         }
 
         return result;

@@ -13,6 +13,7 @@ mod common;
 mod diff_exp;
 mod errors;
 mod group_expression;
+mod group_means;
 mod kallisto;
 mod preprocess;
 mod prior;
@@ -81,6 +82,13 @@ enum Cli {
         preprocessing_path: PathBuf,
         #[structopt(
             parse(from_os_str),
+            long = "group_means_path",
+            short = "m",
+            help = "Path to calculated group means."
+        )]
+        group_means_path: PathBuf,
+        #[structopt(
+            parse(from_os_str),
             long = "output",
             short = "o",
             help = "Path to output directory."
@@ -92,6 +100,12 @@ enum Cli {
             help = "Epsilon for stopping likelihood calculation."
         )]
         epsilon: f64,
+        #[structopt(
+            short = "c",
+            default_value = "0",
+            help = "Pseudo counts c for fold change calculation."
+        )]
+        c: f64,
         #[structopt(
             long = "threads",
             default_value = "1",
@@ -113,7 +127,14 @@ enum Cli {
             short = "p",
             help = "Path to preprocessed Kallisto results."
         )]
+        
         preprocessing_path: PathBuf,
+        #[structopt(
+            short = "c",
+            default_value = "0",
+            help = "Pseudo counts c for fold change calculation."
+        )]
+        c: f64,
         #[structopt(
             parse(from_os_str),
             long = "output",
@@ -208,8 +229,10 @@ fn main() -> Result<()> {
         }
         Cli::SampleExp {
             preprocessing_path,
+            group_means_path,
             epsilon,
             sample_id,
+            c,
             out_dir,
             threads,
         } => {
@@ -221,13 +244,16 @@ fn main() -> Result<()> {
             // calculate per sample likelihoods
             sample_expression::sample_expression(
                 &preprocessing_path,
+                &group_means_path,
                 &sample_id,
                 LogProb::from(Prob::checked(epsilon)?),
+                c,
                 &out_dir,
             )
         }
         Cli::GroupExp {
             preprocessing_path,
+            c,
             out_dir,
             threads,
             sample_exprs,
@@ -238,7 +264,7 @@ fn main() -> Result<()> {
                 .unwrap();
 
             // calculate per group posteriors
-            group_expression::group_expression(&preprocessing_path, &sample_exprs, &out_dir)
+            group_expression::group_expression(&preprocessing_path, &sample_exprs,c, &out_dir)
         }
         Cli::DiffExp {
             group_path1,

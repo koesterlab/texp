@@ -6,15 +6,17 @@ use std::fs::File;
 
 use anyhow::Result;
 use bio::stats::LogProb;
+use ordered_float::OrderedFloat;
 use rayon::prelude::*;
 use csv;
-
-use crate::common::{Outdir, Pair};
+use itertools_num::linspace;
+use itertools::iproduct;
+use crate::common::{Outdir, Pair, QueryPoints};
 use crate::preprocess::Preprocessing;
 use crate::prob_distribution_1d::ProbDistribution1d;
 use crate::prob_distribution_2d::ProbDistribution2d;
 use crate::sample_expression;
-
+use std::collections::HashMap;
 
 pub(crate) fn diff_exp(
     c: f64,
@@ -28,9 +30,15 @@ pub(crate) fn diff_exp(
     let in_dir1 = Outdir::open(&group_path1)?;
     let in_dir2 = Outdir::open(&group_path2)?;
 
+    let query_points = QueryPoints::new(c)?;
+    let all_mu_ik_points = query_points.all_mu_ik();
+    let start_points_theta_i = query_points.thetas();
+    let possible_f = query_points.possible_f();
+    let start_points_mu_ik = query_points.start_points_mu_ik();
+
     let preprocessing = Preprocessing::from_path(preprocessing)?;
     let prior = preprocessing.prior()?;
-    let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect();
+    let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190400).collect();
 
     let file = File::open("/vol/nano/bayesian-diff-exp-analysis/texp-evaluation/estimated_dispersion.csv")?;
     let mut rdr = csv::Reader::from_reader(file);
@@ -49,15 +57,19 @@ pub(crate) fn diff_exp(
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
             // if subsampled_ids.contains(&feature_id.as_str()) {
-            if feature_id.as_str() == "ERCC-00130" { 
+            // if feature_id.as_str() == "ERCC-00130" { 
 
-            let theta = thetas[i-190432];
-            println!("{:?}", theta);
+            // println!("\n--------------feature {:?} {:?}", i, feature_id);
 
+            // let theta = thetas[i-190432];
+            // println!("{:?}", theta);
 
-            println!("FEATURE {:?}", feature_id);
             let prob_dist_i_k1: ProbDistribution2d = in_dir1.deserialize_value(feature_id)?;
             let prob_dist_i_k2: ProbDistribution2d = in_dir2.deserialize_value(feature_id)?;
+            if prob_dist_i_k1.is_na() || prob_dist_i_k2.is_na() {
+                println!("skipped {:?}", feature_id);
+                return  Ok(());
+            }
             // let mut mu1 = 320.;
             // let mut mu2 = 80.;
             // if in_dir1.to_str().unwrap().contains(&"exp_1".to_string()) {
@@ -115,115 +127,227 @@ pub(crate) fn diff_exp(
             let mut prob_d_i_f = ProbDistribution1d::new();
             let mut diff_exp_distribution = ProbDistribution1d::new();
 
-            let calc_prob = |f: f64| {
-                    let calc_prob_fixed_theta = |theta|{
-                        let density_x= |_, x: f64| {
-                            prob_dist_i_k1.get(&[x, theta]) + prob_dist_i_k2.get(&[(f * (x + c) - c), theta])
-                        };
-                        // let mut points1 = prob_dist_i_k1.points.keys().map(|value| -c + (c + value.raw()) / f).collect::<Vec<_>>();
-                        // let mut points2 = prob_dist_i_k2.points.keys().map(|value| value.raw()).collect::<Vec<_>>();
-        
-                        // points1.append(&mut points2);
-                        // points1.sort_by(|a, b| a.partial_cmp(b).unwrap()); // TODO NaN -> panic
-                        // points1.dedup();              
-        
-                        // let probs_x = points1
-                        //                 .windows(2)
-                        //                 .map(|x| LogProb::ln_simpsons_integrate_exp(density_x, x[0], x[1], 5))
-                        //                 .collect::<Vec<_>>();
-                        // let prob_x= LogProb::ln_sum_exp(&probs_x);
-                        let x_range = prob_dist_i_k1.get_range_per_theta(theta);
-                        // println!("theta {:?}, x_range {:?}", theta, x_range);
-                        let prob_x = LogProb::ln_simpsons_integrate_exp(density_x, 
-                            x_range[0], 
-                            x_range[1], 
-                            301);
-                        // println!("prob_x {:?}", prob_x.exp());
-                        prob_x
+            // let mut start_points_mu_ik: Vec<f64> = linspace(0.1, 1., 10).collect();
+            // start_points_mu_ik.extend( linspace(1.5, 100., 198));
+            // start_points_mu_ik.extend( linspace(101., 500., 400));
+            // // start_points_mu_ik.extend( linspace(600., 3000., 25));
+            // // start_points_mu_ik.extend( linspace(4000., 10000., 7));
+            // let start_points_mu_ik2 = start_points_mu_ik.clone();
+            // let start_points_mu_ik3 = start_points_mu_ik.clone();
+
+            // let mut start_points_theta_i: Vec<f64> = linspace(0.1, 1., 10).collect();
+            // start_points_theta_i.extend( linspace(1.5, 10., 18).step_by(2));
+            // start_points_theta_i.extend( linspace(11., 165., 155).step_by(10));
+            // // println!("start_points_theta_i {:?}", start_points_theta_i);
+
+            // let mut possible_f = Vec::<f64>::new(); 
+            // let mut possible_f2 = HashMap::<OrderedFloat<f64>, Vec<f64>>::new();
+            // for (mu_1, mu_2) in iproduct!(start_points_mu_ik, start_points_mu_ik2) {
+            //     let f = (mu_2+c)/(mu_1+c);
+            //     if (f * (mu_1 + c) - c) > 0.{ // && !possible_f.contains(&f) && f < 20. && f> 1./20.
+            //         if let Some(list) = possible_f2.get_mut(&OrderedFloat(f)) {
+            //             list.push(mu_1);
+            //         } else {
+            //             possible_f2.insert(OrderedFloat(f), vec![mu_1]);
+            //         }
+            //         // possible_f.push(f);
+            //     }
+            // }
+            // for (f, list) in possible_f2.clone() {
+            //     if list.len() < 10{
+            //         possible_f2.remove(&f);
+            //     }
+            //     possible_f.push(f64::from(f));
+            // }
+            // possible_f.sort_by(|a, b| a.partial_cmp(b).unwrap()); // TODO NaN -> panic
+
+            // // println!("fs {:?}", possible_f);
+            // println!(" len fs {:?}", possible_f2.len());
+
+            // let calc_prob = |f: f64, list_mu| -> LogProb {
+            for f in possible_f{
+                // let f =f64::from(f);
+                let calc_prob_fixed_theta = |theta|{
+                    let density_x= |_, x: f64| {
+                        // if f >= 0.95 && f <=0.99 { 
+                            // println!("f {:?}, x {:?}, f * (x + c) s- c {:?}", f, x, f * (x + c) - c);
+                        // }
+                        prob_dist_i_k1.get(&[(f * (x + c) - c), theta]) + prob_dist_i_k2.get(&[x, theta])
+                    };
+                    let prob_x = LogProb::ln_trapezoidal_integrate_grid_exp(
+                        density_x,
+                        &start_points_mu_ik
+                    );
+                    prob_x
                 };
                 
                 let density_theta = |_, theta:f64|{
-                    calc_prob_fixed_theta(theta) //+ LogProb(*prior.prob(theta))
+                    calc_prob_fixed_theta(theta) + prior.prob(theta)
                 };
+                let prob_theta = density_theta(0., 0.2);
 
-                // let prob_theta = LogProb::ln_simpsons_integrate_exp(
-                //         density_theta,
-                //         prior.min_value(),
-                //         10.,
-                //         21,
-                //     );
-                let prob_theta = density_theta(0., theta);
-                // println!("f {:?}, prob_theta {:?}", f, prob_theta.exp());
-                // let prob1 = LogProb::ln_simpsons_integrate_exp(
-                //         density_theta,
-                //         prior.min_value(),
-                //         20.,
-                //         151,
-                // );
-                // let prob2 = LogProb::ln_simpsons_integrate_exp(
+                // let prob_theta = LogProb::ln_trapezoidal_integrate_grid_exp(
                 //     density_theta,
-                //     20.,
-                //     prior.max_value(),
-                //     101,
+                //     &start_points_theta_i
                 // );
-                // let prob = prob1.ln_add_exp(prob2); 
-                prob_theta
-            };
-
-            for x in 0..10{
-                let f = x as f64 / 10. ;
-                let value = calc_prob(f as f64);
-                println!("prob_d_i_f f {:?}, value {:?}", f, value);
-                prob_d_i_f.insert(f as f64, value);
-
-                // // println!("prob_d_i_f f {:?}",  f as f64 +0.05);
-                // prob_d_i_f.insert(f as f64 + 0.05, calc_prob(f as f64 + 0.05));
-            }
-            for f in 1..10{
-                println!("prob_d_i_f f {:?}", f);
-                prob_d_i_f.insert(f as f64, calc_prob(f as f64));
-
-                // // println!("prob_d_i_f f {:?}", f as f64 +0.25);
-                // prob_d_i_f.insert(f as f64 + 0.25, calc_prob(f as f64 +0.25));
-
-                println!("prob_d_i_f f {:?}", f as f64 +0.5);
-                prob_d_i_f.insert(f as f64 + 0.5, calc_prob(f as f64 +0.5));
-
-                // // println!("prob_d_i_f f {:?}", f as f64 +0.75);
-                // prob_d_i_f.insert(f as f64 + 0.75, calc_prob(f as f64 +0.75));
-            }
+                // prob_theta
+            // };
+                
+                    // let value = calc_prob(f64::from(f), list_mu);
+                    // if f >= 0.95 && f <=0.99 { 
+                    //     println!("prob_d_i_f f {:?} {:?}", f, value.exp());
+                    // }
+                    prob_d_i_f.insert(*f, prob_theta);
+                }
 
             let density = |_, f| prob_d_i_f.get(f);
 
-            let prob_f = LogProb::ln_simpsons_integrate_exp(
+            let prob_f = LogProb::ln_trapezoidal_integrate_grid_exp(
                 density,
-                0.01,
-                10.,
-                41,
+                &possible_f
             );
-
-            println!("prob_f {:?}", prob_f);
-
             let calc_prob_f = |f| {                
                 let prob = prob_d_i_f.get(f) - prob_f;
                 prob
             };
 
-            for x in 0..10{
-                let f = x as f64 / 10. ;
-                println!("f {:?}", f);
-                diff_exp_distribution.insert(f as f64, calc_prob_f(f as f64));
-                diff_exp_distribution.insert(f as f64 + 0.05, calc_prob_f(f as f64 +0.05));
-                
+            for f in possible_f.clone(){
+                let value = calc_prob_f(f);
+                // println!("diff_exp_distribution f {:?} {:?}", f, value);
+                diff_exp_distribution.insert(f, value );
             }
-            for f in 1..11{
-                println!("f {:?}", f);
-                diff_exp_distribution.insert(f as f64, calc_prob_f(f as f64));
 
-                diff_exp_distribution.insert(f as f64 + 0.25, calc_prob_f(f as f64 +0.25));
-                diff_exp_distribution.insert(f as f64 + 0.5, calc_prob_f(f as f64 +0.5));
-                diff_exp_distribution.insert(f as f64 + 0.75, calc_prob_f(f as f64 +0.75));
-            }
+
+        //     possible_f.sort_by(|a, b| a.partial_cmp(b).unwrap()); // TODO NaN -> panic
+        //     let min_f = possible_f[0];
+        //     let max_f = possible_f[possible_f.len()-1];
+            
+        //     possible_f = possible_f.iter().step_by(2500).copied().collect();
+        //     println!("len of possible_f {:?}, min {:?}, max {:?}", possible_f.len(),min_f , max_f);
+        //     // println!("possible_f {:?}", possible_f);
+
+        //     let calc_prob = |f: f64| {
+        //             let calc_prob_fixed_theta = |theta|{
+        //                 let density_x= |_, x: f64| {
+        //                     // if f >= 0.95 && f <=0.99 { 
+        //                         // println!("f {:?}, x {:?}, f * (x + c) s- c {:?}", f, x, f * (x + c) - c);
+        //                     // }
+        //                     prob_dist_i_k1.get(&[(f * (x + c) - c), theta]) + prob_dist_i_k2.get(&[x, theta])
+        //                 };
+        //                 // let mut points1 = prob_dist_i_k1.points.keys().map(|value| -c + (c + value.raw()) / f).collect::<Vec<_>>();
+        //                 // let mut points2 = prob_dist_i_k2.points.keys().map(|value| value.raw()).collect::<Vec<_>>();
+        
+        //                 // points1.append(&mut points2);
+        //                 // points1.sort_by(|a, b| a.partial_cmp(b).unwrap()); // TODO NaN -> panic
+        //                 // points1.dedup();              
+        
+        //                 // let probs_x = points1
+        //                 //                 .windows(2)
+        //                 //                 .map(|x| LogProb::ln_simpsons_integrate_exp(density_x, x[0], x[1], 5))
+        //                 //                 .collect::<Vec<_>>();
+        //                 // let prob_x= LogProb::ln_sum_exp(&probs_x);
+        //                 // let x_range = prob_dist_i_k1.get_range_per_theta(theta);
+        //                 // println!("theta {:?}, x_range {:?}", theta, x_range);
+        //                 // let prob_x = LogProb::ln_simpsons_integrate_exp(density_x, 
+        //                 //     x_range[0], 
+        //                 //     x_range[1], 
+        //                 //     301);
+                        
+        //                 let prob_x = LogProb::ln_trapezoidal_integrate_grid_exp(
+        //                     density_x,
+        //                     &start_points_mu_ik3
+        //                 );
+        //                 // if f >= 0.95 && f <=0.99 { 
+        //                 //     println!("prob_x {:?}", prob_x.exp());
+        //                 // }
+
+        //                 prob_x
+        //         };
+                
+        //         let density_theta = |_, theta:f64|{
+        //             calc_prob_fixed_theta(theta) + prior.prob(theta)
+        //         };
+
+        //         // let prob_theta = LogProb::ln_simpsons_integrate_exp(
+        //         //         density_theta,
+        //         //         prior.min_value(),
+        //         //         10.,
+        //         //         21,
+        //         //     );
+        //         let prob_theta = density_theta(0., 0.4);
+
+        //         // let prob_theta = LogProb::ln_trapezoidal_integrate_grid_exp(
+        //         //     density_theta,
+        //         //     &start_points_theta_i
+        //         // );
+
+
+        //         // println!("f {:?}, prob_theta {:?}", f, prob_theta.exp());
+        //         // let prob1 = LogProb::ln_simpsons_integrate_exp(
+        //         //         density_theta,
+        //         //         prior.min_value(),
+        //         //         20.,
+        //         //         151,
+        //         // );
+        //         // let prob2 = LogProb::ln_simpsons_integrate_exp(
+        //         //     density_theta,
+        //         //     20.,
+        //         //     prior.max_value(),
+        //         //     101,
+        //         // );
+        //         // let prob = prob1.ln_add_exp(prob2); 
+        //         prob_theta
+        //     };
+
+        //     for f in possible_f.clone(){
+        //             let value = calc_prob(f as f64);
+        //             if f >= 0.95 && f <=0.99 { 
+        //                 println!("prob_d_i_f f {:?} {:?}", f, value.exp());
+        //             }
+        //             prob_d_i_f.insert(f as f64, value);
+        //     }
+
+        //     let density = |_, f| prob_d_i_f.get(f);
+
+        //     let prob_f = LogProb::ln_trapezoidal_integrate_grid_exp(
+        //         density,
+        //         &possible_f
+        //     );
+        //     // let prob_f = LogProb::ln_simpsons_integrate_exp(
+        //     //     density,
+        //     //     min_f,
+        //     //     max_f,
+        //     //     51,
+        //     // );
+
+        //     // println!("prob_f {:?}", prob_f);
+
+        //     let calc_prob_f = |f| {                
+        //         let prob = prob_d_i_f.get(f) - prob_f;
+        //         prob
+        //     };
+
+        //     for f in possible_f.clone(){
+        //         let value = calc_prob_f(f as f64);
+        //         // println!("diff_exp_distribution f {:?} {:?}", f, value);
+        //         diff_exp_distribution.insert(f as f64, value );
+        // }
+
+            // for x in 0..10{
+            //     let f = x as f64 / 10. ;
+            //     println!("f {:?}", f);
+            //     diff_exp_distribution.insert(f as f64, calc_prob_f(f as f64));
+            //     diff_exp_distribution.insert(f as f64 + 0.05, calc_prob_f(f as f64 +0.05));
+                
+            // }
+            // for f in 1..11{
+            //     println!("f {:?}", f);
+            //     diff_exp_distribution.insert(f as f64, calc_prob_f(f as f64));
+
+            //     diff_exp_distribution.insert(f as f64 + 0.25, calc_prob_f(f as f64 +0.25));
+            //     diff_exp_distribution.insert(f as f64 + 0.5, calc_prob_f(f as f64 +0.5));
+            //     diff_exp_distribution.insert(f as f64 + 0.75, calc_prob_f(f as f64 +0.75));
+            // }
 
 
             // let mut start_points = vec![0.];
@@ -300,7 +424,7 @@ pub(crate) fn diff_exp(
 
             // Step 3: Write output
             out_dir.serialize_value(feature_id, diff_exp_distribution)?;
-        }
+        // }
             Ok(())
         })?;
 

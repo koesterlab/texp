@@ -226,6 +226,7 @@ impl ProbDistribution1d {
                 LogProb::ln_zero()
             }
         } else {
+            //  println!("query f {:?} ",value);
             let mut upper_it = self.points.range(N64::new(value)..);
             let upper = upper_it.next();
             let mut lower_it = self.points.range(..=N64::new(value)).rev();
@@ -236,6 +237,7 @@ impl ProbDistribution1d {
                 if let Some((lower, (lower_prob, ld1, ld2))) = lower {
                     // Upper and lower bound is there
                     let diff = *upper - *lower;
+                    // println!("upper {:?}, lower {:?}, diff {:?}", upper, lower, diff);
                     if diff <= 0. {
                         return *upper_prob; // if value is in data structure, upper and lower are the same, no interpolation needed
                     }
