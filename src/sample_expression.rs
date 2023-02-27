@@ -64,7 +64,7 @@ pub(crate) fn sample_expression(
 
 
 
-    let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190400).collect();
+    let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect();
     // println!("{:?} features", feature_ids.len());
     // println!("{:?}", feature_ids);
     let subsampled_ids = vec!["ERCC-00130","ERCC-00004", "ERCC-00136", "ERCC-00096", "ERCC-00171", "ERCC-00009",
@@ -77,11 +77,11 @@ pub(crate) fn sample_expression(
         .try_for_each(|(i, feature_id)| -> Result<()> {
             
             // if subsampled_ids.contains(&feature_id.as_str()) {
-            // if feature_id.as_str() == "ERCC-00130" {   
+            // if feature_id.as_str() == "ERCC-00085" {   
 
             // println!("\n--------------feature {:?} {:?}", i, feature_id);
 
-            let d_ij = mean_disp_estimates.means()[*i]; //TODO Do we need group mean mu_ik instead of sample mean
+            let d_ij = mean_disp_estimates.means()[*i] * s_j; //TODO Do we need group mean mu_ik instead of sample mean
             // METHOD: If the per-sample dispersion is unknown, fall back to a mean interpolated from the other samples.
             let t_ij = if let Some(t_ij) = mean_disp_estimates.dispersions()[*i] {
                 t_ij
@@ -93,7 +93,7 @@ pub(crate) fn sample_expression(
                 return Ok(());
             };
             
-            // println!("d_ij {:?}, d_ik {:?}, t_ij {:?}", d_ij, d_ik, t_ij);
+            // println!("d_ij {:?}, t_ij {:?}", d_ij, t_ij);
 
             let mut likelihoods = ProbDistribution2d::new();
             // println!("--------------------------3");

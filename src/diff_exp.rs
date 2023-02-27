@@ -38,7 +38,7 @@ pub(crate) fn diff_exp(
 
     let preprocessing = Preprocessing::from_path(preprocessing)?;
     let prior = preprocessing.prior()?;
-    let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190400).collect();
+    let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect();
 
     let file = File::open("/vol/nano/bayesian-diff-exp-analysis/texp-evaluation/estimated_dispersion.csv")?;
     let mut rdr = csv::Reader::from_reader(file);
@@ -57,7 +57,7 @@ pub(crate) fn diff_exp(
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
             // if subsampled_ids.contains(&feature_id.as_str()) {
-            // if feature_id.as_str() == "ERCC-00130" { 
+            // if feature_id.as_str() == "ERCC-00085" { 
 
             // println!("\n--------------feature {:?} {:?}", i, feature_id);
 

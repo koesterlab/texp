@@ -29,19 +29,19 @@ pub(crate) struct QueryPoints {
 impl QueryPoints {
     /// Initialize inverse gamma prior. alpha=shape, beta=scale or rate.
     pub(crate) fn new(c: f64) -> Result<Self> {
-        let mut start_points_mu_ik: Vec<f64> = linspace(0., 1., 11).collect();
+        let mut start_points_mu_ik: Vec<f64> = linspace(0., 1., 151).collect();
         start_points_mu_ik.extend( linspace(1.5, 100., 198).step_by(10));
-        start_points_mu_ik.extend( linspace(101., 500., 400).step_by(10));
+        start_points_mu_ik.extend( linspace(101., 500., 200).step_by(20));
         // start_points_mu_ik.extend( linspace(600., 3000., 25));
         // start_points_mu_ik.extend( linspace(4000., 10000., 7));
         println!("len start_points_mu_ik {:?}", start_points_mu_ik.len());
 
         let mut possible_f: Vec<f64> = linspace(0.05, 5., 100).step_by(2).collect();
         possible_f.extend( linspace(5., 10., 12).step_by(1));
-        possible_f.extend( linspace(10.5, 20., 20).step_by(2));
+        // possible_f.extend( linspace(10.5, 20., 20).step_by(2));
         println!("len possible_f {:?}", possible_f.len());
         
-        let mut thetas: Vec<f64> = linspace(0.1, 1., 10).collect();
+        let mut thetas: Vec<f64> = linspace(0.1, 1., 10).take(3).collect();
         // thetas.extend( linspace(1.5, 10., 18).step_by(2));
         // thetas.extend( linspace(11., 165., 155).step_by(10));
         println!("len thetas {:?}", thetas.len());

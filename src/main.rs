@@ -19,6 +19,7 @@ mod prior;
 mod prob_distribution_1d;
 mod prob_distribution_2d;
 mod sample_expression;
+mod write_fold_changes;
 // use prob_distribution_2d::ProbDistribution2d;
 
 #[derive(StructOpt, Debug)]
@@ -188,6 +189,65 @@ enum Cli {
         )]
         threads: usize,
     },
+    #[structopt(
+        name = "to-text",
+        about = "write fold changes from differential expression posteriors between groups into csv file.",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    ToText {
+        #[structopt(
+            parse(from_os_str),
+            long = "diff_exp_path",
+            short = "d",
+            help = "Path to differential expressions"
+        )]
+        diff_exp_path: PathBuf,
+        #[structopt(
+            parse(from_os_str),
+            long = "preprocessing_path",
+            short = "p",
+            help = "Path to preprocessed Kallisto results."
+        )]
+        preprocessing_path: PathBuf,
+        #[structopt(
+            parse(from_os_str),
+            long = "output",
+            short = "o",
+            help = "Path to output file."
+        )]
+        out_file: PathBuf,
+    },
+    #[structopt(
+        name = "kallisto-values",
+        about = "write counts or fold changes from kallisto between groups into csv file.",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    KallistoValues {
+        //add boolean parameter for fold change or counts
+        #[structopt(
+            long = "foldchange",
+            short = "f",
+            help = "If --foldchange is set, fold changes are calculated and written into the output file. 
+            If --foldchange is not set, counts are written into the output file."
+        )]
+        foldchange: bool,
+        #[structopt(
+            parse(from_os_str),
+            long = "preprocessing_path",
+            short = "p",
+            help = "Path to preprocessed Kallisto results."
+        )]
+        preprocessing_path: PathBuf,
+        #[structopt(long = "sample-id", help = "ID of sample to process.")]
+        sample_ids: Vec<String>,
+        #[structopt(
+            parse(from_os_str),
+            long = "output",
+            short = "o",
+            help = "Path to output file."
+        )]
+        out_file: PathBuf,
+    },
     // #[structopt(
     //     name = "show-sample-expression",
     //     about = "Decode mpk into JSON.",
@@ -270,6 +330,26 @@ fn main() -> Result<()> {
                 .unwrap();
             // calculate differential expression between groups
             diff_exp::diff_exp(c, &preprocessing_path, &group_path1, &group_path2, &out_dir)
+        }
+        Cli::ToText {
+            diff_exp_path,
+            preprocessing_path,
+            out_file,
+        } => {
+            write_fold_changes::write_fold_changes(&preprocessing_path, &diff_exp_path, &out_file)
+        }
+        Cli::KallistoValues {
+            foldchange,
+            preprocessing_path,
+            sample_ids,
+            out_file,
+        } => {
+            if foldchange {
+                write_fold_changes::write_kallisto_fold_changes(&preprocessing_path, sample_ids, &out_file)
+            } else {
+                write_fold_changes::write_kallisto_counts(&preprocessing_path, sample_ids, &out_file)
+            }
+
         }
         // Cli::ShowSampleExpressions { path, feature_id } => {
             // let dir = Outdir::open(&path)?;

@@ -31,7 +31,7 @@ pub(crate) fn group_expression(
     let start_points_theta_i = query_points.thetas();
     let preprocessing = Preprocessing::from_path(preprocessing)?;
     let prior = preprocessing.prior()?;
-    let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190400).collect(); //190432
+    let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect(); //190432
 
     let file = File::open("/vol/nano/bayesian-diff-exp-analysis/texp-evaluation/estimated_dispersion.csv")?;
     let mut rdr = csv::Reader::from_reader(file);
@@ -52,9 +52,9 @@ pub(crate) fn group_expression(
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
             // if subsampled_ids.contains(&feature_id.as_str()) {
-            // if feature_id.as_str() == "ERCC-00130" {    
+            // if feature_id.as_str() == "ERCC-00085" {    
             
-            println!("--------------feature {:?} {:?}", i, feature_id);
+            // println!("--------------feature {:?} {:?}", i, feature_id);
             let maximum_likelihood_means: Vec<f64> = sample_expression_paths
                 .iter()
                 .map(|sample_expression_path| {
