@@ -15,15 +15,18 @@ use rmp_serde::{Deserializer, Serializer};
 use serde::Deserialize as SerdeDeserialize;
 use serde::Serialize as SerdeSerialize;
 use serde_derive::{Deserialize, Serialize};
+use itertools_num::linspace;
+use itertools::iproduct;
 
 use crate::errors::Error;
 use crate::kallisto::KallistoQuant;
 use crate::prior::{Prior, PriorParameters};
 
 pub(crate) fn preprocess(
+    c :f64,
     kallisto_quants: &[PathBuf],
     sample_ids: &[String],
-    prior_parameters: PriorParameters,
+    prior_parameters: PriorParameters,    
 ) -> Result<()> {
     if kallisto_quants.len() < 1 {
         return Err(Error::NotEnoughQuants.into());
@@ -45,10 +48,15 @@ pub(crate) fn preprocess(
 
     let mean_disp_estimates = mean_disp_estimates(&quants, sample_ids)?;
 
+    let feature_ids = quants[0].feature_ids()?;
+
+    let query_points = calc_query_points(c, mean_disp_estimates.clone(), sample_ids, feature_ids.clone());
+
     let preprocessing = Preprocessing {
         scale_factors,
         mean_disp_estimates,
-        feature_ids: quants[0].feature_ids()?,
+        query_points,
+        feature_ids: feature_ids,
         prior_parameters,
     };
 
@@ -62,6 +70,7 @@ pub(crate) fn preprocess(
 pub(crate) struct Preprocessing {
     scale_factors: HashMap<String, f64>,
     mean_disp_estimates: HashMap<String, Estimates>,
+    query_points: HashMap<String, QueryPoints>,
     feature_ids: Array1<String>,
     prior_parameters: PriorParameters,
 }
@@ -148,7 +157,7 @@ fn calc_scale_factors(
     
 }
 
-#[derive(Serialize, Deserialize, Debug, Getters)]
+#[derive(Serialize, Deserialize, Debug, Getters, Clone)]
 #[getset(get = "pub(crate)")]
 pub(crate) struct Estimates {
     dispersions: Array1<Option<f64>>,
@@ -182,3 +191,120 @@ fn mean_disp_estimates(
     Ok(sample_ids.iter().cloned().zip(estimates?).collect())
 }
 
+
+#[derive(Serialize, Deserialize, Debug, Getters)]
+pub(crate) struct QueryPoints {
+    #[get = "pub(crate)"]
+    start_points_mu_ik: Vec<f64> ,
+    #[get = "pub(crate)"]
+    all_mu_ik: Vec<f64> ,
+    #[get = "pub(crate)"]
+    thetas: Vec<f64>,
+    #[get = "pub(crate)"]
+    possible_f: Vec<f64>,
+}
+
+impl QueryPoints {
+    // get query points for one feature
+    pub(crate) fn new(c: f64, mean_mu:f64, ) -> Result<Self> {
+        let mut start_points_mu_ik: Vec<f64> = linspace(0., 500., 50).take(1).collect();
+        if mean_mu < 0.1{
+            start_points_mu_ik.extend( linspace(0.001, 0.2, 50).step_by(1));
+        } else if mean_mu < 1.{
+            start_points_mu_ik.extend( linspace(0.01, 2., 50).step_by(1));
+        } else if mean_mu < 10. {
+            start_points_mu_ik.extend( linspace(1., 10., 50).step_by(1));
+        } else if mean_mu < 100. {
+            start_points_mu_ik.extend( linspace(10., 100., 50).step_by(1));
+        } else  if mean_mu < 500. {
+            start_points_mu_ik.extend( linspace(100., 500., 50).step_by(1));
+        } else {
+            start_points_mu_ik.extend( linspace(500., 10000., 50).step_by(1));
+        }
+        // let mut start_points_mu_ik: Vec<f64> = linspace(0., 1., 151).collect();
+        // start_points_mu_ik.extend( linspace(1.5, 100., 198).step_by(10));
+        // start_points_mu_ik.extend( linspace(101., 500., 200).step_by(20));
+        // start_points_mu_ik.extend( linspace(600., 3000., 25));
+        // start_points_mu_ik.extend( linspace(4000., 10000., 7));
+        // println!("len start_points_mu_ik {:?}", start_points_mu_ik.len());
+        start_points_mu_ik.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        start_points_mu_ik.dedup();
+
+
+        let mut possible_f: Vec<f64> = linspace(0.05, 5., 100).step_by(1).collect();
+        possible_f.extend( linspace(5., 10., 12).step_by(1));
+        possible_f.extend( linspace(10.5, 20., 20).step_by(2));
+        // println!("len possible_f {:?}", possible_f.len());
+        possible_f.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        possible_f.dedup();
+
+        
+        let mut thetas: Vec<f64> = linspace(0.01, 0.1, 10).collect();
+        thetas.extend( linspace(0.1, 1., 10).step_by(1));
+        // thetas.extend( linspace(1.5, 10., 18).step_by(2));
+        // thetas.extend( linspace(11., 165., 155).step_by(10));
+        // println!("len thetas {:?}", thetas.len());
+        thetas.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        thetas.dedup();
+
+        let mut all_mu_ik =  start_points_mu_ik.clone();
+        for (f, mu_1) in iproduct!(possible_f.clone(), start_points_mu_ik.clone()) {
+            let mu_2 = f * (mu_1 + c) - c;
+            if mu_2 > 0. {
+                all_mu_ik.push(mu_2);
+            }            
+        }
+        all_mu_ik.sort_by(|a, b| a.partial_cmp(b).unwrap()); // TODO NaN -> panic
+        all_mu_ik.dedup();
+        // println!("len all_mu_ik {:?}", all_mu_ik.len());
+
+        Ok(QueryPoints {
+            start_points_mu_ik,
+            all_mu_ik,
+            thetas,
+            possible_f,
+        })
+    }
+
+}
+
+// calc query points for each feature
+fn calc_query_points(c: f64, mean_disp_estimates: HashMap<String, Estimates> , sample_ids: &[String], feature_ids: Array1<String> ) ->HashMap<String, QueryPoints> {
+    let mut query_points_per_feature = HashMap::<String, QueryPoints>::new();
+   // get minimum, mean and maximum mu_ik per feature
+
+   let mut means_per_feature : Array1<f64> = Array1::zeros(Dim([mean_disp_estimates[&sample_ids[0]].means().len()]));
+   means_per_feature = sample_ids
+       .iter()
+       .fold(means_per_feature, |acc: Array1<f64>, x: &String| acc + mean_disp_estimates[x].means());
+   let number_of_samples = sample_ids.len() as f64;
+   means_per_feature = means_per_feature.map(|x| -> f64 {x / number_of_samples});
+
+
+//    let mut min_per_feature : Array1<f64> = Array1::zeros(Dim([mean_disp_estimates[&sample_ids[0]].means().len()]));
+//    // get list of minimum mu_ik per feature
+//     min_per_feature =  sample_ids
+//        .iter()
+//        .fold(min_per_feature, |acc: Array1<f64>, x: &String| {
+//            let mut min = acc.clone();
+//            for (i, x) in mean_disp_estimates[x].means().iter().enumerate() {
+//                if x.is_finite() {
+//                    if x < &min[i] {
+//                        min[i] = *x;
+//                    }
+//                }
+//            }
+//            min
+//        });
+    // println!("min_per_feature 1 {:?}", min_per_feature[190432]);
+    // println!("min_per_feature -1 {:?}", min_per_feature[min_per_feature.len()-1]);
+    //enumerate over features
+    for (i, feature_id ) in feature_ids.iter().enumerate().skip(190432) {
+        let mean = means_per_feature[i];
+        let query_points = QueryPoints::new(c, mean).unwrap();
+        query_points_per_feature.insert(feature_id.to_string(), query_points);
+    }
+
+    query_points_per_feature
+
+}

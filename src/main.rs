@@ -36,6 +36,12 @@ enum Cli {
     )]
     Preprocess {
         #[structopt(
+            short = "c",
+            default_value = "0",
+            help = "Pseudo counts c for fold change calculation."
+        )]
+        c: f64,
+        #[structopt(
             parse(from_os_str),
             long = "kallisto-quants",
             help = "Paths to Kallisto HDF5 output for each sample."
@@ -265,6 +271,7 @@ fn main() -> Result<()> {
     let cli = Cli::from_args();
     match cli {
         Cli::Preprocess {
+            c,
             kallisto_quants,
             sample_ids,
             prior_shape,
@@ -277,7 +284,7 @@ fn main() -> Result<()> {
                 .shift(prior_shift)
                 .build();
             // normalize
-            preprocess::preprocess(&kallisto_quants, &sample_ids, prior_parameters)
+            preprocess::preprocess(c, &kallisto_quants, &sample_ids, prior_parameters)
         }
         Cli::SampleExp {
             preprocessing_path,

@@ -8,6 +8,8 @@ use std::fs::File;
 use csv;
 use anyhow::Result;
 use bio::stats::LogProb;
+use bio::stats::probs::adaptive_integration::ln_integrate_exp;
+use ordered_float::NotNan;
 use getset::Getters;
 use rayon::prelude::*;
 use rmp_serde::Deserializer;
@@ -17,7 +19,6 @@ use statrs::function::beta::ln_beta;
 // use itertools_num::linspace;
 
 use crate::common::Outdir; 
-use crate::common::QueryPoints;
 // , Square, Point
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
@@ -28,11 +29,9 @@ pub(crate) fn sample_expression(
     sample_id: &str,
     epsilon: LogProb,
     c : f64,
-    out_dir: &Path,
+    out_dir_path: &Path,
 ) -> Result<()> {
-    let query_points = QueryPoints::new(c)?;
-    let mu_ik_points = query_points.all_mu_ik();
-    let start_points_theta_i = query_points.thetas();
+    
     let preprocessing = Preprocessing::from_path(preprocessing)?;
     let prior = preprocessing.prior()?;
     let mean_disp_estimates =
@@ -42,14 +41,17 @@ pub(crate) fn sample_expression(
             .ok_or(Error::UnknownSampleId {
                 sample_id: sample_id.to_owned(),
             })?;
-    // dbg!(mean_disp_estimates.dispersions());
 
-    let s_j = preprocessing
+    let query_points = preprocessing.query_points();
+    // let mu_ik_points = Vec::<f64>::new();//query_points.all_mu_ik();
+    // let start_points_theta_i = Vec::<f64>::new(); //query_points.thetas();
+
+    let mut s_j = preprocessing
         .scale_factors()
         .get(sample_id)
         .unwrap()
         .clone();
-
+    println!("s_j {:?}", s_j);
     // let temp: Vec<_>= mean_disp_estimates.means().iter().enumerate().skip(190432).collect();
     // println!("mean_disp_estimates {:?}", temp);
 
@@ -70,20 +72,26 @@ pub(crate) fn sample_expression(
     let subsampled_ids = vec!["ERCC-00130","ERCC-00004", "ERCC-00136", "ERCC-00096", "ERCC-00171", "ERCC-00009",
     "ERCC-00074", "ERCC-00113", "ERCC-00145", "ERCC-00002", "ERCC-00046", "ERCC-00003"];
 
-    let out_dir = Outdir::create(out_dir)?;
+    let out_dir = Outdir::create(out_dir_path)?;
     // feature_ids.truncate(10000);
     feature_ids
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
             
             // if subsampled_ids.contains(&feature_id.as_str()) {
-            // if feature_id.as_str() == "ERCC-00085" {   
+            // if feature_id.as_str() == "ERCC-00108" {   
 
             // println!("\n--------------feature {:?} {:?}", i, feature_id);
+            let mut output = out_dir_path.to_path_buf();
+            output.push(feature_id);
+            output.set_extension("csv");
+            let mut wtr = csv::Writer::from_path(output)?;
+            wtr.serialize(("mu_ik", "probability")).unwrap();
 
-            let d_ij = mean_disp_estimates.means()[*i] * s_j; //TODO Do we need group mean mu_ik instead of sample mean
+            let d_ij = mean_disp_estimates.means()[*i]; //TODO Do we need group mean mu_ik instead of sample mean
+            println!("d_ij {:?}", d_ij);
             // METHOD: If the per-sample dispersion is unknown, fall back to a mean interpolated from the other samples.
-            let t_ij = if let Some(t_ij) = mean_disp_estimates.dispersions()[*i] {
+            let mut t_ij = if let Some(t_ij) = mean_disp_estimates.dispersions()[*i] {
                 t_ij
             } else if let Some(t_ij) = preprocessing.interpolate_dispersion(*i) {
                 t_ij
@@ -92,6 +100,8 @@ pub(crate) fn sample_expression(
                 // TODO log message
                 return Ok(());
             };
+            println!("t_ij {:?}", t_ij);
+            
             
             // println!("d_ij {:?}, t_ij {:?}", d_ij, t_ij);
 
@@ -123,15 +133,26 @@ pub(crate) fn sample_expression(
 
             let calc_prob = |m, t| {
                 // println!("mu {:?}, theta {:?}", m, t);
-                likelihood_mu_ik_theta_i(
+                let prob = likelihood_mu_ik_theta_i(
                     d_ij,
                     m,  // mu_ik
                     t_ij,
                     t,  // theta_i
                     s_j,
                     epsilon,
-                )
+                );
+                if t == 0.001 {
+                    wtr.serialize((m, prob.exp())).unwrap();
+                    // if m < 5. {
+                    //     println!("mu {:?}, prob {:?}", m, prob.exp());
+                    // }
+                }
+                prob
             };
+            let mu_ik_points = query_points.get(&feature_id.to_string()).unwrap().all_mu_ik();
+            let start_points_theta_i = query_points.get(&feature_id.to_string()).unwrap().thetas();
+            // println!("mu_ik_points {:?}", mu_ik_points);
+            println!("start_points_theta_i {:?}", start_points_theta_i);
             likelihoods.insert_grid(mu_ik_points.clone(), start_points_theta_i.clone(), calc_prob);
 
             out_dir.serialize_value(feature_id, likelihoods)?;
@@ -173,7 +194,16 @@ fn prob_mu_ik_theta_i_x(
     theta_i: f64,
     s_j: f64,
 ) -> LogProb {
-    neg_binom(d_ij, x, t_ij) + neg_binom(x, mu_ik * s_j, theta_i)
+    // println!("x {:?}, d_ij {:?}, mu_ik {:?}, t_ij {:?}, theta_i {:?}, s_j {:?}", x, d_ij, mu_ik, t_ij, theta_i, s_j);
+    //METHOD /s_j?? mu_ik*s_j würde einluss von t_ij ändern, weil mu geändert wird.
+    let left = neg_binom(d_ij/s_j, x, t_ij);
+    let right = neg_binom(x, mu_ik, theta_i);
+    let result = left + right; 
+    // if theta_i == 0.01 && mu_ik < 5.{
+    //     println!("x {:?}, mu_ik {:?}, left {:?}, right {:?}, result {:?}", x, mu_ik, left.exp(), right.exp(), result.exp());
+    // }
+    // println!("result {:?}", result);
+    result
 }
 
 /// Inner of equation 3/4 in the document.
@@ -190,17 +220,36 @@ fn likelihood_mu_ik_theta_i(
     }
     let mut max_prob = LogProb::ln_zero();
     let mut result = LogProb::ln_zero();
-    let mut x : u64 = 0;
+
+    // let density = |_, x: f64| prob_mu_ik_theta_i_x(x, d_ij, mu_ik, t_ij, theta_i, s_j);
+
+    // result= LogProb::ln_simpsons_integrate_exp(
+    //         density,
+    //         0.,
+    //         300.,
+    //         1001,
+    //     );
+
+    // result.ln_add_exp(LogProb::ln_simpsons_integrate_exp(
+    //         density,
+    //         300.,
+    //         10000.,
+    //         3001,
+    //     ));
+    let mut x : f64 = 0.;
     loop {
         let calced_prob = prob_mu_ik_theta_i_x(x as f64, d_ij, mu_ik, t_ij, theta_i, s_j);
         if calced_prob > max_prob{
             max_prob = calced_prob;
         }       
         result = result.ln_add_exp(calced_prob);
-        if x > 500 && calced_prob - max_prob < LogProb(0.00001_f64.ln()) {
+        // if x > 0. && calced_prob.exp() == 0.{
+        //     break;
+        // }
+        if x > 250. && calced_prob - max_prob < LogProb(0.000001_f64.ln()) {
             break;
         }
-        x = x + 1;
+        x = x + 1.;
     }
     // if theta_i < 0.3 {
     //     println!("mu_ik {:?}, theta_i {:?}, x {:?}, result {:?}, max_prob {:?}", mu_ik, theta_i, x, result, max_prob);

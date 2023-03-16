@@ -122,9 +122,12 @@ pub(crate) fn write_kallisto_counts(
             
             feature_ids.iter()
                 .try_for_each(|(i, feature_id)| -> Result<()> {
-                    let mean = means.get(*i).unwrap() * s;
+                    let mean = means.get(*i).unwrap() / s;
                     let dispersion = dispersions.get(*i).unwrap();
                     wtr.serialize((sample_id.clone(), feature_id, mean, dispersion)).unwrap();
+                    if feature_id.as_str() == "ERCC-00108" {  
+                        println!("sample {:?} mean {:?}, normalized {:?}, s {:?}", sample_id, means.get(*i).unwrap(), mean, s);
+                    }
                     Ok(())
             })?;
         }

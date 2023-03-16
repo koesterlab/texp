@@ -80,6 +80,10 @@ impl ProbDistribution2d {
         self.points[self.max_prob_entry_position].prob
     }
 
+    pub(crate) fn get_max_prob_keys(&self) -> [f64; 2] {
+        self.points[self.max_prob_entry_position].position
+    }
+
     pub(crate) fn get_range_per_theta(&self, theta: f64) -> [f64; 2] {
         if self.range_per_theta.is_empty(){
             return [0.,10000.]; //TODO set variables as defaults
@@ -128,7 +132,7 @@ impl ProbDistribution2d {
         return false;
     }
 
-    pub(crate) fn insert_grid<F>(&mut self, mut mus: Vec<f64>, mut thetas: Vec<f64>, calc: F) where F: Fn(f64, f64) -> LogProb {
+    pub(crate) fn insert_grid<F>(&mut self, mut mus: Vec<f64>, mut thetas: Vec<f64>, mut calc: F) where F: FnMut(f64, f64) -> LogProb {
         self.max_y = thetas[thetas.len()-1];
         self.max_x = mus[mus.len()-1];
         // println!("max_x {:?}, max_y {:?}", self.max_x, self.max_y);

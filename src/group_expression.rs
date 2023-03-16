@@ -11,9 +11,9 @@ use rayon::prelude::*;
 use csv;
 use itertools_num::linspace;
 
-use crate::common::{QueryPoints, Outdir, Pair, difference_to_big};
+use crate::common::{Outdir, Pair, difference_to_big};
 use crate::errors::Error;
-use crate::preprocess::Preprocessing;
+use crate::preprocess::{QueryPoints, Preprocessing};
 use crate::prob_distribution_1d::ProbDistribution1d;
 use crate::prob_distribution_2d::ProbDistribution2d;
 use crate::sample_expression::SampleInfo;
@@ -24,14 +24,18 @@ pub(crate) fn group_expression(
     preprocessing: &Path,
     sample_expression_paths: &[PathBuf],
     c: f64,
-    out_dir: &Path,
+    out_dir_path: &Path,
 ) -> Result<()> {
-    let query_points = QueryPoints::new(c)?;
-    let mu_ik_points = query_points.all_mu_ik();
-    let start_points_theta_i = query_points.thetas();
+    // let query_points = QueryPoints::new(c)?;
+    // let mu_ik_points = query_points.all_mu_ik();
+    // let start_points_theta_i = query_points.thetas();
     let preprocessing = Preprocessing::from_path(preprocessing)?;
     let prior = preprocessing.prior()?;
     let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect(); //190432
+
+    let query_points = preprocessing.query_points();
+    // let mu_ik_points = Vec::<f64>::new();//query_points.all_mu_ik();
+    // let start_points_theta_i = Vec::<f64>::new(); //query_points.thetas();
 
     let file = File::open("/vol/nano/bayesian-diff-exp-analysis/texp-evaluation/estimated_dispersion.csv")?;
     let mut rdr = csv::Reader::from_reader(file);
@@ -46,13 +50,13 @@ pub(crate) fn group_expression(
     let subsampled_ids = vec!["ERCC-00130","ERCC-00004", "ERCC-00136", "ERCC-00096", "ERCC-00171", "ERCC-00009",
     "ERCC-00074", "ERCC-00113", "ERCC-00145", "ERCC-00002", "ERCC-00046", "ERCC-00003"];
 
-    let out_dir = Outdir::create(out_dir)?;
+    let out_dir = Outdir::create(out_dir_path)?;
     // feature_ids.truncate(10000);
     feature_ids
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
             // if subsampled_ids.contains(&feature_id.as_str()) {
-            // if feature_id.as_str() == "ERCC-00085" {    
+            // if feature_id.as_str() == "ERCC-00108" {    
             
             // println!("--------------feature {:?} {:?}", i, feature_id);
             let maximum_likelihood_means: Vec<f64> = sample_expression_paths
@@ -113,6 +117,14 @@ pub(crate) fn group_expression(
 
             // let mut prob_dist = ProbDistribution1d::new();
             let mut prob_dist = ProbDistribution2d::new();
+            // Extend out_dir_path with feature_id and extension csv
+            let mut output = out_dir_path.to_path_buf();
+            output.push(feature_id);
+            output.set_extension("csv");
+
+            println!("output {:?}", output);
+            let mut wtr = csv::Writer::from_path(output)?;
+            wtr.serialize(("mu_ik", "probability")).unwrap();
             // println!("3");
             let calc_prob = |mu_ik : f64, theta_i: f64| {
                 // println!("mu_ik {:?}", mu_ik);
@@ -138,6 +150,9 @@ pub(crate) fn group_expression(
                 // );
                 // let prob = density(0., prior.mean());
                 // println!("mu_ik {:?}, prob {:?}", mu_ik, prob);
+                if theta_i == 0.001 {
+                    wtr.serialize((mu_ik, prob.exp())).unwrap();
+                }
                 prob
 
             };
@@ -165,7 +180,7 @@ pub(crate) fn group_expression(
             // // cur_prob = calc_prob(10000.);
             // // prob_dist.insert(10000., cur_prob);
             // // // println!("insert mu {:?}, prob {:?}", 10000., f64::from(cur_prob.exp()));
-            let mut start_points_mu_ik = mu_ik_points.clone();
+            // let mut start_points_mu_ik = mu_ik_points.clone();
             
             // let theta = thetas[i-190432];
 
@@ -226,7 +241,9 @@ pub(crate) fn group_expression(
             // }
 
             // println!("4");
-            prob_dist.insert_grid(start_points_mu_ik, start_points_theta_i.clone(), calc_prob);
+            let start_points_mu_ik = query_points.get(&feature_id.to_string()).unwrap().all_mu_ik();
+            let start_points_theta_i = query_points.get(&feature_id.to_string()).unwrap().thetas();
+            prob_dist.insert_grid(start_points_mu_ik.clone(), start_points_theta_i.clone(), calc_prob);
             // println!("5");
             // let norm_factor = prob_dist.normalize(); // remove factor c_ik
             out_dir.serialize_value(feature_id, prob_dist)?;

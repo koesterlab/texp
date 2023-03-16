@@ -11,8 +11,8 @@ use rayon::prelude::*;
 use csv;
 use itertools_num::linspace;
 use itertools::iproduct;
-use crate::common::{Outdir, Pair, QueryPoints};
-use crate::preprocess::Preprocessing;
+use crate::common::{Outdir, Pair};
+use crate::preprocess::{Preprocessing, QueryPoints};
 use crate::prob_distribution_1d::ProbDistribution1d;
 use crate::prob_distribution_2d::ProbDistribution2d;
 use crate::sample_expression;
@@ -30,15 +30,20 @@ pub(crate) fn diff_exp(
     let in_dir1 = Outdir::open(&group_path1)?;
     let in_dir2 = Outdir::open(&group_path2)?;
 
-    let query_points = QueryPoints::new(c)?;
-    let all_mu_ik_points = query_points.all_mu_ik();
-    let start_points_theta_i = query_points.thetas();
-    let possible_f = query_points.possible_f();
-    let start_points_mu_ik = query_points.start_points_mu_ik();
+    // let query_points = QueryPoints::new(c)?;
+    // let all_mu_ik_points = query_points.all_mu_ik();
+    // let start_points_theta_i = query_points.thetas();
+    // let possible_f = query_points.possible_f();
+    // let start_points_mu_ik = query_points.start_points_mu_ik();
 
     let preprocessing = Preprocessing::from_path(preprocessing)?;
     let prior = preprocessing.prior()?;
     let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect();
+
+    let query_points = preprocessing.query_points();
+    // let start_points_mu_ik = Vec::<f64>::new();//query_points.all_mu_ik();
+    // let start_points_theta_i = Vec::<f64>::new(); //query_points.thetas();
+    // let possible_f =Vec::<f64>::new();
 
     let file = File::open("/vol/nano/bayesian-diff-exp-analysis/texp-evaluation/estimated_dispersion.csv")?;
     let mut rdr = csv::Reader::from_reader(file);
@@ -57,7 +62,7 @@ pub(crate) fn diff_exp(
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
             // if subsampled_ids.contains(&feature_id.as_str()) {
-            // if feature_id.as_str() == "ERCC-00085" { 
+            // if feature_id.as_str() == "ERCC-00108" { 
 
             // println!("\n--------------feature {:?} {:?}", i, feature_id);
 
@@ -66,16 +71,18 @@ pub(crate) fn diff_exp(
 
             let prob_dist_i_k1: ProbDistribution2d = in_dir1.deserialize_value(feature_id)?;
             let prob_dist_i_k2: ProbDistribution2d = in_dir2.deserialize_value(feature_id)?;
+            
             if prob_dist_i_k1.is_na() || prob_dist_i_k2.is_na() {
                 println!("skipped {:?}", feature_id);
                 return  Ok(());
             }
-            // let mut mu1 = 320.;
-            // let mut mu2 = 80.;
-            // if in_dir1.to_str().unwrap().contains(&"exp_1".to_string()) {
-            //     mu1 = 80.;
-            //     mu2 = 320.;
-            // }
+            println!("max_prob keys 1 {:?}", prob_dist_i_k1.get_max_prob_keys());
+            println!("max_prob_1 {:?}", prob_dist_i_k1.get_max_prob().exp());
+            println!("max_prob keys 2 {:?}", prob_dist_i_k2.get_max_prob_keys());
+            println!("max_prob_2 {:?}", prob_dist_i_k2.get_max_prob().exp());
+            let possible_f = query_points.get(&feature_id.to_string()).unwrap().possible_f();
+            let start_points_mu_ik = query_points.get(&feature_id.to_string()).unwrap().start_points_mu_ik();
+            let start_points_theta_i = query_points.get(&feature_id.to_string()).unwrap().thetas();
 
             // let mut start_points_mu_ik = vec![0.];
             // let mut cur_maximum_likelihood_mean = 100. / 20.;
@@ -96,32 +103,6 @@ pub(crate) fn diff_exp(
             // start_points_theta_i.sort_by(|a, b| a.partial_cmp(b).unwrap());
             // let start_points_theta_i2 = start_points_theta_i.clone();
             // println!("start_points_theta_i {:?}", start_points_theta_i);
-
-            // let normalverteilung = |x: f64, mu: f64| {
-            //     let standardabweichung = 10.;
-            //     let c = (2.0 * std::f64::consts::PI * standardabweichung * standardabweichung).sqrt();
-            //     let c2 = -2.0 * standardabweichung * standardabweichung;
-            //     return c * ((x - mu).powi(2) / c2).exp();
-            // };
-
-            // let test_calc1 = |mu_ik : f64, theta_i: f64| {
-            //     return LogProb::from(normalverteilung(mu_ik, mu1).ln());
-            // };
-
-            // let test_calc2 = |mu_ik : f64, theta_i: f64| {
-            //     return LogProb::from(normalverteilung(mu_ik, mu2).ln());
-            // };
-
-
-            // let mut prob_dist_i_k1 = ProbDistribution2d::new();
-            // prob_dist_i_k1.insert_grid(start_points_mu_ik, start_points_theta_i, test_calc1);
-            // println!("prob_dist_i_k1  get 80 theta {:?}", prob_dist_i_k1.get(&[80. ,theta]) );
-            // println!("prob_dist_i_k1  get 320 theta{:?}", prob_dist_i_k1.get(&[320. ,theta]) );
-            // let mut prob_dist_i_k2 = ProbDistribution2d::new();
-            // prob_dist_i_k2.insert_grid(start_points_mu_ik2, start_points_theta_i2, test_calc2);
-            // println!("prob_dist_i_k2 max prob {:?}", prob_dist_i_k2.get_max_prob() );
-            // println!("prob_dist_i_k2  get 80 theta {:?}", prob_dist_i_k2.get(&[80. ,theta]) );
-            // println!("prob_dist_i_k2  get 320 theta{:?}", prob_dist_i_k2.get(&[320. ,theta]) );
             
 
             let mut prob_d_i_f = ProbDistribution1d::new();
@@ -165,14 +146,20 @@ pub(crate) fn diff_exp(
             // println!(" len fs {:?}", possible_f2.len());
 
             // let calc_prob = |f: f64, list_mu| -> LogProb {
-            for f in possible_f{
+            for f in possible_f.clone(){
                 // let f =f64::from(f);
                 let calc_prob_fixed_theta = |theta|{
                     let density_x= |_, x: f64| {
                         // if f >= 0.95 && f <=0.99 { 
                             // println!("f {:?}, x {:?}, f * (x + c) s- c {:?}", f, x, f * (x + c) - c);
                         // }
-                        prob_dist_i_k1.get(&[(f * (x + c) - c), theta]) + prob_dist_i_k2.get(&[x, theta])
+                        let p1 = prob_dist_i_k1.get(&[(f *(x + c) - c), theta]);
+                        let p2 = prob_dist_i_k2.get(&[x, theta]);
+                        // if f <5. {
+                        //     println!("f {:?}, x {:?}, get f*x {:?} get x {:?}, prod {:?}", 
+                        //         f, x, p1.exp(), p2.exp(), (p1+p2).exp());
+                        // }
+                        p1 + p2
                     };
                     let prob_x = LogProb::ln_trapezoidal_integrate_grid_exp(
                         density_x,
@@ -182,9 +169,9 @@ pub(crate) fn diff_exp(
                 };
                 
                 let density_theta = |_, theta:f64|{
-                    calc_prob_fixed_theta(theta) + prior.prob(theta)
+                    calc_prob_fixed_theta(theta) //+ prior.prob(theta)
                 };
-                let prob_theta = density_theta(0., 0.2);
+                let prob_theta = density_theta(0., 0.001);
 
                 // let prob_theta = LogProb::ln_trapezoidal_integrate_grid_exp(
                 //     density_theta,
@@ -197,7 +184,7 @@ pub(crate) fn diff_exp(
                     // if f >= 0.95 && f <=0.99 { 
                     //     println!("prob_d_i_f f {:?} {:?}", f, value.exp());
                     // }
-                    prob_d_i_f.insert(*f, prob_theta);
+                    prob_d_i_f.insert(f, prob_theta);
                 }
 
             let density = |_, f| prob_d_i_f.get(f);
@@ -216,6 +203,9 @@ pub(crate) fn diff_exp(
                 // println!("diff_exp_distribution f {:?} {:?}", f, value);
                 diff_exp_distribution.insert(f, value );
             }
+
+            println!("prob_d_i_f get_max_prob_position {:?}", prob_d_i_f.get_max_prob_position());
+            println!("diff exp get_max_prob_position {:?}", diff_exp_distribution.get_max_prob_position());
 
 
         //     possible_f.sort_by(|a, b| a.partial_cmp(b).unwrap()); // TODO NaN -> panic
@@ -419,8 +409,6 @@ pub(crate) fn diff_exp(
             //         });
             //     }
             // }
-            // in_dir1.serialize_value(feature_id, prob_dist_i_k1)?;
-            // in_dir2.serialize_value(feature_id, prob_dist_i_k2)?;
 
             // Step 3: Write output
             out_dir.serialize_value(feature_id, diff_exp_distribution)?;
