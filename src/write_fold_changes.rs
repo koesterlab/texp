@@ -53,7 +53,7 @@ pub(crate) fn write_kallisto_fold_changes(
         output: &Path,
     )-> Result<()> {
         // println!("differential_expression_path {:?}", differential_expression_path);
-        println!("sample_ids {:?}", sample_ids);
+        // println!("sample_ids {:?}", sample_ids);
         // let in_dir = Outdir::open(&differential_expression_path)?;
         let preprocessing = Preprocessing::from_path(preprocessing)?;
         let scale_factors = preprocessing.scale_factors();
@@ -71,12 +71,12 @@ pub(crate) fn write_kallisto_fold_changes(
         feature_ids.iter()
             .try_for_each(|(i, feature_id)| -> Result<()> {
 
-                let mean1 = means1.get(*i).unwrap() * s1;
-                let mean2 = means2.get(*i).unwrap() * s2;
+                let mean1 = means1.get(*i).unwrap() / s1;
+                let mean2 = means2.get(*i).unwrap() / s2;
                 let fold_change = mean1 / mean2;
                 let disp1 = means_disp.get(&sample_ids[0]).unwrap().dispersions().get(*i).unwrap();
                 let disp2 = means_disp.get(&sample_ids[1]).unwrap().dispersions().get(*i).unwrap();
-                println!("feature_id {:?}, mean1 {:?} disp1 {:?} mean2 {:?} disp2 {:?}fold_change {:?}", feature_id, mean1, disp1, mean2, disp2, fold_change);
+                // println!("feature_id {:?}, mean1 {:?} disp1 {:?} mean2 {:?} disp2 {:?}fold_change {:?}", feature_id, mean1, disp1, mean2, disp2, fold_change);
                 
                 // println!("feature_id {:?}", feature_id);
                 //test if file for feature_id exists at differential_expression_path before deserializing
@@ -125,9 +125,9 @@ pub(crate) fn write_kallisto_counts(
                     let mean = means.get(*i).unwrap() / s;
                     let dispersion = dispersions.get(*i).unwrap();
                     wtr.serialize((sample_id.clone(), feature_id, mean, dispersion)).unwrap();
-                    if feature_id.as_str() == "ERCC-00108" {  
-                        println!("sample {:?} mean {:?}, normalized {:?}, s {:?}", sample_id, means.get(*i).unwrap(), mean, s);
-                    }
+                    // if feature_id.as_str() == "ERCC-00108" {  
+                    //     println!("sample {:?} mean {:?}, normalized {:?}, s {:?}", sample_id, means.get(*i).unwrap(), mean, s);
+                    // }
                     Ok(())
             })?;
         }

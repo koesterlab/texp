@@ -122,7 +122,7 @@ pub(crate) fn group_expression(
             output.push(feature_id);
             output.set_extension("csv");
 
-            println!("output {:?}", output);
+            // println!("output {:?}", output);
             let mut wtr = csv::Writer::from_path(output)?;
             wtr.serialize(("mu_ik", "probability")).unwrap();
             // println!("3");
@@ -150,7 +150,7 @@ pub(crate) fn group_expression(
                 // );
                 // let prob = density(0., prior.mean());
                 // println!("mu_ik {:?}, prob {:?}", mu_ik, prob);
-                if theta_i == 0.001 {
+                if theta_i == 0.01 {
                     wtr.serialize((mu_ik, prob.exp())).unwrap();
                 }
                 prob

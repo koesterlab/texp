@@ -169,14 +169,14 @@ pub(crate) fn diff_exp(
                 };
                 
                 let density_theta = |_, theta:f64|{
-                    calc_prob_fixed_theta(theta) //+ prior.prob(theta)
+                    calc_prob_fixed_theta(theta) + prior.prob(theta)
                 };
-                let prob_theta = density_theta(0., 0.001);
+                // let prob_theta = density_theta(0., 0.01);
 
-                // let prob_theta = LogProb::ln_trapezoidal_integrate_grid_exp(
-                //     density_theta,
-                //     &start_points_theta_i
-                // );
+                let prob_theta = LogProb::ln_trapezoidal_integrate_grid_exp(
+                    density_theta,
+                    &start_points_theta_i
+                );
                 // prob_theta
             // };
                 
@@ -204,8 +204,8 @@ pub(crate) fn diff_exp(
                 diff_exp_distribution.insert(f, value );
             }
 
-            println!("prob_d_i_f get_max_prob_position {:?}", prob_d_i_f.get_max_prob_position());
-            println!("diff exp get_max_prob_position {:?}", diff_exp_distribution.get_max_prob_position());
+            // println!("prob_d_i_f get_max_prob_position {:?}", prob_d_i_f.get_max_prob_position());
+            // println!("diff exp get_max_prob_position {:?}", diff_exp_distribution.get_max_prob_position());
 
 
         //     possible_f.sort_by(|a, b| a.partial_cmp(b).unwrap()); // TODO NaN -> panic

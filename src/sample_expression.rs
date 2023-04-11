@@ -8,6 +8,7 @@ use std::fs::File;
 use csv;
 use anyhow::Result;
 use bio::stats::LogProb;
+use statrs::distribution::{Discrete,Poisson};
 use bio::stats::probs::adaptive_integration::ln_integrate_exp;
 use ordered_float::NotNan;
 use getset::Getters;
@@ -89,7 +90,7 @@ pub(crate) fn sample_expression(
             wtr.serialize(("mu_ik", "probability")).unwrap();
 
             let d_ij = mean_disp_estimates.means()[*i]; //TODO Do we need group mean mu_ik instead of sample mean
-            println!("d_ij {:?}", d_ij);
+            // println!("d_ij {:?}", d_ij);
             // METHOD: If the per-sample dispersion is unknown, fall back to a mean interpolated from the other samples.
             let mut t_ij = if let Some(t_ij) = mean_disp_estimates.dispersions()[*i] {
                 t_ij
@@ -100,7 +101,7 @@ pub(crate) fn sample_expression(
                 // TODO log message
                 return Ok(());
             };
-            println!("t_ij {:?}", t_ij);
+            // println!("t_ij {:?}", t_ij);
             
             
             // println!("d_ij {:?}, t_ij {:?}", d_ij, t_ij);
@@ -141,7 +142,7 @@ pub(crate) fn sample_expression(
                     s_j,
                     epsilon,
                 );
-                if t == 0.001 {
+                if t == 0.01 {
                     wtr.serialize((m, prob.exp())).unwrap();
                     // if m < 5. {
                     //     println!("mu {:?}, prob {:?}", m, prob.exp());
@@ -151,8 +152,8 @@ pub(crate) fn sample_expression(
             };
             let mu_ik_points = query_points.get(&feature_id.to_string()).unwrap().all_mu_ik();
             let start_points_theta_i = query_points.get(&feature_id.to_string()).unwrap().thetas();
-            // println!("mu_ik_points {:?}", mu_ik_points);
-            println!("start_points_theta_i {:?}", start_points_theta_i);
+            // println!("mu_ik_points {:?} {:?}", mu_ik_points[0], mu_ik_points[mu_ik_points.len()-1]);
+            // println!("start_points_theta_i {:?}", start_points_theta_i);
             likelihoods.insert_grid(mu_ik_points.clone(), start_points_theta_i.clone(), calc_prob);
 
             out_dir.serialize_value(feature_id, likelihoods)?;
@@ -197,7 +198,8 @@ fn prob_mu_ik_theta_i_x(
     // println!("x {:?}, d_ij {:?}, mu_ik {:?}, t_ij {:?}, theta_i {:?}, s_j {:?}", x, d_ij, mu_ik, t_ij, theta_i, s_j);
     //METHOD /s_j?? mu_ik*s_j würde einluss von t_ij ändern, weil mu geändert wird.
     let left = neg_binom(d_ij/s_j, x, t_ij);
-    let right = neg_binom(x, mu_ik, theta_i);
+    // let right = neg_binom(x, mu_ik, theta_i);
+    let right =  LogProb::from(Poisson::new(mu_ik).unwrap().ln_pmf(x as u64));
     let result = left + right; 
     // if theta_i == 0.01 && mu_ik < 5.{
     //     println!("x {:?}, mu_ik {:?}, left {:?}, right {:?}, result {:?}", x, mu_ik, left.exp(), right.exp(), result.exp());
@@ -216,6 +218,9 @@ fn likelihood_mu_ik_theta_i(
     _: LogProb,   // epsilon
 ) -> LogProb {
     if d_ij != 0. && mu_ik == 0. {
+        return LogProb::ln_zero();
+    }
+    if mu_ik == 0. {
         return LogProb::ln_zero();
     }
     let mut max_prob = LogProb::ln_zero();

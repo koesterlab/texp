@@ -18,8 +18,9 @@ impl KallistoQuant {
 
     pub(crate) fn len_norm_counts(&self) -> Result<Array1<N64>> {
         let counts = self.reader.dataset("est_counts")?.read_1d::<f64>()?;
-        let lens = self.reader.dataset("aux/lengths")?.read_1d::<f64>()?;
-        Ok((counts / lens).mapv(|v| N64::unchecked_new(v)))
+        // let lens = self.reader.dataset("aux/lengths")?.read_1d::<f64>()?;
+        // Ok((counts / lens).mapv(|v| N64::unchecked_new(v)))
+        Ok((counts).mapv(|v| N64::unchecked_new(v)))
     }
 
     pub(crate) fn bootstrapped_counts(&self) -> Result<Array2<f64>> {
@@ -34,8 +35,9 @@ impl KallistoQuant {
         for i in 0..num_bootstraps {
             let dataset = self.reader.dataset(&format!("bootstrap/bs{i}", i = i))?;
             let est_counts = dataset.read_1d::<f64>()?;
-            let norm_counts = est_counts / &seq_length;
-            bootstraps.slice_mut(s![i, ..]).assign(&norm_counts);
+            // let norm_counts = est_counts / &seq_length;
+            // bootstraps.slice_mut(s![i, ..]).assign(&norm_counts);
+            bootstraps.slice_mut(s![i, ..]).assign(&est_counts);
         }
 
         Ok(bootstraps)
