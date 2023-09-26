@@ -1,3 +1,4 @@
 /target
+Cargo.lock
 src/src.code-workspace
 *.pdf

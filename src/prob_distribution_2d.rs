@@ -1,8 +1,8 @@
-use std::process::exit;
-use std::collections::VecDeque;
-use std::collections::HashMap;
+// use std::process::exit;
+// use std::collections::VecDeque;
+// use std::collections::HashMap;
 use std::collections::BTreeMap;
-use std::ops::Bound::{Included, Unbounded};
+// use std::ops::Bound::{Included, Unbounded};
 
 use bio::stats::LogProb;
 use itertools::iproduct;
@@ -11,14 +11,14 @@ use serde_derive::{Deserialize, Serialize};
 use num_traits::Float;
 use ordered_float::OrderedFloat;
 
-use crate::common::{Square, Point, difference_to_big};
+// use crate::common::{Square, Point, difference_to_big};
 
 //--------------------ProbDistribution based on KdTree --------------------
 
-const T: usize = 0;   // top
-const R: usize = 1;   // right
-const B: usize = 2;   // bottom
-const L: usize = 3;   // left
+// const T: usize = 0;   // top
+// const R: usize = 1;   // right
+// const B: usize = 2;   // bottom
+// const L: usize = 3;   // left
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct EntryForKdtree {
@@ -72,9 +72,9 @@ impl ProbDistribution2d {
         }
     }
 
-    pub(crate) fn len(&self) -> usize {
-        self.points.len()
-    }
+    // pub(crate) fn len(&self) -> usize {
+    //     self.points.len()
+    // }
 
     pub(crate) fn get_max_prob(&self) -> LogProb {
         self.points[self.max_prob_entry_position].prob
@@ -84,55 +84,55 @@ impl ProbDistribution2d {
         self.points[self.max_prob_entry_position].position
     }
 
-    pub(crate) fn get_range_per_theta(&self, theta: f64) -> [f64; 2] {
-        if self.range_per_theta.is_empty(){
-            return [0.,10000.]; //TODO set variables as defaults
-        }
-        else if self.range_per_theta.contains_key(&OrderedFloat(theta)){
-            return self.range_per_theta[&OrderedFloat(theta)]
-        } else {
-            let (lower, range_l) = self.range_per_theta.range(..OrderedFloat(theta)).next_back().unwrap();
-            let (upper, range_u) = self.range_per_theta.range(OrderedFloat(theta)..).next().unwrap();
-            // println!("range_l {:?}", range_l);
-            // println!("range_u {:?}", range_u);
-            if (lower - theta).abs() < (upper - theta).abs(){
-                return *range_l;
-            } else {
-                return *range_u;
-            }
-            // *self.range_per_theta.range((Included(&OrderedFloat(theta/2.)), Included(&OrderedFloat(theta*2.))))
-                // .min_by(|x, y|((x.0 - theta).abs()).cmp(&(y.0 - OrderedFloat(theta)).abs()))
-                // .unwrap().1
-        }
-    }
+    // pub(crate) fn get_range_per_theta(&self, theta: f64) -> [f64; 2] {
+    //     if self.range_per_theta.is_empty(){
+    //         return [0.,10000.]; //TODO set variables as defaults
+    //     }
+    //     else if self.range_per_theta.contains_key(&OrderedFloat(theta)){
+    //         return self.range_per_theta[&OrderedFloat(theta)]
+    //     } else {
+    //         let (lower, range_l) = self.range_per_theta.range(..OrderedFloat(theta)).next_back().unwrap();
+    //         let (upper, range_u) = self.range_per_theta.range(OrderedFloat(theta)..).next().unwrap();
+    //         // println!("range_l {:?}", range_l);
+    //         // println!("range_u {:?}", range_u);
+    //         if (lower - theta).abs() < (upper - theta).abs(){
+    //             return *range_l;
+    //         } else {
+    //             return *range_u;
+    //         }
+    //         // *self.range_per_theta.range((Included(&OrderedFloat(theta/2.)), Included(&OrderedFloat(theta*2.))))
+    //             // .min_by(|x, y|((x.0 - theta).abs()).cmp(&(y.0 - OrderedFloat(theta)).abs()))
+    //             // .unwrap().1
+    //     }
+    // }
 
 
     pub(crate) fn is_na(&self) -> bool {
         self.max_prob_entry_position == usize::MAX
     }
 
-    pub(crate) fn check_if_different(p1: &Point, p2: &[f64; 2], reference: &[f64; 2]) -> bool {
-        if (p1.x - p2[0]).abs() / reference[0] > 1e-6 {
-            return true;
-        }
-        if (p1.y - p2[1]).abs() / reference[1] > 1e-6 {
-            return true;
-        }
-        return false;
-    }
+    // pub(crate) fn check_if_different(p1: &Point, p2: &[f64; 2], reference: &[f64; 2]) -> bool {
+    //     if (p1.x - p2[0]).abs() / reference[0] > 1e-6 {
+    //         return true;
+    //     }
+    //     if (p1.y - p2[1]).abs() / reference[1] > 1e-6 {
+    //         return true;
+    //     }
+    //     return false;
+    // }
 
-    pub(crate) fn check_if_same(a:f64, b: f64) -> bool {
-        if a == 0. && b == 0. {
-            return true;
-        }
-        // println!("a {:?},b {:?}, diff {:?}, max {:?},result {:?}", a, b,(a - b).abs(), a.abs().max(b.abs()),  (a - b).abs() / a.abs().max(b.abs()) );
-        if (a - b).abs() / a.abs().max(b.abs()) < 1e-6 {
-            return true;
-        }
-        return false;
-    }
+    // pub(crate) fn check_if_same(a:f64, b: f64) -> bool {
+    //     if a == 0. && b == 0. {
+    //         return true;
+    //     }
+    //     // println!("a {:?},b {:?}, diff {:?}, max {:?},result {:?}", a, b,(a - b).abs(), a.abs().max(b.abs()),  (a - b).abs() / a.abs().max(b.abs()) );
+    //     if (a - b).abs() / a.abs().max(b.abs()) < 1e-6 {
+    //         return true;
+    //     }
+    //     return false;
+    // }
 
-    pub(crate) fn insert_grid<F>(&mut self, mut mus: Vec<f64>, mut thetas: Vec<f64>, mut calc: F) where F: FnMut(f64, f64) -> LogProb {
+    pub(crate) fn insert_grid_group<F>(&mut self, mut mus: Vec<f64>, mut thetas: Vec<f64>, mut calc: F) where F: FnMut(f64, f64) -> LogProb {        
         self.max_y = thetas[thetas.len()-1];
         self.max_x = mus[mus.len()-1];
         // println!("max_x {:?}, max_y {:?}", self.max_x, self.max_y);
@@ -153,6 +153,53 @@ impl ProbDistribution2d {
                 let entry = EntryForKdtree{position: value, prob: LogProb::ln_zero(), trbl: [top, right, bottom, left]};
                 self.points.push(entry);
             } else {
+                let prob = calc(mu, theta);
+                // println!("mu {:?}, theta {:?}, prob {:?}, top {:?}, right {:?}, bottom {:?}, left {:?}", mu, theta, prob, top, right, bottom, left);
+                self.insert(mu, theta, prob, top, right, bottom, left);
+            }
+        }
+    }
+
+    pub(crate) fn insert_grid<F>(&mut self,d_ij: f64, mut mus: Vec<f64>, mut thetas: Vec<f64>, mut calc: F) where F: FnMut(f64, f64) -> LogProb {
+        // let limit_left = d_ij * 0.5;
+        // let limit_right = d_ij * 1.7;
+        // let mut probs_left = Vec::with_capacity(thetas.len());
+        // let mut probs_right = Vec::with_capacity(thetas.len());
+        // for (i, t) in thetas.iter().enumerate() {
+        //     let prob_left = calc(limit_left, *t);
+        //     let prob_right = calc(limit_right, *t);
+        //     probs_left.push(prob_left);
+        //     probs_right.push(prob_right);
+
+        // }
+        self.max_y = thetas[thetas.len()-1];
+        self.max_x = mus[mus.len()-1];
+        // println!("max_x {:?}, max_y {:?}", self.max_x, self.max_y);
+        let len_mus = mus.len();
+        let len_thetas = thetas.len();
+        for (j, i) in iproduct!(0..len_thetas, 0..len_mus) {
+            let mu = mus[i];
+            let theta = thetas[j];
+            let own_pos = i + j * len_mus;
+            let top = if j + 1 < len_thetas {own_pos + len_mus} else {usize::MAX};
+            let right = if (i + 1) % len_mus != 0 {own_pos + 1} else {usize::MAX};
+            let bottom = if j > 0 {own_pos - len_mus} else {usize::MAX};
+            let left = if i % len_mus != 0 {own_pos - 1} else {usize::MAX};
+            if mu.is_infinite() || theta.is_infinite() {
+                println!("SHOULD NOT HAPPEN!!!");
+                // println!("mu {:?}, theta {:?}, prob ---, top {:?}, right {:?}, bottom {:?}, left {:?}", mu, theta, top, right, bottom, left);
+                let value: [f64; 2] = [mu, theta];
+                let entry = EntryForKdtree{position: value, prob: LogProb::ln_zero(), trbl: [top, right, bottom, left]};
+                self.points.push(entry);
+            } else {
+                // let mut prob = LogProb::ln_zero();
+                // if d_ij == 0. || (mu > limit_left && mu < limit_right) {
+                //     prob = calc(mu, theta);
+                // } else if mu > limit_right {
+                //     prob = probs_right[j];
+                // } else {
+                //     prob = probs_left[j];
+                // }
                 let prob = calc(mu, theta);
                 // println!("mu {:?}, theta {:?}, prob {:?}, top {:?}, right {:?}, bottom {:?}, left {:?}", mu, theta, prob, top, right, bottom, left);
                 self.insert(mu, theta, prob, top, right, bottom, left);
@@ -302,32 +349,32 @@ impl ProbDistribution2d {
     }
 
 
-    pub(crate) fn new_points(&mut self, square: &Square) -> Vec<Point> {
-        let mut result = Vec::<Point>::new();
+    // pub(crate) fn new_points(&mut self, square: &Square) -> Vec<Point> {
+    //     let mut result = Vec::<Point>::new();
     
-        let new_point = |p1_pos: usize, p2_pos: usize| {
-            let p1 = self.points[p1_pos].position;
-            let p2 = self.points[p2_pos].position;
-            let new_coord = |left: f64, right: f64| {
-                let middle; //= 0.;
-                if right.is_finite() {
-                    middle = left / 2. + right / 2.;
-                } else {
-                    middle = 10. * left;
-                }
-                return middle;
-            };
-            return Point{x:new_coord(p1[0], p2[0]), y:new_coord(p1[1], p2[1])};
-        };
+    //     let new_point = |p1_pos: usize, p2_pos: usize| {
+    //         let p1 = self.points[p1_pos].position;
+    //         let p2 = self.points[p2_pos].position;
+    //         let new_coord = |left: f64, right: f64| {
+    //             let middle; //= 0.;
+    //             if right.is_finite() {
+    //                 middle = left / 2. + right / 2.;
+    //             } else {
+    //                 middle = 10. * left;
+    //             }
+    //             return middle;
+    //         };
+    //         return Point{x:new_coord(p1[0], p2[0]), y:new_coord(p1[1], p2[1])};
+    //     };
     
-        result.push(new_point(square.bot_left, square.bot_right));
-        result.push(new_point(square.bot_left, square.top_left));
-        result.push(new_point(square.bot_left, square.top_right));
-        result.push(new_point(square.bot_right, square.top_right));
-        result.push(new_point(square.top_left, square.top_right));
+    //     result.push(new_point(square.bot_left, square.bot_right));
+    //     result.push(new_point(square.bot_left, square.top_left));
+    //     result.push(new_point(square.bot_left, square.top_right));
+    //     result.push(new_point(square.bot_right, square.top_right));
+    //     result.push(new_point(square.top_left, square.top_right));
     
-        return result;
-    }
+    //     return result;
+    // }
 
     pub(crate) fn insert(&mut self, mu: f64, theta: f64, prob: LogProb, top: usize, right: usize, bottom: usize, left: usize) {
         // if mu > 47. && mu < 51. {
@@ -349,19 +396,19 @@ impl ProbDistribution2d {
             }
             self.kdtree.add(value, entry_position).ok();
         }
-        if prob > LogProb::ln_zero(){
-            if self.range_per_theta.contains_key(&OrderedFloat(theta)){
-                let mu_range = self.range_per_theta.get(&OrderedFloat(theta)).unwrap();
-                    if mu < mu_range[0]{
-                        self.range_per_theta.insert(OrderedFloat(theta), [mu, mu_range[1]]);
-                    } else if mu > mu_range[1]{
-                        self.range_per_theta.insert(OrderedFloat(theta), [mu_range[0], mu]);
-                    }
-            } else {
-                self.range_per_theta.insert(OrderedFloat(theta), [mu, mu]);
-            }
+        // if prob > LogProb::ln_zero(){
+        //     if self.range_per_theta.contains_key(&OrderedFloat(theta)){
+        //         let mu_range = self.range_per_theta.get(&OrderedFloat(theta)).unwrap();
+        //             if mu < mu_range[0]{
+        //                 self.range_per_theta.insert(OrderedFloat(theta), [mu, mu_range[1]]);
+        //             } else if mu > mu_range[1]{
+        //                 self.range_per_theta.insert(OrderedFloat(theta), [mu_range[0], mu]);
+        //             }
+        //     } else {
+        //         self.range_per_theta.insert(OrderedFloat(theta), [mu, mu]);
+        //     }
 
-        }
+        // }
     }
 
     pub(crate) fn get(&self, value: &[f64]) -> LogProb {
@@ -409,217 +456,217 @@ impl ProbDistribution2d {
         }
     }
 
-    pub(crate) fn push_if(vector: &mut Vec<usize>, value: usize, position: &[f64; 2]) {
-        if vector.contains(&value) {
-            println!("Endless loop detected");
-            exit(1);
-        }
-        if position[0].is_infinite() || position[1].is_infinite() {
-            return;
-        }
-        vector.push(value);
-    }
+    // pub(crate) fn push_if(vector: &mut Vec<usize>, value: usize, position: &[f64; 2]) {
+    //     if vector.contains(&value) {
+    //         println!("Endless loop detected");
+    //         exit(1);
+    //     }
+    //     if position[0].is_infinite() || position[1].is_infinite() {
+    //         return;
+    //     }
+    //     vector.push(value);
+    // }
 
-    pub(crate) fn find_square_for_point(&self, point: &[f64], nearest_point_index: usize) -> Vec<usize> {
-        // Starte beim nearest_point_index Punkt, bestimme eine Richtung abhängig vom point -> TRBL und Richtungsänderung CW +1 oder CCW -1
-        // Gehe eine Richtung bis abzweigbar ist, dann Richtung + Richtungsänderung und wiederholen bis man am Ursprung oder am Rand ist
-        // println!("-----Start find_square_for_point {:?}", point);
-        let nearest_point = &self.points[nearest_point_index];
-        let mut result = Vec::<usize>::new();
-        let mut direction;
-        let mut direction_change;
-        if point[0] < nearest_point.position[0] {
-            direction = L;
-        } else {
-            direction = R;
-        }
-        if point[1] < nearest_point.position[1] {
-            direction_change = if direction == L {3} else {1};  // 3 == -1 mod 4
-        } else if ProbDistribution2d::check_if_same(point[1], nearest_point.position[1]) 
-                && ProbDistribution2d::check_if_same(point[1], self.max_y) { //point[1] == nearest_point.position[1] && point[1] == self.max_y {
-            direction_change = if direction == L {3} else {1};
-        } else {
-            direction_change = if direction == L {1} else {3};  // 3 == -1 mod 4
-        }
+    // pub(crate) fn find_square_for_point(&self, point: &[f64], nearest_point_index: usize) -> Vec<usize> {
+    //     // Starte beim nearest_point_index Punkt, bestimme eine Richtung abhängig vom point -> TRBL und Richtungsänderung CW +1 oder CCW -1
+    //     // Gehe eine Richtung bis abzweigbar ist, dann Richtung + Richtungsänderung und wiederholen bis man am Ursprung oder am Rand ist
+    //     // println!("-----Start find_square_for_point {:?}", point);
+    //     let nearest_point = &self.points[nearest_point_index];
+    //     let mut result = Vec::<usize>::new();
+    //     let mut direction;
+    //     let mut direction_change;
+    //     if point[0] < nearest_point.position[0] {
+    //         direction = L;
+    //     } else {
+    //         direction = R;
+    //     }
+    //     if point[1] < nearest_point.position[1] {
+    //         direction_change = if direction == L {3} else {1};  // 3 == -1 mod 4
+    //     } else if ProbDistribution2d::check_if_same(point[1], nearest_point.position[1]) 
+    //             && ProbDistribution2d::check_if_same(point[1], self.max_y) { //point[1] == nearest_point.position[1] && point[1] == self.max_y {
+    //         direction_change = if direction == L {3} else {1};
+    //     } else {
+    //         direction_change = if direction == L {1} else {3};  // 3 == -1 mod 4
+    //     }
 
-        if point[0] >= self.max_x {
-            // println!("X out of bound");
-            ProbDistribution2d::push_if(&mut result, nearest_point_index, &nearest_point.position);
-            let mut current_point_index = nearest_point.trbl[0];
-            // println!("curr {:?}", current_point_index);
-            if current_point_index != usize::MAX {
-                ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
-                current_point_index = self.points[current_point_index].trbl[0];
-                // println!("curr {:?}", current_point_index);
-                if current_point_index != usize::MAX {
-                    ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
-                }
-            }
-            current_point_index = nearest_point.trbl[3];
-            // println!("curr {:?}", current_point_index);
-            if current_point_index != usize::MAX {
-                ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
-            }
-            current_point_index = nearest_point.trbl[2];
-            // println!("curr {:?}", current_point_index);
-            if current_point_index != usize::MAX {
-                ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
-                current_point_index = self.points[current_point_index].trbl[2];
-                // println!("curr {:?}", current_point_index);
-                if current_point_index != usize::MAX {
-                    ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
-                }
-            }
-            return result;
-        }
+    //     if point[0] >= self.max_x {
+    //         // println!("X out of bound");
+    //         ProbDistribution2d::push_if(&mut result, nearest_point_index, &nearest_point.position);
+    //         let mut current_point_index = nearest_point.trbl[0];
+    //         // println!("curr {:?}", current_point_index);
+    //         if current_point_index != usize::MAX {
+    //             ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
+    //             current_point_index = self.points[current_point_index].trbl[0];
+    //             // println!("curr {:?}", current_point_index);
+    //             if current_point_index != usize::MAX {
+    //                 ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
+    //             }
+    //         }
+    //         current_point_index = nearest_point.trbl[3];
+    //         // println!("curr {:?}", current_point_index);
+    //         if current_point_index != usize::MAX {
+    //             ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
+    //         }
+    //         current_point_index = nearest_point.trbl[2];
+    //         // println!("curr {:?}", current_point_index);
+    //         if current_point_index != usize::MAX {
+    //             ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
+    //             current_point_index = self.points[current_point_index].trbl[2];
+    //             // println!("curr {:?}", current_point_index);
+    //             if current_point_index != usize::MAX {
+    //                 ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
+    //             }
+    //         }
+    //         return result;
+    //     }
 
-        if point[1] >= self.max_y {
-            // println!("Y out of bound");
-            ProbDistribution2d::push_if(&mut result, nearest_point_index, &nearest_point.position);
-            let mut current_point_index = nearest_point.trbl[1];
-            // println!("curr {:?}", current_point_index);
-            if current_point_index != usize::MAX {
-                ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
-                current_point_index = self.points[current_point_index].trbl[1];
-                // println!("curr {:?}", current_point_index);
-                if current_point_index != usize::MAX {
-                    ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
-                }
-            }
-            current_point_index = nearest_point.trbl[2];
-            // println!("curr {:?}", current_point_index);
-            if current_point_index != usize::MAX {
-                ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
-            }
-            current_point_index = nearest_point.trbl[3];
-            // println!("curr {:?}", current_point_index);
-            if current_point_index != usize::MAX {
-                ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
-                current_point_index = self.points[current_point_index].trbl[3];
-                // println!("curr {:?}", current_point_index);
-                if current_point_index != usize::MAX {
-                    ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
-                }
-            }
-            return result;
-        }
+    //     if point[1] >= self.max_y {
+    //         // println!("Y out of bound");
+    //         ProbDistribution2d::push_if(&mut result, nearest_point_index, &nearest_point.position);
+    //         let mut current_point_index = nearest_point.trbl[1];
+    //         // println!("curr {:?}", current_point_index);
+    //         if current_point_index != usize::MAX {
+    //             ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
+    //             current_point_index = self.points[current_point_index].trbl[1];
+    //             // println!("curr {:?}", current_point_index);
+    //             if current_point_index != usize::MAX {
+    //                 ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
+    //             }
+    //         }
+    //         current_point_index = nearest_point.trbl[2];
+    //         // println!("curr {:?}", current_point_index);
+    //         if current_point_index != usize::MAX {
+    //             ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
+    //         }
+    //         current_point_index = nearest_point.trbl[3];
+    //         // println!("curr {:?}", current_point_index);
+    //         if current_point_index != usize::MAX {
+    //             ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
+    //             current_point_index = self.points[current_point_index].trbl[3];
+    //             // println!("curr {:?}", current_point_index);
+    //             if current_point_index != usize::MAX {
+    //                 ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
+    //             }
+    //         }
+    //         return result;
+    //     }
 
-        // println!("neare {:?}, near_p {:?}, dir {:?}, dir_change {:?}", nearest_point_index, nearest_point, direction, direction_change);
-        ProbDistribution2d::push_if(&mut result, nearest_point_index, &nearest_point.position);
-        let mut current_point_index = nearest_point.trbl[direction];
-        if current_point_index == usize::MAX {
-            direction = (direction + direction_change) % 4;
-            direction_change = (direction_change + 2) % 4;
-            current_point_index = nearest_point.trbl[direction];
-            // println!("CHANGE dir {:?}, dir_change {:?}, curr_in {:?}", direction, direction_change, current_point_index);
-        }
-        if current_point_index == usize::MAX {
-            return result;
-        }
-        while current_point_index != nearest_point_index {
-            ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
-            let next_direction = (direction + direction_change) % 4;
-            // println!("curr {:?}, point {:?}, dir {:?}, dir_change {:?}, next_dir {:?}, value {:?}", current_point_index, self.points[current_point_index], direction, direction_change, next_direction, self.points[current_point_index].trbl[next_direction]);
-            while self.points[current_point_index].trbl[next_direction] == usize::MAX {
-                current_point_index = self.points[current_point_index].trbl[direction];
-                // println!("curr {:?}, point {:?}, dir {:?}, dir_change {:?}, next_dir {:?}, value {:?}", current_point_index, self.points[current_point_index], direction, direction_change, next_direction, self.points[current_point_index].trbl[next_direction]);
-                if current_point_index == nearest_point_index {
-                    break;
-                } else if current_point_index == usize::MAX {
-                    return result;
-                }
-                ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
-            }
-            if current_point_index == nearest_point_index {
-                break;
-            }
-            direction = next_direction;
-            current_point_index = self.points[current_point_index].trbl[direction];
-            if current_point_index == usize::MAX {
-                return result;
-            }
-        }
+    //     // println!("neare {:?}, near_p {:?}, dir {:?}, dir_change {:?}", nearest_point_index, nearest_point, direction, direction_change);
+    //     ProbDistribution2d::push_if(&mut result, nearest_point_index, &nearest_point.position);
+    //     let mut current_point_index = nearest_point.trbl[direction];
+    //     if current_point_index == usize::MAX {
+    //         direction = (direction + direction_change) % 4;
+    //         direction_change = (direction_change + 2) % 4;
+    //         current_point_index = nearest_point.trbl[direction];
+    //         // println!("CHANGE dir {:?}, dir_change {:?}, curr_in {:?}", direction, direction_change, current_point_index);
+    //     }
+    //     if current_point_index == usize::MAX {
+    //         return result;
+    //     }
+    //     while current_point_index != nearest_point_index {
+    //         ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
+    //         let next_direction = (direction + direction_change) % 4;
+    //         // println!("curr {:?}, point {:?}, dir {:?}, dir_change {:?}, next_dir {:?}, value {:?}", current_point_index, self.points[current_point_index], direction, direction_change, next_direction, self.points[current_point_index].trbl[next_direction]);
+    //         while self.points[current_point_index].trbl[next_direction] == usize::MAX {
+    //             current_point_index = self.points[current_point_index].trbl[direction];
+    //             // println!("curr {:?}, point {:?}, dir {:?}, dir_change {:?}, next_dir {:?}, value {:?}", current_point_index, self.points[current_point_index], direction, direction_change, next_direction, self.points[current_point_index].trbl[next_direction]);
+    //             if current_point_index == nearest_point_index {
+    //                 break;
+    //             } else if current_point_index == usize::MAX {
+    //                 return result;
+    //             }
+    //             ProbDistribution2d::push_if(&mut result, current_point_index, &self.points[current_point_index].position);
+    //         }
+    //         if current_point_index == nearest_point_index {
+    //             break;
+    //         }
+    //         direction = next_direction;
+    //         current_point_index = self.points[current_point_index].trbl[direction];
+    //         if current_point_index == usize::MAX {
+    //             return result;
+    //         }
+    //     }
 
-        return result;
-    }
-
-
-    pub(crate) fn is_in_square(&self, value: &[f64], square: &Vec<usize> ) -> bool {
-        let mut min_x = f64::MAX;
-        let mut min_y = f64::MAX;
-        let mut max_x = f64::MIN;
-        let mut max_y = f64::MIN;
-        for index in square.iter(){
-            let p = &self.points[*index];
-            min_x = min_x.min(p.position[0]);
-            min_y = min_y.min(p.position[1]);
-            max_x = max_x.max(p.position[0]);
-            max_y = max_y.max(p.position[1]);
-        }
-        if value[0] >= min_x && value[0] <= max_x && value[1] >= min_y && value[1] <= max_y {
-            return true;
-        } else {
-            return false;
-        }
-    }
+    //     return result;
+    // }
 
 
-    pub(crate) fn smoothing(&self, value: &[f64], point_indices: Vec<usize>) -> LogProb {
-        let c = 1.;
-        let mut min_x = f64::MAX;
-        let mut min_y = f64::MAX;
-        let mut max_x = f64::MIN;
-        let mut max_y = f64::MIN;
-        let filtering = |x: &usize| {
-            let p = &self.points[*x];
-            let x1 = p.position[0] - value[0];
-            let y1 = p.position[1] - value[1];
-            let denominator_left = x1 * x1 + y1 * y1;
-            if denominator_left.is_infinite() {
-                return None;
-            } else {
-                min_x = min_x.min(p.position[0]);
-                min_y = min_y.min(p.position[1]);
-                max_x = max_x.max(p.position[0]);
-                max_y = max_y.max(p.position[1]);
-                return Some(p);
-            }
-        };
+//     pub(crate) fn is_in_square(&self, value: &[f64], square: &Vec<usize> ) -> bool {
+//         let mut min_x = f64::MAX;
+//         let mut min_y = f64::MAX;
+//         let mut max_x = f64::MIN;
+//         let mut max_y = f64::MIN;
+//         for index in square.iter(){
+//             let p = &self.points[*index];
+//             min_x = min_x.min(p.position[0]);
+//             min_y = min_y.min(p.position[1]);
+//             max_x = max_x.max(p.position[0]);
+//             max_y = max_y.max(p.position[1]);
+//         }
+//         if value[0] >= min_x && value[0] <= max_x && value[1] >= min_y && value[1] <= max_y {
+//             return true;
+//         } else {
+//             return false;
+//         }
+//     }
+
+
+//     pub(crate) fn smoothing(&self, value: &[f64], point_indices: Vec<usize>) -> LogProb {
+//         let c = 1.;
+//         let mut min_x = f64::MAX;
+//         let mut min_y = f64::MAX;
+//         let mut max_x = f64::MIN;
+//         let mut max_y = f64::MIN;
+//         let filtering = |x: &usize| {
+//             let p = &self.points[*x];
+//             let x1 = p.position[0] - value[0];
+//             let y1 = p.position[1] - value[1];
+//             let denominator_left = x1 * x1 + y1 * y1;
+//             if denominator_left.is_infinite() {
+//                 return None;
+//             } else {
+//                 min_x = min_x.min(p.position[0]);
+//                 min_y = min_y.min(p.position[1]);
+//                 max_x = max_x.max(p.position[0]);
+//                 max_y = max_y.max(p.position[1]);
+//                 return Some(p);
+//             }
+//         };
         
-        let nearest_vec = point_indices.iter().filter_map(filtering).collect::<Vec<_>>();
-        // println!("nearest_vec {:?}", nearest_vec);
-        if nearest_vec.len() == 0 {
-            return LogProb::ln_zero();
-        }
-        let mut result = LogProb::ln_zero();
-        let mut scaling_sum = 0.;
-        let mut distances_x = vec![0.; nearest_vec.len()];
-        let mut distances_y = vec![0.; nearest_vec.len()];
+//         let nearest_vec = point_indices.iter().filter_map(filtering).collect::<Vec<_>>();
+//         // println!("nearest_vec {:?}", nearest_vec);
+//         if nearest_vec.len() == 0 {
+//             return LogProb::ln_zero();
+//         }
+//         let mut result = LogProb::ln_zero();
+//         let mut scaling_sum = 0.;
+//         let mut distances_x = vec![0.; nearest_vec.len()];
+//         let mut distances_y = vec![0.; nearest_vec.len()];
 
-        for i in 0..nearest_vec.len() {
-            distances_x[i] = (value[0] - nearest_vec[i].position[0]).abs();//
-            distances_y[i] = (value[1] - nearest_vec[i].position[1]).abs() ;//
-        }
+//         for i in 0..nearest_vec.len() {
+//             distances_x[i] = (value[0] - nearest_vec[i].position[0]).abs();//
+//             distances_y[i] = (value[1] - nearest_vec[i].position[1]).abs() ;//
+//         }
 
-        for i in 0..nearest_vec.len() {
-            let mut edge_scale_x = (1. - distances_x[i] / (max_x - min_x)).powi(8);
-            let mut edge_scale_y = (1. - distances_y[i] / (max_y - min_y)).powi(8);
-            edge_scale_x = (-1. / edge_scale_x).exp();
-            edge_scale_y = (-1. / edge_scale_y).exp();
+//         for i in 0..nearest_vec.len() {
+//             let mut edge_scale_x = (1. - distances_x[i] / (max_x - min_x)).powi(8);
+//             let mut edge_scale_y = (1. - distances_y[i] / (max_y - min_y)).powi(8);
+//             edge_scale_x = (-1. / edge_scale_x).exp();
+//             edge_scale_y = (-1. / edge_scale_y).exp();
 
-            scaling_sum += 1. * edge_scale_x * edge_scale_y; 
-            result = result.ln_add_exp(nearest_vec[i].prob    + LogProb(edge_scale_x.ln()) + LogProb(edge_scale_y.ln()));
-        } 
-        if result == LogProb::ln_zero(){
-            return result;
-        }
+//             scaling_sum += 1. * edge_scale_x * edge_scale_y; 
+//             result = result.ln_add_exp(nearest_vec[i].prob    + LogProb(edge_scale_x.ln()) + LogProb(edge_scale_y.ln()));
+//         } 
+//         if result == LogProb::ln_zero(){
+//             return result;
+//         }
 
-        result = result - LogProb(scaling_sum.ln());
-        let distance_of_value =  euclidean(&value, &[0.0, 0.0]);
-        if self.max_distance < distance_of_value { //is_outlier
-            result = result - LogProb((distance_of_value - self.max_distance).ln());  
-            println!("Is outlier. New result {:?}", result.exp())      
-        }
-        return result;
-    }
+//         result = result - LogProb(scaling_sum.ln());
+//         let distance_of_value =  euclidean(&value, &[0.0, 0.0]);
+//         if self.max_distance < distance_of_value { //is_outlier
+//             result = result - LogProb((distance_of_value - self.max_distance).ln());  
+//             println!("Is outlier. New result {:?}", result.exp())      
+//         }
+//         return result;
+//     }
 }

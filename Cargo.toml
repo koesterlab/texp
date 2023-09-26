@@ -18,7 +18,7 @@ serde_derive = "1.0"
 rmp-serde = "1.1"
 itertools-num = "0.1"
 statrs = "0.15"
-bio = { git = "https://github.com/rust-bio/rust-bio.git", branch="fix/ordered-float"}
+bio = "1.4"
 getset = "0.1"
 derive-new = "0.5"
 derefable = "0.1"

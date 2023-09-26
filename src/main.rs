@@ -10,6 +10,7 @@ use structopt::StructOpt;
 // use crate::common::Outdir;
 
 mod common;
+mod query_points;
 mod diff_exp;
 mod errors;
 mod group_expression;

@@ -3,6 +3,9 @@ use std::collections::VecDeque;
 use std::mem;
 use std::path::Path;
 use std::fs::File;
+use std::collections::HashMap;
+use std::collections::HashSet;
+
 
 use anyhow::Result;
 use bio::stats::LogProb;
@@ -12,11 +15,12 @@ use csv;
 use itertools_num::linspace;
 use itertools::iproduct;
 use crate::common::{Outdir, Pair};
-use crate::preprocess::{Preprocessing, QueryPoints};
+use crate::preprocess::{Preprocessing};
 use crate::prob_distribution_1d::ProbDistribution1d;
 use crate::prob_distribution_2d::ProbDistribution2d;
 use crate::sample_expression;
-use std::collections::HashMap;
+use crate::query_points;
+
 
 pub(crate) fn diff_exp(
     c: f64,
@@ -37,22 +41,24 @@ pub(crate) fn diff_exp(
     // let start_points_mu_ik = query_points.start_points_mu_ik();
 
     let preprocessing = Preprocessing::from_path(preprocessing)?;
+    let sample_ids = preprocessing.scale_factors().keys().cloned().collect::<Vec<_>>();
     let prior = preprocessing.prior()?;
     let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect();
 
-    let query_points = preprocessing.query_points();
+    let query_points = query_points::calc_query_points(c, preprocessing.mean_disp_estimates().clone(), sample_ids, preprocessing.feature_ids().clone());
+    // let query_points = preprocessing.query_points();
     // let start_points_mu_ik = Vec::<f64>::new();//query_points.all_mu_ik();
     // let start_points_theta_i = Vec::<f64>::new(); //query_points.thetas();
     // let possible_f =Vec::<f64>::new();
 
-    let file = File::open("/vol/nano/bayesian-diff-exp-analysis/texp-evaluation/estimated_dispersion.csv")?;
-    let mut rdr = csv::Reader::from_reader(file);
-    let mut thetas = Vec::<f64>::new();
-    for result in rdr.records() {
-        let record = result?;
-        let dispersion: f64 = record[1].parse().unwrap();
-        thetas.push(dispersion);
-    }
+    // let file = File::open("/vol/nano/bayesian-diff-exp-analysis/texp-evaluation/estimated_dispersion.csv")?;
+    // let mut rdr = csv::Reader::from_reader(file);
+    // let mut thetas = Vec::<f64>::new();
+    // for result in rdr.records() {
+    //     let record = result?;
+    //     let dispersion: f64 = record[1].parse().unwrap();
+    //     thetas.push(dispersion);
+    // }
 
     let subsampled_ids = vec!["ERCC-00130","ERCC-00004", "ERCC-00136", "ERCC-00096", "ERCC-00171", "ERCC-00009",
     "ERCC-00074", "ERCC-00113", "ERCC-00145", "ERCC-00002", "ERCC-00046", "ERCC-00003"];
@@ -76,13 +82,14 @@ pub(crate) fn diff_exp(
                 println!("skipped {:?}", feature_id);
                 return  Ok(());
             }
-            println!("max_prob keys 1 {:?}", prob_dist_i_k1.get_max_prob_keys());
-            println!("max_prob_1 {:?}", prob_dist_i_k1.get_max_prob().exp());
-            println!("max_prob keys 2 {:?}", prob_dist_i_k2.get_max_prob_keys());
-            println!("max_prob_2 {:?}", prob_dist_i_k2.get_max_prob().exp());
+            // println!("max_prob keys 1 {:?}", prob_dist_i_k1.get_max_prob_keys());
+            // println!("max_prob_1 {:?}", prob_dist_i_k1.get_max_prob().exp());
+            // println!("max_prob keys 2 {:?}", prob_dist_i_k2.get_max_prob_keys());
+            // println!("max_prob_2 {:?}", prob_dist_i_k2.get_max_prob().exp());
             let possible_f = query_points.get(&feature_id.to_string()).unwrap().possible_f();
             let start_points_mu_ik = query_points.get(&feature_id.to_string()).unwrap().start_points_mu_ik();
             let start_points_theta_i = query_points.get(&feature_id.to_string()).unwrap().thetas();
+            let all_mu_ik = query_points.get(&feature_id.to_string()).unwrap().all_mu_ik();
 
             // let mut start_points_mu_ik = vec![0.];
             // let mut cur_maximum_likelihood_mean = 100. / 20.;
@@ -153,7 +160,19 @@ pub(crate) fn diff_exp(
                         // if f >= 0.95 && f <=0.99 { 
                             // println!("f {:?}, x {:?}, f * (x + c) s- c {:?}", f, x, f * (x + c) - c);
                         // }
-                        let p1 = prob_dist_i_k1.get(&[(f *(x + c) - c), theta]);
+                        let mut fx = f * (x + c) - c;
+                        if fx< 0.1{
+                            // round fx to 3 decimals
+                            fx = (fx * 1000.).round() / 1000.;
+                        } else if fx < 100. {
+                            // round fx to 2 decimals
+                            fx = (fx * 100.).round() / 100.;
+                        } else {
+                             // round fx to 1 decimal
+                             fx = (fx * 10.).round() / 10.;                     
+                        }
+
+                        let p1 = prob_dist_i_k1.get(&[fx, theta]);
                         let p2 = prob_dist_i_k2.get(&[x, theta]);
                         // if f <5. {
                         //     println!("f {:?}, x {:?}, get f*x {:?} get x {:?}, prod {:?}", 
@@ -184,6 +203,7 @@ pub(crate) fn diff_exp(
                     // if f >= 0.95 && f <=0.99 { 
                     //     println!("prob_d_i_f f {:?} {:?}", f, value.exp());
                     // }
+                    // println!("feature_id {:?} prob_d_i_f f {:?} {:?}", feature_id, f, prob_theta.exp());
                     prob_d_i_f.insert(f, prob_theta);
                 }
 
@@ -200,7 +220,7 @@ pub(crate) fn diff_exp(
 
             for f in possible_f.clone(){
                 let value = calc_prob_f(f);
-                // println!("diff_exp_distribution f {:?} {:?}", f, value);
+                // println!("feature_id {:?} diff_exp_distribution f {:?} {:?}", feature_id, f, value);
                 diff_exp_distribution.insert(f, value );
             }
 

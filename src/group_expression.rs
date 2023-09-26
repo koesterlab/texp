@@ -13,10 +13,11 @@ use itertools_num::linspace;
 
 use crate::common::{Outdir, Pair, difference_to_big};
 use crate::errors::Error;
-use crate::preprocess::{QueryPoints, Preprocessing};
+use crate::preprocess::{Preprocessing};
 use crate::prob_distribution_1d::ProbDistribution1d;
 use crate::prob_distribution_2d::ProbDistribution2d;
 use crate::sample_expression::SampleInfo;
+use crate::query_points;
 
 
 
@@ -30,21 +31,23 @@ pub(crate) fn group_expression(
     // let mu_ik_points = query_points.all_mu_ik();
     // let start_points_theta_i = query_points.thetas();
     let preprocessing = Preprocessing::from_path(preprocessing)?;
+    let sample_ids = preprocessing.scale_factors().keys().cloned().collect::<Vec<_>>();
     let prior = preprocessing.prior()?;
     let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect(); //190432
 
-    let query_points = preprocessing.query_points();
+    let query_points = query_points::calc_query_points(c, preprocessing.mean_disp_estimates().clone(), sample_ids, preprocessing.feature_ids().clone());
+    // let query_points = preprocessing.query_points();
     // let mu_ik_points = Vec::<f64>::new();//query_points.all_mu_ik();
     // let start_points_theta_i = Vec::<f64>::new(); //query_points.thetas();
 
-    let file = File::open("/vol/nano/bayesian-diff-exp-analysis/texp-evaluation/estimated_dispersion.csv")?;
-    let mut rdr = csv::Reader::from_reader(file);
-    let mut thetas = Vec::<f64>::new();
-    for result in rdr.records() {
-        let record = result?;
-        let dispersion: f64 = record[1].parse().unwrap();
-        thetas.push(dispersion);
-    }
+    // let file = File::open("/vol/nano/bayesian-diff-exp-analysis/texp-evaluation/estimated_dispersion.csv")?;
+    // let mut rdr = csv::Reader::from_reader(file);
+    // let mut thetas = Vec::<f64>::new();
+    // for result in rdr.records() {
+    //     let record = result?;
+    //     let dispersion: f64 = record[1].parse().unwrap();
+    //     thetas.push(dispersion);
+    // }
 
 
     let subsampled_ids = vec!["ERCC-00130","ERCC-00004", "ERCC-00136", "ERCC-00096", "ERCC-00171", "ERCC-00009",
@@ -243,7 +246,7 @@ pub(crate) fn group_expression(
             // println!("4");
             let start_points_mu_ik = query_points.get(&feature_id.to_string()).unwrap().all_mu_ik();
             let start_points_theta_i = query_points.get(&feature_id.to_string()).unwrap().thetas();
-            prob_dist.insert_grid(start_points_mu_ik.clone(), start_points_theta_i.clone(), calc_prob);
+            prob_dist.insert_grid_group(start_points_mu_ik.clone(), start_points_theta_i.clone(), calc_prob);
             // println!("5");
             // let norm_factor = prob_dist.normalize(); // remove factor c_ik
             out_dir.serialize_value(feature_id, prob_dist)?;
