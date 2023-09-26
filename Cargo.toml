@@ -9,7 +9,7 @@ edition = "2018"
 structopt = "0.3"
 anyhow = "1.0"
 thiserror = "1.0"
-hdf5 = { git = "https://github.com/aldanor/hdf5-rust", branch = "master"}
+hdf5 = {version="0.8.1", git = "https://github.com/aldanor/hdf5-rust", branch = "master"}
 ndarray = { version = "0.15", features = ["serde", "rayon"] }
 ndarray-stats = "0.5"
 noisy_float = { version = "0.2", features = ["serde"] }
