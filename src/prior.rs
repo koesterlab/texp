@@ -8,7 +8,7 @@ use statrs::distribution::{Continuous, ContinuousCDF, InverseGamma};
 use statrs::statistics::Distribution;
 use typed_builder::TypedBuilder;
 
-#[derive(TypedBuilder, Debug, Getters, Serialize, Deserialize)]
+#[derive(TypedBuilder, Copy, Clone, Debug, Getters, Serialize, Deserialize)]
 pub(crate) struct PriorParameters {
     shape: f64,
     shift: f64,
@@ -65,15 +65,15 @@ impl Prior {
         self.inv_gamma.mean().unwrap() + self.shift
     }
 
-    pub(crate) fn min_value(&self) -> f64 {
-        self.inv_gamma.inverse_cdf(0.001)
-        // self.shift
-    }
+    // pub(crate) fn min_value(&self) -> f64 {
+    //     self.inv_gamma.inverse_cdf(0.001)
+    //     // self.shift
+    // }
 
-    pub(crate) fn max_value(&self) -> f64 {
-        20.
-        //self.inv_gamma.inverse_cdf(0.99)
-    }
+    // pub(crate) fn max_value(&self) -> f64 {
+    //     20.
+    //     //self.inv_gamma.inverse_cdf(0.99)
+    // }
 }
 
 

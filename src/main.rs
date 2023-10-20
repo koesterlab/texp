@@ -1,13 +1,9 @@
-// #![recursion_limit = "512"]
-
 use std::path::PathBuf;
 
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
 use rayon;
 use structopt::StructOpt;
-
-// use crate::common::Outdir;
 
 mod common;
 mod query_points;
@@ -255,17 +251,6 @@ enum Cli {
         )]
         out_file: PathBuf,
     },
-    // #[structopt(
-    //     name = "show-sample-expression",
-    //     about = "Decode mpk into JSON.",
-    //     setting = structopt::clap::AppSettings::ColoredHelp,
-    // )]
-    // ShowSampleExpressions {
-    //     #[structopt(parse(from_os_str), help = "Path to sample expressions dir.")]
-    //     path: PathBuf,
-    //     #[structopt(long = "feature-id", help = "ID of feature to show.")]
-    //     feature_id: String,
-    // },
 }
 
 fn main() -> Result<()> {
@@ -359,12 +344,5 @@ fn main() -> Result<()> {
             }
 
         }
-        // Cli::ShowSampleExpressions { path, feature_id } => {
-            // let dir = Outdir::open(&path)?;
-            // let expr: ProbDistribution<MeanDispersionPair> = dir.deserialize_value(&feature_id)?;
-            // TODO output as tsv (use csv crate)
-            // dbg!(&expr);
-            // Ok(())
-        // }
     }
 }

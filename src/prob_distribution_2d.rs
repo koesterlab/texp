@@ -80,9 +80,9 @@ impl ProbDistribution2d {
         self.points[self.max_prob_entry_position].prob
     }
 
-    pub(crate) fn get_max_prob_keys(&self) -> [f64; 2] {
-        self.points[self.max_prob_entry_position].position
-    }
+    // pub(crate) fn get_max_prob_keys(&self) -> [f64; 2] {
+    //     self.points[self.max_prob_entry_position].position
+    // }
 
     // pub(crate) fn get_range_per_theta(&self, theta: f64) -> [f64; 2] {
     //     if self.range_per_theta.is_empty(){

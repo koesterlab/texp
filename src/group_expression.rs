@@ -2,19 +2,20 @@
 
 
 use std::path::{Path, PathBuf};
-use std::collections::VecDeque;
-use std::fs::File;
+// use std::collections::VecDeque;
+// use std::fs::File;
 
 use anyhow::Result;
 use bio::stats::LogProb;
 use rayon::prelude::*;
 use csv;
-use itertools_num::linspace;
+// use itertools_num::linspace;
 
-use crate::common::{Outdir, Pair, difference_to_big};
+// use crate::common::{Outdir, Pair, difference_to_big};
+use crate::common::Outdir;
 use crate::errors::Error;
-use crate::preprocess::{Preprocessing};
-use crate::prob_distribution_1d::ProbDistribution1d;
+use crate::preprocess::Preprocessing;
+// use crate::prob_distribution_1d::ProbDistribution1d;
 use crate::prob_distribution_2d::ProbDistribution2d;
 use crate::sample_expression::SampleInfo;
 use crate::query_points;
@@ -115,8 +116,8 @@ pub(crate) fn group_expression(
                     return Ok(());
                 }
             // println!("2");
-            let maximum_likelihood_mean = maximum_likelihood_means.iter().sum::<f64>()
-                / maximum_likelihood_means.len() as f64;
+            // let maximum_likelihood_mean = maximum_likelihood_means.iter().sum::<f64>()
+            //     / maximum_likelihood_means.len() as f64;
 
             // let mut prob_dist = ProbDistribution1d::new();
             let mut prob_dist = ProbDistribution2d::new();

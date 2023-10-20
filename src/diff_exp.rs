@@ -1,24 +1,24 @@
 //! This implements formula 9 of the document and calculates the fold change / differential expression.
-use std::collections::VecDeque;
-use std::mem;
+// use std::collections::VecDeque;
+// use std::mem;
 use std::path::Path;
-use std::fs::File;
-use std::collections::HashMap;
-use std::collections::HashSet;
+// use std::fs::File;
+// use std::collections::HashMap;
+// use std::collections::HashSet;
 
 
 use anyhow::Result;
 use bio::stats::LogProb;
-use ordered_float::OrderedFloat;
+// use ordered_float::OrderedFloat;
 use rayon::prelude::*;
-use csv;
-use itertools_num::linspace;
-use itertools::iproduct;
-use crate::common::{Outdir, Pair};
-use crate::preprocess::{Preprocessing};
+// use csv;
+// use itertools_num::linspace;
+// use itertools::iproduct;
+use crate::common::Outdir;
+use crate::preprocess::Preprocessing;
 use crate::prob_distribution_1d::ProbDistribution1d;
 use crate::prob_distribution_2d::ProbDistribution2d;
-use crate::sample_expression;
+// use crate::sample_expression;
 use crate::query_points;
 
 
@@ -89,7 +89,7 @@ pub(crate) fn diff_exp(
             let possible_f = query_points.get(&feature_id.to_string()).unwrap().possible_f();
             let start_points_mu_ik = query_points.get(&feature_id.to_string()).unwrap().start_points_mu_ik();
             let start_points_theta_i = query_points.get(&feature_id.to_string()).unwrap().thetas();
-            let all_mu_ik = query_points.get(&feature_id.to_string()).unwrap().all_mu_ik();
+            // let all_mu_ik = query_points.get(&feature_id.to_string()).unwrap().all_mu_ik();
 
             // let mut start_points_mu_ik = vec![0.];
             // let mut cur_maximum_likelihood_mean = 100. / 20.;

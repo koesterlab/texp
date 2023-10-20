@@ -46,9 +46,9 @@ impl ProbDistribution1d {
         self.max_prob_position.unwrap()
     }
 
-    pub(crate) fn get_max_prob(&self) -> LogProb {
-        self.max_prob.unwrap()
-    }
+    // pub(crate) fn get_max_prob(&self) -> LogProb {
+    //     self.max_prob.unwrap()
+    // }
 
     fn calc_directions(
         x1: f64,
@@ -305,26 +305,26 @@ impl ProbDistribution1d {
         }
     }
 
-    pub(crate) fn normalize(&mut self) -> LogProb {
-        if self.is_na {
-            return LogProb::ln_one();
-        }
-        let density = |_, value| self.get(value);
-        let marginals = self
-            .points
-            .keys()
-            .map(|value| *value)
-            .collect::<Vec<_>>()
-            .windows(2)
-            .map(|x| LogProb::ln_simpsons_integrate_exp(density, x[0].raw(), x[1].raw(), 3))
-            .collect::<Vec<_>>();
-        let marginal = LogProb::ln_sum_exp(&marginals);
-        if marginal != LogProb::ln_zero() {
-            for (prob, _, _) in self.points.values_mut() {  // d1, d2
-                *prob = *prob - marginal //Logspace / -> -
-            }
-            self.max_prob = Some(self.max_prob.unwrap() - marginal);
-        }
-        marginal
-    }
+    // pub(crate) fn normalize(&mut self) -> LogProb {
+    //     if self.is_na {
+    //         return LogProb::ln_one();
+    //     }
+    //     let density = |_, value| self.get(value);
+    //     let marginals = self
+    //         .points
+    //         .keys()
+    //         .map(|value| *value)
+    //         .collect::<Vec<_>>()
+    //         .windows(2)
+    //         .map(|x| LogProb::ln_simpsons_integrate_exp(density, x[0].raw(), x[1].raw(), 3))
+    //         .collect::<Vec<_>>();
+    //     let marginal = LogProb::ln_sum_exp(&marginals);
+    //     if marginal != LogProb::ln_zero() {
+    //         for (prob, _, _) in self.points.values_mut() {  // d1, d2
+    //             *prob = *prob - marginal //Logspace / -> -
+    //         }
+    //         self.max_prob = Some(self.max_prob.unwrap() - marginal);
+    //     }
+    //     marginal
+    // }
 }

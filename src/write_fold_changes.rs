@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 
 use csv;
 use anyhow::Result;
@@ -6,7 +6,7 @@ use anyhow::Result;
 
 use crate::common::Outdir;
 use crate::preprocess::Preprocessing;
-use crate::prob_distribution_1d::{ProbDistribution1d, self};
+use crate::prob_distribution_1d::{ProbDistribution1d};
 
 
 pub(crate) fn write_fold_changes(
