@@ -17,7 +17,7 @@ pub(crate) fn write_fold_changes(
 
     let in_dir = Outdir::open(&differential_expression_path)?;
     let preprocessing = Preprocessing::from_path(preprocessing)?;
-    let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect();
+    let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
 
     // Open a csv file for writing
     let mut wtr = csv::Writer::from_path(output)?;
@@ -62,7 +62,7 @@ pub(crate) fn write_kallisto_fold_changes(
         let s1 = scale_factors.get(&sample_ids[0]).unwrap();
         let means2 = means_disp.get(&sample_ids[1]).unwrap().means();
         let s2 = scale_factors.get(&sample_ids[1]).unwrap();
-        let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect();
+        let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
     
         // Open a csv file for writing
         let mut wtr = csv::Writer::from_path(output)?;
@@ -113,7 +113,7 @@ pub(crate) fn write_kallisto_counts(
 
         let mut wtr = csv::Writer::from_path(output)?;
         wtr.serialize(("sample_id", "feature_id", "normalized_count", "dispersion")).unwrap();
-        let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect();
+        let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
 
         for sample_id in sample_ids {
             let means = means_disp.get(&sample_id).unwrap().means();

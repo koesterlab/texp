@@ -150,7 +150,7 @@ pub(crate) fn calc_query_points(c: f64, mean_disp_estimates: HashMap<String, Est
     // println!("min_per_feature 1 {:?}", min_per_feature[190432]);
     // println!("min_per_feature -1 {:?}", min_per_feature[min_per_feature.len()-1]);
     //enumerate over features
-    for (i, feature_id ) in feature_ids.iter().enumerate().skip(190432) {
+    for (i, feature_id ) in feature_ids.iter().enumerate() {
         let mean = means_per_feature[i];
         let query_points = QueryPoints::new(c, mean, *min_max_values.get(&i).unwrap()).unwrap();
         query_points_per_feature.insert(feature_id.to_string(), query_points);

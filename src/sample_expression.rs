@@ -70,11 +70,12 @@ pub(crate) fn sample_expression(
 
 
 
-    let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect();
+    // let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect();
+    let feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
     // println!("{:?} features", feature_ids.len());
     // println!("{:?}", feature_ids);
     // let subsampled_ids = vec!["ERCC-00147","ERCC-00117", "ERCC-00016", "ERCC-00086", "ERCC-0061", "ERCC-00048"];
-    let subsampled_ids = vec!["ERCC-00130","ERCC-00004", "ERCC-00136", "ERCC-00096", "ERCC-00074", "ERCC-00002"];
+    // let subsampled_ids = vec!["ERCC-00130","ERCC-00004", "ERCC-00136", "ERCC-00096", "ERCC-00074", "ERCC-00002"];
     // ,    "ERCC-00171", "ERCC-00113", "ERCC-00145", "ERCC-00002", "ERCC-00046", "ERCC-00003", "ERCC-00113"];
 
     let out_dir = Outdir::create(out_dir_path)?;

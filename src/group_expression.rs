@@ -33,8 +33,9 @@ pub(crate) fn group_expression(
     // let start_points_theta_i = query_points.thetas();
     let preprocessing = Preprocessing::from_path(preprocessing)?;
     let sample_ids = preprocessing.scale_factors().keys().cloned().collect::<Vec<_>>();
-    let prior = preprocessing.prior()?;
-    let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect(); //190432
+    // let prior = preprocessing.prior()?;
+    // let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect(); //190432
+    let feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
 
     let query_points = query_points::calc_query_points(c, preprocessing.mean_disp_estimates().clone(), sample_ids, preprocessing.feature_ids().clone());
     // let query_points = preprocessing.query_points();
@@ -51,8 +52,8 @@ pub(crate) fn group_expression(
     // }
 
 
-    let subsampled_ids = vec!["ERCC-00130","ERCC-00004", "ERCC-00136", "ERCC-00096", "ERCC-00171", "ERCC-00009",
-    "ERCC-00074", "ERCC-00113", "ERCC-00145", "ERCC-00002", "ERCC-00046", "ERCC-00003"];
+    // let subsampled_ids = vec!["ERCC-00130","ERCC-00004", "ERCC-00136", "ERCC-00096", "ERCC-00171", "ERCC-00009",
+    // "ERCC-00074", "ERCC-00113", "ERCC-00145", "ERCC-00002", "ERCC-00046", "ERCC-00003"];
 
     let out_dir = Outdir::create(out_dir_path)?;
     // feature_ids.truncate(10000);

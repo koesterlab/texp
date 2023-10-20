@@ -12,12 +12,12 @@ mod errors;
 mod group_expression;
 mod kallisto;
 mod preprocess;
+mod reduce_features;
 mod prior;
 mod prob_distribution_1d;
 mod prob_distribution_2d;
 mod sample_expression;
 mod write_fold_changes;
-// use prob_distribution_2d::ProbDistribution2d;
 
 #[derive(StructOpt, Debug)]
 #[structopt(
@@ -67,6 +67,34 @@ enum Cli {
             help = "Shift of prior distribution (inverse gamma)."
         )]
         prior_shift: f64,
+    },
+    #[structopt(
+        name = "reduce-features",
+        about = "Reduce features in datasat to only those contained in list $feature-ids",
+        setting = structopt::clap::AppSettings::ColoredHelp,
+    )]
+    ReduceFeatures {
+        #[structopt(
+            parse(from_os_str),
+            long = "preprocessing_path",
+            short = "p",
+            help = "Path to preprocessed Kallisto results."
+        )]
+        preprocessing_path: PathBuf,
+        #[structopt(
+            parse(from_os_str),
+            long = "feature-ids",
+            short = "i",
+            help = "Path to list of feature ids."
+        )]
+        feature_ids: PathBuf,
+        // #[structopt(
+        //     parse(from_os_str),
+        //     long = "output",
+        //     short = "o",
+        //     help = "Path to output directory."
+        // )]
+        // out_dir: PathBuf,
     },
     #[structopt(
         name = "sample-expression",
@@ -271,6 +299,13 @@ fn main() -> Result<()> {
                 .build();
             // normalize
             preprocess::preprocess(c, &kallisto_quants, &sample_ids, prior_parameters)
+        }
+        Cli::ReduceFeatures {
+            preprocessing_path,
+            feature_ids,
+            // out_dir,
+        } => {            
+            reduce_features::reduce_features(&preprocessing_path, &feature_ids) //, &out_dir)
         }
         Cli::SampleExp {
             preprocessing_path,

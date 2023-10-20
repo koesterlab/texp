@@ -8,7 +8,7 @@ use std::thread;
 
 use anyhow::Result;
 use getset::Getters;
-use ndarray::{Array1, Axis, Dim};
+use ndarray::{Array1, Axis};
 use ndarray_stats::{interpolate, Quantile1dExt, QuantileExt};
 use noisy_float::types::N64;
 use rmp_serde::{Deserializer, Serializer};
@@ -71,6 +71,22 @@ pub(crate) struct Preprocessing {
 }
 
 impl Preprocessing {
+
+    //constructor for preprocessing
+    pub(crate) fn new(
+        scale_factors: HashMap<String, f64>,
+        mean_disp_estimates: HashMap<String, Estimates>,
+        feature_ids: Array1<String>,
+        prior_parameters: PriorParameters,
+    ) -> Self {
+        Preprocessing {
+            scale_factors,
+            mean_disp_estimates,
+            feature_ids,
+            prior_parameters,
+        }
+    }
+
     pub(crate) fn from_path(path: &Path) -> Result<Self> {
         Ok(Preprocessing::deserialize(&mut Deserializer::new(
             File::open(path)?,
@@ -171,6 +187,10 @@ impl Estimates {
             dispersions: dispersions.mapv(|d| if d.is_nan() { None } else { Some(d) }),
             means,
         })
+    }
+
+    pub(crate) fn new_from_arrays(dispersions: Array1<Option<f64>>, means: Array1<f64>) -> Self {
+        Estimates { dispersions, means }
     }
 }
 
