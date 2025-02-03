@@ -4,6 +4,7 @@ use anyhow::Result;
 use getset::Getters;
 use itertools_num::linspace;
 use itertools::iproduct;
+use num_traits::int;
 use serde_derive::{Deserialize, Serialize};
 use ndarray::{Array1, Dim};
 
@@ -67,7 +68,7 @@ impl QueryPoints {
         for (f, mu_1) in iproduct!(possible_f.clone(), start_points_mu_ik.clone()) {
             let mut mu_2 = f * (mu_1 + c) - c;
             if mu_2 > 0. {
-                if mu_2< 0.1{
+                if mu_2 < 0.1 {
                     // round mu_2 to 3 decimals
                     mu_2 = (mu_2 * 1000.).round() / 1000.;
                 } else if mu_2 < 100. {
@@ -117,9 +118,9 @@ fn compute_min_max_values(mean_disp_estimates: &HashMap<String, Estimates>) -> H
 
 
 // calc query points for each feature
-
-pub(crate) fn calc_query_points(c: f64, mean_disp_estimates: HashMap<String, Estimates> , sample_ids: Vec<String>, feature_ids: Array1<String> ) ->HashMap<String, QueryPoints> {
-    let mut query_points_per_feature = HashMap::<String, QueryPoints>::new();
+pub(crate) fn calc_query_points(c: f64, mean_disp_estimates: HashMap<String, Estimates> , sample_ids: Vec<String>, feature_ids: Array1<String>, id: usize ) ->QueryPoints {
+    // pub(crate) fn calc_query_points(c: f64, mean_disp_estimates: HashMap<String, Estimates> , sample_ids: Vec<String>, feature_ids: Array1<String> ) ->HashMap<String, QueryPoints> {
+//     // let mut query_points_per_feature = HashMap::<String, QueryPoints>::new();
    // get minimum, mean and maximum mu_ik per feature
 
    let mut means_per_feature : Array1<f64> = Array1::zeros(Dim([mean_disp_estimates[&sample_ids[0]].means().len()]));
@@ -150,12 +151,15 @@ pub(crate) fn calc_query_points(c: f64, mean_disp_estimates: HashMap<String, Est
     // println!("min_per_feature 1 {:?}", min_per_feature[190432]);
     // println!("min_per_feature -1 {:?}", min_per_feature[min_per_feature.len()-1]);
     //enumerate over features
-    for (i, feature_id ) in feature_ids.iter().enumerate() {
-        let mean = means_per_feature[i];
-        let query_points = QueryPoints::new(c, mean, *min_max_values.get(&i).unwrap()).unwrap();
-        query_points_per_feature.insert(feature_id.to_string(), query_points);
-    }
+    // for (i, feature_id ) in feature_ids.iter().enumerate() {
+    //     let mean = means_per_feature[i];
+    //     let query_points = QueryPoints::new(c, mean, *min_max_values.get(&i).unwrap()).unwrap();
+    //     query_points_per_feature.insert(feature_id.to_string(), query_points);
+    // }
 
-    query_points_per_feature
+    // query_points_per_feature
+    let mean = means_per_feature[id];
+    let query_points = QueryPoints::new(c, mean, *min_max_values.get(&id).unwrap()).unwrap();
+    query_points
 
 }

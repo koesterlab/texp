@@ -8,7 +8,7 @@ use serde::Serialize as SerdeSerialize;
 use rmp_serde::{Deserializer, Serializer};
 use std::io::stdout;
 
-use crate::common::Outdir; 
+// use crate::common::Outdir; 
 use crate::preprocess::{Preprocessing, Estimates};
 
 pub(crate) fn reduce_features(

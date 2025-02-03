@@ -242,11 +242,18 @@ enum Cli {
         preprocessing_path: PathBuf,
         #[structopt(
             parse(from_os_str),
-            long = "output",
-            short = "o",
+            long = "output_dist",
+            short = "odist",
             help = "Path to output file."
         )]
-        out_file: PathBuf,
+        out_file_dist: PathBuf,
+        #[structopt(
+            parse(from_os_str),
+            long = "output_max_prob_fc",
+            short = "ofc",
+            help = "Path to output file."
+        )]
+        out_file_max_prob_fc: PathBuf,
     },
     #[structopt(
         name = "kallisto-values",
@@ -362,9 +369,10 @@ fn main() -> Result<()> {
         Cli::ToText {
             diff_exp_path,
             preprocessing_path,
-            out_file,
+            out_file_dist,
+            out_file_max_prob_fc,
         } => {
-            write_fold_changes::write_fold_changes(&preprocessing_path, &diff_exp_path, &out_file)
+            write_fold_changes::write_fold_changes(&preprocessing_path, &diff_exp_path, &out_file_dist, &out_file_max_prob_fc)
         }
         Cli::KallistoValues {
             foldchange,

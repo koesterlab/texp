@@ -37,8 +37,8 @@ pub(crate) fn group_expression(
     // let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect(); //190432
     let feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
 
-    let query_points = query_points::calc_query_points(c, preprocessing.mean_disp_estimates().clone(), sample_ids, preprocessing.feature_ids().clone());
-    // let query_points = preprocessing.query_points();
+    // let query_points = query_points::calc_query_points(c, preprocessing.mean_disp_estimates().clone(), sample_ids, preprocessing.feature_ids().clone());
+    // // let query_points = preprocessing.query_points();
     // let mu_ik_points = Vec::<f64>::new();//query_points.all_mu_ik();
     // let start_points_theta_i = Vec::<f64>::new(); //query_points.thetas();
 
@@ -53,7 +53,7 @@ pub(crate) fn group_expression(
 
 
     // let subsampled_ids = vec!["ERCC-00130","ERCC-00004", "ERCC-00136", "ERCC-00096", "ERCC-00171", "ERCC-00009",
-    // "ERCC-00074", "ERCC-00113", "ERCC-00145", "ERCC-00002", "ERCC-00046", "ERCC-00003"];
+    // // "ERCC-00074", "ERCC-00113", "ERCC-00145", "ERCC-00002", "ERCC-00046", "ERCC-00003"];
 
     let out_dir = Outdir::create(out_dir_path)?;
     // feature_ids.truncate(10000);
@@ -61,8 +61,8 @@ pub(crate) fn group_expression(
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
             // if subsampled_ids.contains(&feature_id.as_str()) {
-            // if feature_id.as_str() == "ERCC-00108" {    
-            
+            // if feature_id.as_str() == "ERCC-00108" {
+
             // println!("--------------feature {:?} {:?}", i, feature_id);
             let maximum_likelihood_means: Vec<f64> = sample_expression_paths
                 .iter()
@@ -163,7 +163,7 @@ pub(crate) fn group_expression(
             };
             // let mut start_points_mu_ik = vec![0.];
             // // let mut cur_prob = calc_prob(0.);
-            // // prob_dist.insert(0., cur_prob);            
+            // // prob_dist.insert(0., cur_prob);
             // // // println!("insert mu {:?}, prob {:?}", 0., f64::from(cur_prob.exp()));
             // let mut cur_maximum_likelihood_mean = maximum_likelihood_mean / 16.;
             // if (cur_maximum_likelihood_mean > 0.) {
@@ -186,7 +186,7 @@ pub(crate) fn group_expression(
             // // prob_dist.insert(10000., cur_prob);
             // // // println!("insert mu {:?}, prob {:?}", 10000., f64::from(cur_prob.exp()));
             // let mut start_points_mu_ik = mu_ik_points.clone();
-            
+
             // let theta = thetas[i-190432];
 
             // let mut start_points_theta_i = Vec::<f64>::new();
@@ -194,7 +194,7 @@ pub(crate) fn group_expression(
             // start_points_theta_i.push(theta);
             // start_points_theta_i.extend(prior.right_window());
             // start_points_theta_i.sort_by(|a, b| a.partial_cmp(b).unwrap());
-           
+
 
 
 
@@ -246,8 +246,13 @@ pub(crate) fn group_expression(
             // }
 
             // println!("4");
-            let start_points_mu_ik = query_points.get(&feature_id.to_string()).unwrap().all_mu_ik();
-            let start_points_theta_i = query_points.get(&feature_id.to_string()).unwrap().thetas();
+            let query_points = query_points::calc_query_points(c, preprocessing.mean_disp_estimates().clone(), sample_ids.clone(), preprocessing.feature_ids().clone(), *i);
+            let start_points_mu_ik = query_points.all_mu_ik();
+            let start_points_theta_i = query_points.thetas();
+
+
+            // let start_points_mu_ik = query_points.get(&feature_id.to_string()).unwrap().all_mu_ik();
+            // let start_points_theta_i = query_points.get(&feature_id.to_string()).unwrap().thetas();
             prob_dist.insert_grid_group(start_points_mu_ik.clone(), start_points_theta_i.clone(), calc_prob);
             // println!("5");
             // let norm_factor = prob_dist.normalize(); // remove factor c_ik

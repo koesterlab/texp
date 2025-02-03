@@ -54,7 +54,7 @@ pub(crate) fn sample_expression(
     // let temp: Vec<_>= mean_disp_estimates.means().iter().enumerate().skip(190432).collect();
     // println!("mean_disp_estimates {:?}", temp);
 
-    let query_points = query_points::calc_query_points(c, preprocessing.mean_disp_estimates().clone(), sample_ids, preprocessing.feature_ids().clone());
+    // let query_points = query_points::calc_query_points(c, preprocessing.mean_disp_estimates().clone(), sample_ids, preprocessing.feature_ids().clone());
     // let query_points = preprocessing.query_points();
     // let mu_ik_points = Vec::<f64>::new();//query_points.all_mu_ik();
     // let start_points_theta_i = Vec::<f64>::new(); //query_points.thetas();
@@ -83,6 +83,7 @@ pub(crate) fn sample_expression(
     feature_ids
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
+
             
             // if subsampled_ids.contains(&feature_id.as_str()) {
             // if feature_id.as_str() == "ERCC-00108" {   
@@ -96,6 +97,7 @@ pub(crate) fn sample_expression(
             // output.set_extension("csv");
             // let mut wtr = csv::Writer::from_path(output)?;
             // wtr.serialize(("mu_ik", "probability")).unwrap();
+            let query_points = query_points::calc_query_points(c, preprocessing.mean_disp_estimates().clone(), sample_ids.clone(), preprocessing.feature_ids().clone(), *i);
 
             let d_ij = mean_disp_estimates.means()[*i]; //TODO Do we need group mean mu_ik instead of sample mean
             // println!("{:?} d_ij {:?}", feature_id, d_ij / s_j);
@@ -158,9 +160,12 @@ pub(crate) fn sample_expression(
                 // }
                 prob
             };
-            let mu_ik_points = query_points.get(&feature_id.to_string()).unwrap().all_mu_ik();
-            let start_points_theta_i = query_points.get(&feature_id.to_string()).unwrap().thetas();
-            // println!("{:?} #mu_ik {:?}, #theta_i {:?}",feature_id,  mu_ik_points.len(), start_points_theta_i.len());
+            // let mu_ik_points = query_points.get(&feature_id.to_string()).unwrap().all_mu_ik();
+            // let start_points_theta_i = query_points.get(&feature_id.to_string()).unwrap().thetas();
+            let mu_ik_points = query_points.all_mu_ik();
+            let start_points_theta_i = query_points.thetas();
+            
+            // // println!("{:?} #mu_ik {:?}, #theta_i {:?}",feature_id,  mu_ik_points.len(), start_points_theta_i.len());
             // println!("{:?} mu_ik_points {:?} {:?}",feature_id, mu_ik_points[0], mu_ik_points[mu_ik_points.len()-1]);
             // println!("start_points_theta_i {:?}", start_points_theta_i);
             likelihoods.insert_grid(d_ij/s_j, mu_ik_points.clone(), start_points_theta_i.clone(), calc_prob);

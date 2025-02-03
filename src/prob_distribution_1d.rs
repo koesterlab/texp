@@ -46,9 +46,9 @@ impl ProbDistribution1d {
         self.max_prob_position.unwrap()
     }
 
-    // pub(crate) fn get_max_prob(&self) -> LogProb {
-    //     self.max_prob.unwrap()
-    // }
+    pub(crate) fn get_max_prob(&self) -> LogProb {
+        self.max_prob.unwrap()
+    }
 
     fn calc_directions(
         x1: f64,
@@ -57,7 +57,7 @@ impl ProbDistribution1d {
         x2: f64,
         y2: LogProb,
         s2: f64,
-    ) -> (f64, LogProb, f64) {     
+    ) -> (f64, LogProb, f64) {
         let d1 = 0.; // is f64
 
         let mut len_left = LogProb::ln_one();
@@ -112,7 +112,7 @@ impl ProbDistribution1d {
             // println!("panic 2");
             sign2 = -1.;
             param2 = prob.ln_sub_exp(upper_prob)
-        } else {            
+        } else {
             param2 = upper_prob.ln_sub_exp(prob)
         }
         (sign1, param1, sign2, param2)

@@ -45,8 +45,8 @@ pub(crate) fn diff_exp(
     let prior = preprocessing.prior()?;
     // let mut feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().skip(190432).collect();
     let feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
-    let query_points = query_points::calc_query_points(c, preprocessing.mean_disp_estimates().clone(), sample_ids, preprocessing.feature_ids().clone());
-    // let query_points = preprocessing.query_points();
+    // let query_points = query_points::calc_query_points(c, preprocessing.mean_disp_estimates().clone(), sample_ids, preprocessing.feature_ids().clone());
+    // // let query_points = preprocessing.query_points();
     // let start_points_mu_ik = Vec::<f64>::new();//query_points.all_mu_ik();
     // let start_points_theta_i = Vec::<f64>::new(); //query_points.thetas();
     // let possible_f =Vec::<f64>::new();
@@ -86,10 +86,16 @@ pub(crate) fn diff_exp(
             // println!("max_prob_1 {:?}", prob_dist_i_k1.get_max_prob().exp());
             // println!("max_prob keys 2 {:?}", prob_dist_i_k2.get_max_prob_keys());
             // println!("max_prob_2 {:?}", prob_dist_i_k2.get_max_prob().exp());
-            let possible_f = query_points.get(&feature_id.to_string()).unwrap().possible_f();
-            let start_points_mu_ik = query_points.get(&feature_id.to_string()).unwrap().start_points_mu_ik();
-            let start_points_theta_i = query_points.get(&feature_id.to_string()).unwrap().thetas();
-            // let all_mu_ik = query_points.get(&feature_id.to_string()).unwrap().all_mu_ik();
+            let query_points = query_points::calc_query_points(c, preprocessing.mean_disp_estimates().clone(), sample_ids.clone(), preprocessing.feature_ids().clone(), *i);
+            let possible_f = query_points.possible_f();
+            let start_points_mu_ik = query_points.start_points_mu_ik();
+            let start_points_theta_i = query_points.thetas();
+            
+
+            // let possible_f = query_points.get(&feature_id.to_string()).unwrap().possible_f();
+            // let start_points_mu_ik = query_points.get(&feature_id.to_string()).unwrap().start_points_mu_ik();
+            // let start_points_theta_i = query_points.get(&feature_id.to_string()).unwrap().thetas();
+            // // let all_mu_ik = query_points.get(&feature_id.to_string()).unwrap().all_mu_ik();
 
             // let mut start_points_mu_ik = vec![0.];
             // let mut cur_maximum_likelihood_mean = 100. / 20.;
