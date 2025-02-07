@@ -4,7 +4,6 @@ use anyhow::Result;
 use getset::Getters;
 use itertools_num::linspace;
 use itertools::iproduct;
-use num_traits::int;
 use serde_derive::{Deserialize, Serialize};
 use ndarray::{Array1, Dim};
 
@@ -55,7 +54,7 @@ impl QueryPoints {
         possible_f.sort_by(|a, b| a.partial_cmp(b).unwrap());
         possible_f.dedup();
 
-        
+
         let mut thetas: Vec<f64> = linspace(0.01, 0.1, 10).take(1).collect();
         thetas.extend( linspace(0.1, 1., 10).step_by(1));
         thetas.extend( linspace(1.5, 10., 18).step_by(2));
@@ -76,10 +75,10 @@ impl QueryPoints {
                     mu_2 = (mu_2 * 100.).round() / 100.;
                 } else {
                      // round mu_2 to 1 decimal
-                    mu_2 = (mu_2 * 10.).round() / 10.;                     
+                    mu_2 = (mu_2 * 10.).round() / 10.;
                 }
-                all_mu_ik.push(mu_2); 
-            }            
+                all_mu_ik.push(mu_2);
+            }
         }
         all_mu_ik.sort_by(|a, b| a.partial_cmp(b).unwrap()); // TODO NaN -> panic
         all_mu_ik.dedup();

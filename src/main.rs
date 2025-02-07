@@ -88,13 +88,6 @@ enum Cli {
             help = "Path to list of feature ids."
         )]
         feature_ids: PathBuf,
-        // #[structopt(
-        //     parse(from_os_str),
-        //     long = "output",
-        //     short = "o",
-        //     help = "Path to output directory."
-        // )]
-        // out_dir: PathBuf,
     },
     #[structopt(
         name = "sample-expression",
@@ -151,7 +144,7 @@ enum Cli {
             short = "p",
             help = "Path to preprocessed Kallisto results."
         )]
-        
+
         preprocessing_path: PathBuf,
         #[structopt(
             short = "c",
@@ -265,7 +258,7 @@ enum Cli {
         #[structopt(
             long = "foldchange",
             short = "f",
-            help = "If --foldchange is set, fold changes are calculated and written into the output file. 
+            help = "If --foldchange is set, fold changes are calculated and written into the output file.
             If --foldchange is not set, counts are written into the output file."
         )]
         foldchange: bool,
@@ -311,7 +304,7 @@ fn main() -> Result<()> {
             preprocessing_path,
             feature_ids,
             // out_dir,
-        } => {            
+        } => {
             reduce_features::reduce_features(&preprocessing_path, &feature_ids) //, &out_dir)
         }
         Cli::SampleExp {

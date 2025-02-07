@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 use bio::stats::LogProb;
-// use derive_new::new;
 use getset::Getters;
 use itertools_num::linspace;
 use serde_derive::{Deserialize, Serialize};
@@ -119,7 +118,7 @@ impl Prior {
 //         }else {
 //             LogProb::ln_zero()
 //         }
-       
+
 //     }
 
 //     #[allow(unused)]

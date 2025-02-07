@@ -25,7 +25,7 @@ pub(crate) fn preprocess(
     c :f64,
     kallisto_quants: &[PathBuf],
     sample_ids: &[String],
-    prior_parameters: PriorParameters,    
+    prior_parameters: PriorParameters,
 ) -> Result<()> {
     if kallisto_quants.len() < 1 {
         return Err(Error::NotEnoughQuants.into());
@@ -97,10 +97,6 @@ impl Preprocessing {
         Prior::new(self.prior_parameters())
     }
 
-    // pub(crate) fn prior(&self) -> Result<Prior> {
-    //     Prior::new(0.25)
-    // }
-
     pub(crate) fn interpolate_dispersion(&self, feature_idx: usize) -> Option<f64> {
         let disp = |estimates: &Estimates| estimates.dispersions[feature_idx];
         let count = self.mean_disp_estimates.values().filter_map(&disp).count();
@@ -165,7 +161,7 @@ fn calc_scale_factors(
                 .map(|scale_factor| (*scale_factor).into()),
         )
         .collect())
-    
+
 }
 
 #[derive(Serialize, Deserialize, Debug, Getters, Clone)]

@@ -1,14 +1,14 @@
 //! reduce the number of features in a dataset to only those specified in a list
 
 use anyhow::Result;
-use ndarray::{Array, Array1, s};
+use ndarray::Array1;
 use std::path::Path;
 use std::collections::HashMap;
 use serde::Serialize as SerdeSerialize;
-use rmp_serde::{Deserializer, Serializer};
+use rmp_serde::Serializer;
 use std::io::stdout;
 
-// use crate::common::Outdir; 
+// use crate::common::Outdir;
 use crate::preprocess::{Preprocessing, Estimates};
 
 pub(crate) fn reduce_features(
@@ -48,7 +48,7 @@ pub(crate) fn reduce_features(
     for (sample_id, estimates) in mean_disp_estimates.iter() {
         let mut dispersions = Vec::new();
         let mut means = Vec::new();
-        
+
         for wanted_feature_index in wanted_feature_indices.iter() {
             dispersions.push(estimates.dispersions()[*wanted_feature_index]);
             means.push(estimates.means()[*wanted_feature_index]);
