@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 use bio::stats::LogProb;
-// use derive_new::new;
 use getset::Getters;
 use itertools_num::linspace;
 use serde_derive::{Deserialize, Serialize};
@@ -8,7 +7,7 @@ use statrs::distribution::{Continuous, ContinuousCDF, InverseGamma};
 use statrs::statistics::Distribution;
 use typed_builder::TypedBuilder;
 
-#[derive(TypedBuilder, Debug, Getters, Serialize, Deserialize)]
+#[derive(TypedBuilder, Copy, Clone, Debug, Getters, Serialize, Deserialize)]
 pub(crate) struct PriorParameters {
     shape: f64,
     shift: f64,
@@ -40,13 +39,14 @@ impl Prior {
         };
         let left_window = window(
             inv_gamma.inverse_cdf(0.001),
-            inv_gamma.mean().unwrap(),
+            10., //inv_gamma.mean().unwrap(),
             false,
         );
         let right_window = window(
-            inv_gamma.mean().unwrap(),
-            inv_gamma.inverse_cdf(0.995), // TODO parameter  mit default 0.99
-            true);
+            10., //inv_gamma.mean().unwrap(),
+            20., //inv_gamma.inverse_cdf(0.99), // TODO parameter  mit default 0.99
+            true,
+        );
 
         Ok(Prior {
             inv_gamma,
@@ -65,18 +65,16 @@ impl Prior {
         self.inv_gamma.mean().unwrap() + self.shift
     }
 
-    pub(crate) fn min_value(&self) -> f64 {
-        self.inv_gamma.inverse_cdf(0.001)
-        // self.shift
-    }
+    // pub(crate) fn min_value(&self) -> f64 {
+    //     self.inv_gamma.inverse_cdf(0.001)
+    //     // self.shift
+    // }
 
-    pub(crate) fn max_value(&self) -> f64 {
-        self.inv_gamma.inverse_cdf(0.995)
-    }
+    // pub(crate) fn max_value(&self) -> f64 {
+    //     20.
+    //     //self.inv_gamma.inverse_cdf(0.99)
+    // }
 }
-
-
-
 
 // #[derive(Debug, Getters)]
 // pub(crate) struct Prior {
@@ -86,8 +84,6 @@ impl Prior {
 //     #[get = "pub(crate)"]
 //     right_window: Vec<f64>,
 // }
-
-
 
 // impl Prior {
 //     /// Initialize inverse gamma prior. alpha=shape, beta=scale or rate.
@@ -118,7 +114,7 @@ impl Prior {
 //         }else {
 //             LogProb::ln_zero()
 //         }
-       
+
 //     }
 
 //     #[allow(unused)]

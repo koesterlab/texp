@@ -9,25 +9,37 @@ edition = "2018"
 structopt = "0.3"
 anyhow = "1.0"
 thiserror = "1.0"
-hdf5 = { git = "https://github.com/aldanor/hdf5-rust", branch = "master"}
+hdf5 = { package = "hdf5-metno", version = "0.9.3" }
 ndarray = { version = "0.15", features = ["serde", "rayon"] }
 ndarray-stats = "0.5"
 noisy_float = { version = "0.2", features = ["serde"] }
 serde = "1.0"
 serde_derive = "1.0"
-rmp-serde = "0.15"
+rmp-serde = "1.1"
 itertools-num = "0.1"
 statrs = "0.15"
-bio = { git = "https://github.com/rust-bio/rust-bio.git", branch="fix/ordered-float"}
+bio = "1.4"
 getset = "0.1"
 derive-new = "0.5"
 derefable = "0.1"
 rayon = "1.5"
-typed-builder = "0.9"
-kdtree = { version = "0.6", features = ["serialize"] }
+typed-builder = "0.12"
+kdtree = { version = "0.7", features = ["serialize"] }
 itertools = "0.10.3"
 num-traits = "0.2"
 approx = "0.5"
+ordered-float ={ version = "3.4", features = ["serde"] }
+csv = "1.1"
+
 
 [profile.release]
+codegen-units = 1
+lto = "fat"
 panic = "abort"
+
+[profile.develop]
+codegen-units = 128
+inherits = "release"
+lto = false
+
+
