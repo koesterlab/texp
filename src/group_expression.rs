@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bio::stats::LogProb;
-use rayon::prelude::*;
 use csv;
+use rayon::prelude::*;
 
 use crate::common::Outdir;
 // use crate::errors::Error;
@@ -13,8 +13,6 @@ use crate::prob_distribution_2d::ProbDistribution2d;
 // use crate::sample_expression::SampleInfo;
 use crate::query_points;
 
-
-
 pub(crate) fn group_expression(
     preprocessing: &Path,
     sample_expression_paths: &[PathBuf],
@@ -22,7 +20,11 @@ pub(crate) fn group_expression(
     out_dir_path: &Path,
 ) -> Result<()> {
     let preprocessing = Preprocessing::from_path(preprocessing)?;
-    let sample_ids = preprocessing.scale_factors().keys().cloned().collect::<Vec<_>>();
+    let sample_ids = preprocessing
+        .scale_factors()
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
     // let prior = preprocessing.prior()?;
     let feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
 
@@ -39,7 +41,6 @@ pub(crate) fn group_expression(
     feature_ids
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
-
             // println!("--------------feature {:?} {:?}", i, feature_id);
             // let maximum_likelihood_means: Vec<f64> = sample_expression_paths
             //     .iter()
@@ -89,10 +90,10 @@ pub(crate) fn group_expression(
                     }
                 })
                 .collect::<Result<Vec<_>>>()?;
-                if sample_expression_likelihoods.iter().all(|x| x.is_na()){
-                    out_dir.serialize_value(feature_id, ProbDistribution2d::na())?;
-                    return Ok(());
-                }
+            if sample_expression_likelihoods.iter().all(|x| x.is_na()) {
+                out_dir.serialize_value(feature_id, ProbDistribution2d::na())?;
+                return Ok(());
+            }
 
             // let maximum_likelihood_mean = maximum_likelihood_means.iter().sum::<f64>()
             //     / maximum_likelihood_means.len() as f64;
@@ -105,7 +106,7 @@ pub(crate) fn group_expression(
 
             let mut wtr = csv::Writer::from_path(output)?;
             wtr.serialize(("mu_ik", "probability")).unwrap();
-            let calc_prob = |mu_ik : f64, theta_i: f64| {
+            let calc_prob = |mu_ik: f64, theta_i: f64| {
                 // println!("mu_ik {:?}", mu_ik);
                 if mu_ik == 0. {
                     return LogProb::ln_zero();
@@ -113,12 +114,11 @@ pub(crate) fn group_expression(
                 let prob = sample_expression_likelihoods
                     .iter()
                     .map(|sample_expression_likelihood| {
-                        sample_expression_likelihood
-                        .get(&[mu_ik, theta_i])
+                        sample_expression_likelihood.get(&[mu_ik, theta_i])
                     })
-                    .sum::<LogProb>();  //Formula 5
-                    // +LogProb(*prior.prob(theta_i));
-                // prob = LogProb(f64::from(prob) * 8.);
+                    .sum::<LogProb>(); //Formula 5
+                                       // +LogProb(*prior.prob(theta_i));
+                                       // prob = LogProb(f64::from(prob) * 8.);
 
                 // Result of formula 7.
                 // let prob= LogProb::ln_simpsons_integrate_exp(
@@ -133,14 +133,23 @@ pub(crate) fn group_expression(
                     wtr.serialize((mu_ik, prob.exp())).unwrap();
                 }
                 prob
-
             };
 
-            let query_points = query_points::calc_query_points(c, preprocessing.mean_disp_estimates().clone(), sample_ids.clone(), preprocessing.feature_ids().clone(), *i);
+            let query_points = query_points::calc_query_points(
+                c,
+                preprocessing.mean_disp_estimates().clone(),
+                sample_ids.clone(),
+                preprocessing.feature_ids().clone(),
+                *i,
+            );
             let start_points_mu_ik = query_points.all_mu_ik();
             let start_points_theta_i = query_points.thetas();
 
-            prob_dist.insert_grid(start_points_mu_ik.clone(), start_points_theta_i.clone(), calc_prob);
+            prob_dist.insert_grid(
+                start_points_mu_ik.clone(),
+                start_points_theta_i.clone(),
+                calc_prob,
+            );
 
             // let norm_factor = prob_dist.normalize(); // remove factor c_ik
             out_dir.serialize_value(feature_id, prob_dist)?;

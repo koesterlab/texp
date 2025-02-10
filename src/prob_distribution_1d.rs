@@ -1,7 +1,6 @@
 use std::cmp::min;
 use std::collections::BTreeMap;
 
-
 // use anyhow::Result;
 use bio::stats::LogProb;
 use noisy_float::types::N64;
@@ -67,7 +66,7 @@ impl ProbDistribution1d {
         if !(y1 == LogProb::ln_zero() && x1 == 0.) {
             let x1_ = LogProb(x1.abs().ln());
             len_left = LogProb(f64::from((x1_ + x1_).ln_add_exp(y1 + y1)) / 2.);
-            left = y1 - len_left;   //Teilen (-) durch Länge des Vektors
+            left = y1 - len_left; //Teilen (-) durch Länge des Vektors
         }
         let mut right = LogProb::ln_zero();
         if !(y2 == LogProb::ln_zero() && x2 == 0.) {
@@ -146,11 +145,14 @@ impl ProbDistribution1d {
             let lower = lower_it.next();
             let lower_prev = lower_it.next();
 
-            if let Some((upper, (upper_prob, _, _))) = upper {  // ud1, ud2
-                if let Some((lower, (lower_prob, _, _))) = lower { // ld1, ld2
+            if let Some((upper, (upper_prob, _, _))) = upper {
+                // ud1, ud2
+                if let Some((lower, (lower_prob, _, _))) = lower {
+                    // ld1, ld2
                     let (sign1, param1, sign2, param2) =
                         ProbDistribution1d::calc_sign_params(*lower_prob, prob, *upper_prob);
-                    let (_, local_d2, local_s) = ProbDistribution1d::calc_directions(    // local_d1
+                    let (_, local_d2, local_s) = ProbDistribution1d::calc_directions(
+                        // local_d1
                         lower.raw() - value,
                         param1,
                         sign1,
@@ -163,12 +165,14 @@ impl ProbDistribution1d {
                     d1 = local_s;
                     d2 = local_d2;
 
-                    if let Some((_, (_, u_next_d1, u_next_d2))) = upper_next // upper_next, upper_next_prob
+                    if let Some((_, (_, u_next_d1, u_next_d2))) = upper_next
+                    // upper_next, upper_next_prob
                     {
                         un_d1 = *u_next_d1;
                         un_d2 = *u_next_d2;
                     }
-                    if let Some((_, (_, l_prev_d1, l_prev_d2))) = lower_prev // lower_prev, lower_prev_prob
+                    if let Some((_, (_, l_prev_d1, l_prev_d2))) = lower_prev
+                    // lower_prev, lower_prev_prob
                     {
                         lp_d1 = *l_prev_d1;
                         lp_d2 = *l_prev_d2;
@@ -184,7 +188,8 @@ impl ProbDistribution1d {
             if let Some((upper, (upper_prob, ud1, ud2))) = upper {
                 let (sign1, param1, sign2, param2) =
                     ProbDistribution1d::calc_sign_params(prob, *upper_prob, un_d2);
-                let (_, local_d2, local_s) = ProbDistribution1d::calc_directions( // local_d1
+                let (_, local_d2, local_s) = ProbDistribution1d::calc_directions(
+                    // local_d1
                     value - upper.raw(),
                     param1,
                     sign1,
@@ -202,7 +207,8 @@ impl ProbDistribution1d {
             if let Some((lower, (lower_prob, ld1, ld2))) = lower {
                 let (sign1, param1, sign2, param2) =
                     ProbDistribution1d::calc_sign_params(lp_d2, *lower_prob, prob);
-                let (_, local_d2, local_s) = ProbDistribution1d::calc_directions( //local_d1
+                let (_, local_d2, local_s) = ProbDistribution1d::calc_directions(
+                    //local_d1
                     lp_d1 - lower.raw(),
                     param1,
                     sign1,
@@ -296,7 +302,8 @@ impl ProbDistribution1d {
                 return upper_prob - LogProb((*upper - value + 1.).raw().ln());
             } else {
                 // Only lower bound
-                if let Some((lower, (lower_prob, _, _))) = lower {  // ld1, ld2
+                if let Some((lower, (lower_prob, _, _))) = lower {
+                    // ld1, ld2
                     return lower_prob - LogProb((value - lower + 1.).raw().ln());
                 }
                 // Neither upper nor lower bound there; should not be reachable

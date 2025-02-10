@@ -1,20 +1,18 @@
-use std::collections::BTreeMap;
 use bio::stats::LogProb;
 use itertools::iproduct;
 use kdtree::KdTree;
-use serde_derive::{Deserialize, Serialize};
 use num_traits::Float;
 use ordered_float::OrderedFloat;
-
+use serde_derive::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 //--------------------ProbDistribution based on KdTree --------------------
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct EntryForKdtree {
     position: [f64; 2],
     prob: LogProb,
-    trbl: [usize; 4],   // top right bottom left
+    trbl: [usize; 4], // top right bottom left
 }
 
 /// Datastructure for storing sample expression probability distributions. kdtree is a 2 dimensional kdTree with data = probability in LogProb.
@@ -24,9 +22,9 @@ pub(crate) struct ProbDistribution2d {
     pub kdtree: KdTree<f64, usize, [f64; 2]>,
     max_prob_entry_position: usize,
     max_distance: f64,
-    max_x:f64,
+    max_x: f64,
     max_y: f64,
-    range_per_theta: BTreeMap<OrderedFloat<f64>, [f64; 2]>
+    range_per_theta: BTreeMap<OrderedFloat<f64>, [f64; 2]>,
 }
 
 pub fn euclidean<T: Float>(a: &[T], b: &[T]) -> T {
@@ -34,7 +32,8 @@ pub fn euclidean<T: Float>(a: &[T], b: &[T]) -> T {
     a.iter()
         .zip(b.iter())
         .map(|(x, y)| ((*x) - (*y)) * ((*x) - (*y)))
-        .fold(T::zero(), ::std::ops::Add::add).sqrt()
+        .fold(T::zero(), ::std::ops::Add::add)
+        .sqrt()
 }
 
 impl ProbDistribution2d {
@@ -74,14 +73,16 @@ impl ProbDistribution2d {
     //     self.points[self.max_prob_entry_position].position
     // }
 
-
     pub(crate) fn is_na(&self) -> bool {
         self.max_prob_entry_position == usize::MAX
     }
 
-    pub(crate) fn insert_grid<F>(&mut self, mus: Vec<f64>, thetas: Vec<f64>, mut calc: F) where F: FnMut(f64, f64) -> LogProb {
-        self.max_y = thetas[thetas.len()-1];
-        self.max_x = mus[mus.len()-1];
+    pub(crate) fn insert_grid<F>(&mut self, mus: Vec<f64>, thetas: Vec<f64>, mut calc: F)
+    where
+        F: FnMut(f64, f64) -> LogProb,
+    {
+        self.max_y = thetas[thetas.len() - 1];
+        self.max_x = mus[mus.len() - 1];
         // println!("max_x {:?}, max_y {:?}", self.max_x, self.max_y);
         let len_mus = mus.len();
         let len_thetas = thetas.len();
@@ -89,15 +90,31 @@ impl ProbDistribution2d {
             let mu = mus[i];
             let theta = thetas[j];
             let own_pos = i + j * len_mus;
-            let top = if j + 1 < len_thetas {own_pos + len_mus} else {usize::MAX};
-            let right = if (i + 1) % len_mus != 0 {own_pos + 1} else {usize::MAX};
-            let bottom = if j > 0 {own_pos - len_mus} else {usize::MAX};
-            let left = if i % len_mus != 0 {own_pos - 1} else {usize::MAX};
+            let top = if j + 1 < len_thetas {
+                own_pos + len_mus
+            } else {
+                usize::MAX
+            };
+            let right = if (i + 1) % len_mus != 0 {
+                own_pos + 1
+            } else {
+                usize::MAX
+            };
+            let bottom = if j > 0 { own_pos - len_mus } else { usize::MAX };
+            let left = if i % len_mus != 0 {
+                own_pos - 1
+            } else {
+                usize::MAX
+            };
             if mu.is_infinite() || theta.is_infinite() {
                 println!("SHOULD NOT HAPPEN!!!");
                 // println!("mu {:?}, theta {:?}, prob ---, top {:?}, right {:?}, bottom {:?}, left {:?}", mu, theta, top, right, bottom, left);
                 let value: [f64; 2] = [mu, theta];
-                let entry = EntryForKdtree{position: value, prob: LogProb::ln_zero(), trbl: [top, right, bottom, left]};
+                let entry = EntryForKdtree {
+                    position: value,
+                    prob: LogProb::ln_zero(),
+                    trbl: [top, right, bottom, left],
+                };
                 self.points.push(entry);
             } else {
                 let prob = calc(mu, theta);
@@ -107,10 +124,22 @@ impl ProbDistribution2d {
         }
     }
 
-
-    pub(crate) fn insert(&mut self, mu: f64, theta: f64, prob: LogProb, top: usize, right: usize, bottom: usize, left: usize) {
+    pub(crate) fn insert(
+        &mut self,
+        mu: f64,
+        theta: f64,
+        prob: LogProb,
+        top: usize,
+        right: usize,
+        bottom: usize,
+        left: usize,
+    ) {
         let value: [f64; 2] = [mu, theta];
-        let entry = EntryForKdtree{position: value, prob: prob, trbl: [top, right, bottom, left]};
+        let entry = EntryForKdtree {
+            position: value,
+            prob: prob,
+            trbl: [top, right, bottom, left],
+        };
         let entry_position = self.points.len();
         self.points.push(entry);
 
@@ -148,38 +177,43 @@ impl ProbDistribution2d {
             } else {
                 LogProb::ln_zero()
             }
-        } else { // for nearest conrer in neares_iter:
+        } else {
+            // for nearest conrer in neares_iter:
             // find square
             // if not in square: continue
-                // println!("query mu {:?} theta {:?}",value[0], value[1]);
-                let mut result = LogProb::ln_zero();
-                if value[0] < 0. { // can happen in fold change calculation depending on constant c
-                    // println!("query negative, return 0");
-                    return result;
-                }
-                let mut nearest_iter = self.kdtree.iter_nearest(&value, &euclidean).unwrap();
-                let nearest_corner_index = nearest_iter.next().unwrap().1;
-                let nearest_point = &self.points[*nearest_corner_index];
-                result = nearest_point.prob;
+            // println!("query mu {:?} theta {:?}",value[0], value[1]);
+            let mut result = LogProb::ln_zero();
+            if value[0] < 0. {
+                // can happen in fold change calculation depending on constant c
+                // println!("query negative, return 0");
+                return result;
+            }
+            let mut nearest_iter = self.kdtree.iter_nearest(&value, &euclidean).unwrap();
+            let nearest_corner_index = nearest_iter.next().unwrap().1;
+            let nearest_point = &self.points[*nearest_corner_index];
+            result = nearest_point.prob;
 
-                if value[0] != nearest_point.position[0] {
-                    println!("query mu {:?} theta {:?}",value[0], value[1]);
-                    println!("nearest_point {:?} prob {:?}", nearest_point, nearest_point.prob);
-                }
+            if value[0] != nearest_point.position[0] {
+                println!("query mu {:?} theta {:?}", value[0], value[1]);
+                println!(
+                    "nearest_point {:?} prob {:?}",
+                    nearest_point, nearest_point.prob
+                );
+            }
 
-                // let nearest_iter = self.kdtree.iter_nearest(&value, &euclidean).unwrap();
-                // for nearest_corner in nearest_iter {
-                //     let nearest_distance = nearest_corner.0;
-                //     let nearest_corner_index = nearest_corner.1;
-                //     let nearest_point = &self.points[*nearest_corner_index];
-                // println!("nearest_point {:?} prob {:?}", nearest_point, nearest_point.prob);
-                    // let nearest_square = self.find_square_for_point(&value, *nearest_corner_index);
-                    // // println!("2d get neares_square {:?}", nearest_square);
-                    // if self.is_in_square(&value, &nearest_square){
-                    //     result = self.smoothing(&value, nearest_square);
-                    //     break;
-                    // }
-                // }
+            // let nearest_iter = self.kdtree.iter_nearest(&value, &euclidean).unwrap();
+            // for nearest_corner in nearest_iter {
+            //     let nearest_distance = nearest_corner.0;
+            //     let nearest_corner_index = nearest_corner.1;
+            //     let nearest_point = &self.points[*nearest_corner_index];
+            // println!("nearest_point {:?} prob {:?}", nearest_point, nearest_point.prob);
+            // let nearest_square = self.find_square_for_point(&value, *nearest_corner_index);
+            // // println!("2d get neares_square {:?}", nearest_square);
+            // if self.is_in_square(&value, &nearest_square){
+            //     result = self.smoothing(&value, nearest_square);
+            //     break;
+            // }
+            // }
             // println!("Result {:?}", result);
             return result;
         }

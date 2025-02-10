@@ -7,9 +7,7 @@ use rmp_serde::{Deserializer, Serializer};
 use serde::Deserialize as SerdeDeserialize;
 use serde::Serialize as SerdeSerialize;
 
-
 use crate::errors::Error;
-
 
 //--------------------OutDir--------------------
 
@@ -60,5 +58,3 @@ impl Outdir {
         )?))?)
     }
 }
-
-

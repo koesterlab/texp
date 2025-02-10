@@ -45,7 +45,8 @@ impl Prior {
         let right_window = window(
             10., //inv_gamma.mean().unwrap(),
             20., //inv_gamma.inverse_cdf(0.99), // TODO parameter  mit default 0.99
-            true);
+            true,
+        );
 
         Ok(Prior {
             inv_gamma,
@@ -75,9 +76,6 @@ impl Prior {
     // }
 }
 
-
-
-
 // #[derive(Debug, Getters)]
 // pub(crate) struct Prior {
 //     estimated_dispersion: f64,
@@ -86,8 +84,6 @@ impl Prior {
 //     #[get = "pub(crate)"]
 //     right_window: Vec<f64>,
 // }
-
-
 
 // impl Prior {
 //     /// Initialize inverse gamma prior. alpha=shape, beta=scale or rate.

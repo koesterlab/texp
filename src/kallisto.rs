@@ -20,7 +20,7 @@ impl KallistoQuant {
         let counts = self.reader.dataset("est_counts")?.read_1d::<f64>()?;
         // let lens = self.reader.dataset("aux/lengths")?.read_1d::<f64>()?;
         // Ok((counts / lens).mapv(|v| N64::unchecked_new(v)))
-        Ok((counts).mapv(|v| N64::unchecked_new(v))) 
+        Ok((counts).mapv(|v| N64::unchecked_new(v)))
     }
 
     pub(crate) fn bootstrapped_counts(&self) -> Result<Array2<f64>> {

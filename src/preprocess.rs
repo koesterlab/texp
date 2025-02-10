@@ -16,13 +16,12 @@ use serde::Deserialize as SerdeDeserialize;
 use serde::Serialize as SerdeSerialize;
 use serde_derive::{Deserialize, Serialize};
 
-
 use crate::errors::Error;
 use crate::kallisto::KallistoQuant;
 use crate::prior::{Prior, PriorParameters};
 
 pub(crate) fn preprocess(
-    c :f64,
+    _c: f64,
     kallisto_quants: &[PathBuf],
     sample_ids: &[String],
     prior_parameters: PriorParameters,
@@ -40,7 +39,7 @@ pub(crate) fn preprocess(
     if kallisto_quants.len() > 1 {
         scale_factors = calc_scale_factors(&quants, sample_ids)?;
     } else {
-        scale_factors =  HashMap::new();
+        scale_factors = HashMap::new();
         scale_factors.insert((*sample_ids[0]).to_string(), 1.);
     }
     dbg!(&scale_factors);
@@ -71,7 +70,6 @@ pub(crate) struct Preprocessing {
 }
 
 impl Preprocessing {
-
     //constructor for preprocessing
     pub(crate) fn new(
         scale_factors: HashMap<String, f64>,
@@ -126,18 +124,21 @@ fn calc_scale_factors(
         .collect();
     let mut counts = counts?;
 
-    let child = thread::Builder::new().stack_size(32 * 1024 * 1024).spawn(move || {
-        let upper_quartiles: Array1<N64> = counts
-        .iter_mut()
-        .map(|feature_counts| {
-            feature_counts
-                .quantile_mut(N64::unchecked_new(0.75), &interpolate::Linear)
-                .unwrap()
-                .clone()
+    let child = thread::Builder::new()
+        .stack_size(32 * 1024 * 1024)
+        .spawn(move || {
+            let upper_quartiles: Array1<N64> = counts
+                .iter_mut()
+                .map(|feature_counts| {
+                    feature_counts
+                        .quantile_mut(N64::unchecked_new(0.75), &interpolate::Linear)
+                        .unwrap()
+                        .clone()
+                })
+                .collect();
+            return upper_quartiles;
         })
-        .collect();
-        return upper_quartiles;
-    }).unwrap();
+        .unwrap();
 
     let upper_quartiles = child.join().unwrap();
 
@@ -161,7 +162,6 @@ fn calc_scale_factors(
                 .map(|scale_factor| (*scale_factor).into()),
         )
         .collect())
-
 }
 
 #[derive(Serialize, Deserialize, Debug, Getters, Clone)]
@@ -170,7 +170,6 @@ pub(crate) struct Estimates {
     dispersions: Array1<Option<f64>>,
     means: Array1<f64>,
 }
-
 
 impl Estimates {
     fn new(kallisto_quant: &KallistoQuant) -> Result<Self> {
@@ -201,4 +200,3 @@ fn mean_disp_estimates(
 
     Ok(sample_ids.iter().cloned().zip(estimates?).collect())
 }
-

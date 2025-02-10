@@ -23,12 +23,15 @@ pub(crate) fn sample_expression(
     preprocessing: &Path,
     sample_id: &str,
     epsilon: LogProb,
-    c : f64,
+    c: f64,
     out_dir_path: &Path,
 ) -> Result<()> {
-
     let preprocessing = Preprocessing::from_path(preprocessing)?;
-    let sample_ids = preprocessing.scale_factors().keys().cloned().collect::<Vec<_>>();
+    let sample_ids = preprocessing
+        .scale_factors()
+        .keys()
+        .cloned()
+        .collect::<Vec<_>>();
     // let prior = preprocessing.prior()?;
     let mean_disp_estimates =
         preprocessing
@@ -62,16 +65,21 @@ pub(crate) fn sample_expression(
     feature_ids
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
-
             // print start time of feature
-            let time1= std::time::SystemTime::now();
+            let time1 = std::time::SystemTime::now();
             // println!("feature {:?} {:?} started at {:?}", i, feature_id, time1 );
 
-            let query_points = query_points::calc_query_points(c, preprocessing.mean_disp_estimates().clone(), sample_ids.clone(), preprocessing.feature_ids().clone(), *i);
+            let query_points = query_points::calc_query_points(
+                c,
+                preprocessing.mean_disp_estimates().clone(),
+                sample_ids.clone(),
+                preprocessing.feature_ids().clone(),
+                *i,
+            );
 
             let d_ij = mean_disp_estimates.means()[*i]; //TODO Do we need group mean mu_ik instead of sample mean
-            // println!("{:?} d_ij {:?}", feature_id, d_ij / s_j);
-            // METHOD: If the per-sample dispersion is unknown, fall back to a mean interpolated from the other samples.
+                                                        // println!("{:?} d_ij {:?}", feature_id, d_ij / s_j);
+                                                        // METHOD: If the per-sample dispersion is unknown, fall back to a mean interpolated from the other samples.
             let t_ij = if let Some(t_ij) = mean_disp_estimates.dispersions()[*i] {
                 t_ij
             } else if let Some(t_ij) = preprocessing.interpolate_dispersion(*i) {
@@ -88,26 +96,32 @@ pub(crate) fn sample_expression(
             let calc_prob = |m, t| {
                 // println!("mu {:?}, theta {:?}", m, t);
                 let prob = likelihood_mu_ik_theta_i(
-                    d_ij,
-                    m,  // mu_ik
-                    t_ij,
-                    t,  // theta_i
-                    s_j,
-                    epsilon,
+                    d_ij, m, // mu_ik
+                    t_ij, t, // theta_i
+                    s_j, epsilon,
                 );
                 prob
             };
             let mu_ik_points = query_points.all_mu_ik();
             let start_points_theta_i = query_points.thetas();
 
-            likelihoods.insert_grid(mu_ik_points.clone(), start_points_theta_i.clone(), calc_prob);
+            likelihoods.insert_grid(
+                mu_ik_points.clone(),
+                start_points_theta_i.clone(),
+                calc_prob,
+            );
 
             out_dir.serialize_value(feature_id, likelihoods)?;
-            let time2= std::time::SystemTime::now();
-            println!("sample {} feature {:?} {:?} finished in duration {:?}",sample_id, i, feature_id, time2.duration_since(time1).unwrap());
+            let time2 = std::time::SystemTime::now();
+            println!(
+                "sample {} feature {:?} {:?} finished in duration {:?}",
+                sample_id,
+                i,
+                feature_id,
+                time2.duration_since(time1).unwrap()
+            );
 
             Ok(())
-
         })?;
 
     out_dir.serialize_value(
@@ -145,7 +159,7 @@ fn prob_mu_ik_theta_i_x(
 ) -> LogProb {
     // println!("x {:?}, d_ij {:?}, mu_ik {:?}, t_ij {:?}, theta_i {:?}, s_j {:?}", x, d_ij, mu_ik, t_ij, theta_i, s_j);
     //METHOD /s_j?? mu_ik*s_j würde einluss von t_ij ändern, weil mu geändert wird.
-    let left = neg_binom(d_ij/s_j, x, t_ij);
+    let left = neg_binom(d_ij / s_j, x, t_ij);
     let right = neg_binom(x, mu_ik, theta_i);
     // let right =  LogProb::from(Poisson::new(mu_ik).unwrap().ln_pmf(x as u64));
     let result = left + right;
@@ -160,7 +174,7 @@ fn likelihood_mu_ik_theta_i(
     t_ij: f64,
     theta_i: f64,
     s_j: f64,
-    _: LogProb,   // epsilon
+    _: LogProb, // epsilon
 ) -> LogProb {
     if d_ij != 0. && mu_ik == 0. {
         return LogProb::ln_zero();
@@ -171,11 +185,11 @@ fn likelihood_mu_ik_theta_i(
     let mut max_prob = LogProb::ln_zero();
     let mut result = LogProb::ln_zero();
     // println!("mu_ik {:?} d_ij {:?}", mu_ik, d_ij/s_j);
-    let mut x : f64 = 0.;
+    let mut x: f64 = 0.;
 
     loop {
         let calced_prob = prob_mu_ik_theta_i_x(x as f64, d_ij, mu_ik, t_ij, theta_i, s_j);
-        if calced_prob > max_prob{
+        if calced_prob > max_prob {
             max_prob = calced_prob;
         }
         result = result.ln_add_exp(calced_prob);
@@ -204,15 +218,18 @@ pub(crate) fn neg_binom(x: f64, mu: f64, theta: f64) -> LogProb {
 }
 
 #[cfg(test)]
-mod tests{
+mod tests {
     use super::*;
     use approx::assert_relative_eq;
     #[test]
-    fn test_neg_binom(){
+    fn test_neg_binom() {
         assert_relative_eq!(neg_binom(0., 10., 2.38).exp(), 0.2594752460369642);
         assert_relative_eq!(neg_binom(0., 30., 2.38).exp(), 0.16542351363026533);
-        assert_relative_eq!(neg_binom(0., 30., 500.38).exp(), 0.9809648435381609, epsilon=1e-7);
-
+        assert_relative_eq!(
+            neg_binom(0., 30., 500.38).exp(),
+            0.9809648435381609,
+            epsilon = 1e-7
+        );
     }
 }
 

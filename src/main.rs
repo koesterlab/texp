@@ -6,16 +6,16 @@ use rayon;
 use structopt::StructOpt;
 
 mod common;
-mod query_points;
 mod diff_exp;
 mod errors;
 mod group_expression;
 mod kallisto;
 mod preprocess;
-mod reduce_features;
 mod prior;
 mod prob_distribution_1d;
 mod prob_distribution_2d;
+mod query_points;
+mod reduce_features;
 mod sample_expression;
 mod write_fold_changes;
 
@@ -144,7 +144,6 @@ enum Cli {
             short = "p",
             help = "Path to preprocessed Kallisto results."
         )]
-
         preprocessing_path: PathBuf,
         #[structopt(
             short = "c",
@@ -342,7 +341,7 @@ fn main() -> Result<()> {
                 .unwrap();
 
             // calculate per group posteriors
-            group_expression::group_expression(&preprocessing_path, &sample_exprs,c, &out_dir)
+            group_expression::group_expression(&preprocessing_path, &sample_exprs, c, &out_dir)
         }
         Cli::DiffExp {
             group_path1,
@@ -364,9 +363,12 @@ fn main() -> Result<()> {
             preprocessing_path,
             out_file_dist,
             out_file_max_prob_fc,
-        } => {
-            write_fold_changes::write_fold_changes(&preprocessing_path, &diff_exp_path, &out_file_dist, &out_file_max_prob_fc)
-        }
+        } => write_fold_changes::write_fold_changes(
+            &preprocessing_path,
+            &diff_exp_path,
+            &out_file_dist,
+            &out_file_max_prob_fc,
+        ),
         Cli::KallistoValues {
             foldchange,
             preprocessing_path,
@@ -374,11 +376,18 @@ fn main() -> Result<()> {
             out_file,
         } => {
             if foldchange {
-                write_fold_changes::write_kallisto_fold_changes(&preprocessing_path, sample_ids, &out_file)
+                write_fold_changes::write_kallisto_fold_changes(
+                    &preprocessing_path,
+                    sample_ids,
+                    &out_file,
+                )
             } else {
-                write_fold_changes::write_kallisto_counts(&preprocessing_path, sample_ids, &out_file)
+                write_fold_changes::write_kallisto_counts(
+                    &preprocessing_path,
+                    sample_ids,
+                    &out_file,
+                )
             }
-
         }
     }
 }

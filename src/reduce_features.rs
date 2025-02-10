@@ -2,21 +2,20 @@
 
 use anyhow::Result;
 use ndarray::Array1;
-use std::path::Path;
-use std::collections::HashMap;
-use serde::Serialize as SerdeSerialize;
 use rmp_serde::Serializer;
+use serde::Serialize as SerdeSerialize;
+use std::collections::HashMap;
 use std::io::stdout;
+use std::path::Path;
 
 // use crate::common::Outdir;
-use crate::preprocess::{Preprocessing, Estimates};
+use crate::preprocess::{Estimates, Preprocessing};
 
 pub(crate) fn reduce_features(
     preprocessing: &Path,
     feature_ids: &Path,
     // out_dir_path: &Path,
 ) -> Result<()> {
-
     // let out_dir = Outdir::create(out_dir_path)?;
 
     let preprocessing = Preprocessing::from_path(preprocessing)?;
@@ -24,7 +23,11 @@ pub(crate) fn reduce_features(
     let wanted_feature_ids = std::fs::read_to_string(feature_ids)?;
     // skip empty strings
     let wanted_feature_ids: Vec<&str> = wanted_feature_ids.split("\n").collect();
-    let wanted_feature_ids: Vec<&str> = wanted_feature_ids.iter().filter(|&s| !s.is_empty()).map(|&s| s).collect();
+    let wanted_feature_ids: Vec<&str> = wanted_feature_ids
+        .iter()
+        .filter(|&s| !s.is_empty())
+        .map(|&s| s)
+        .collect();
     // println!("wanted_feature_ids {:?}", wanted_feature_ids);
     // let reduced_preprocessing = preprocessing.reduce_features(wanted_feature_ids)?;
     let scale_factors = preprocessing.scale_factors();
@@ -59,7 +62,6 @@ pub(crate) fn reduce_features(
         mean_disp_estimates_filtered.insert(sample_id.to_string(), estimates_filtered);
     }
 
-
     //get array of string from wanted_feature_ids str vec
     let feature_ids: Array1<String> = wanted_feature_ids
         .iter()
@@ -71,7 +73,7 @@ pub(crate) fn reduce_features(
         scale_factors.clone(),
         mean_disp_estimates_filtered,
         feature_ids,
-        *prior_parameters
+        *prior_parameters,
     );
     filtered_preprocessing.serialize(&mut Serializer::new(stdout()))?;
 
