@@ -12,6 +12,8 @@ use rmp_serde::Deserializer;
 use serde::Deserialize as SerdeDeserialize;
 use serde_derive::{Deserialize, Serialize};
 use statrs::function::beta::ln_beta;
+use duckdb::{Connection, params};
+use std::sync::{Arc, Mutex};
 
 use crate::common::Outdir;
 use crate::errors::Error;
@@ -48,26 +50,24 @@ pub(crate) fn sample_expression(
         .clone();
     println!("s_j {:?}", s_j);
 
-    // let file = File::open("/vol/nano/bayesian-diff-exp-analysis/texp-evaluation/estimated_dispersion.csv")?;
-    // let mut rdr = csv::Reader::from_reader(file);
-    // let mut thetas = Vec::<f64>::new();
-    // for result in rdr.records() {
-    //     let record = result?;
-    //     let dispersion: f64 = record[1].parse().unwrap();
-    //     thetas.push(dispersion);
-    // }
-
     let feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
     // println!("{:?} features", feature_ids.len());
-    // println!("{:?}", feature_ids);
 
-    let out_dir = Outdir::create(out_dir_path)?;
+    println!("out_dir_path {:?}", out_dir_path);
+    let db_path = out_dir_path.to_str().unwrap();//format!("{}.duckdb", out_dir_path.to_str().unwrap());
+    println!("db_path {:?}", db_path);
+    // Open DuckDB file once
+    let conn = Connection::open(db_path)?;
+    ProbDistribution2d::init_schema(&conn)?; // ensure schema exists
+    // Wrap in Arc<Mutex<Connection>> for parallel use
+    let conn = Arc::new(Mutex::new(conn));
+
     feature_ids
-        .par_iter()
+        .par_iter().take(5)
         .try_for_each(|(i, feature_id)| -> Result<()> {
             // print start time of feature
             let time1 = std::time::SystemTime::now();
-            // println!("feature {:?} {:?} started at {:?}", i, feature_id, time1 );
+            println!("feature {:?} {:?} started at {:?}", i, feature_id, time1 );
 
             let query_points = query_points::calc_query_points(
                 c,
@@ -89,12 +89,9 @@ pub(crate) fn sample_expression(
                 // TODO log message
                 return Ok(());
             };
-            // println!("d_ij {:?}, t_ij {:?}", d_ij, t_ij);
-
-            let mut likelihoods = ProbDistribution2d::new();
+            println!("d_ij {:?}, t_ij {:?}", d_ij, t_ij);
 
             let calc_prob = |m, t| {
-                // println!("mu {:?}, theta {:?}", m, t);
                 let prob = likelihood_mu_ik_theta_i(
                     d_ij, m, // mu_ik
                     t_ij, t, // theta_i
@@ -105,13 +102,16 @@ pub(crate) fn sample_expression(
             let mu_ik_points = query_points.all_mu_ik();
             let start_points_theta_i = query_points.thetas();
 
-            likelihoods.insert_grid(
-                mu_ik_points.clone(),
-                start_points_theta_i.clone(),
-                calc_prob,
-            );
+            println!("before insert_grid mu_ik_points.len() {:?}, start_points_theta_i.len() {:?}", mu_ik_points.len(), start_points_theta_i.len());
+            // Each feature gets its own ProbDistribution2d handle
+            let likelihoods = ProbDistribution2d::with_connection(conn.clone(), feature_id).unwrap();
 
-            out_dir.serialize_value(feature_id, likelihoods)?;
+            // Compute grid in memory
+            let probs = likelihoods.compute_grid(&mu_ik_points, &start_points_theta_i, calc_prob);
+
+            // Write results to DuckDB (mutex ensures serialized access)
+            likelihoods.write_output(&probs).unwrap();
+
             let time2 = std::time::SystemTime::now();
             println!(
                 "sample {} feature {:?} {:?} finished in duration {:?}",
@@ -123,13 +123,6 @@ pub(crate) fn sample_expression(
 
             Ok(())
         })?;
-
-    out_dir.serialize_value(
-        "info",
-        SampleInfo {
-            sample_id: sample_id.to_owned(),
-        },
-    )?;
 
     Ok(())
 }
