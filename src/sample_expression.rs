@@ -2,6 +2,9 @@
 use std::fs;
 use std::mem;
 use std::path::Path;
+extern crate chrono;
+use chrono::offset::Local;
+use chrono::DateTime;
 
 use anyhow::Result;
 use bio::stats::LogProb;
@@ -67,7 +70,7 @@ pub(crate) fn sample_expression(
         .try_for_each(|(i, feature_id)| -> Result<()> {
             // print start time of feature
             let time1 = std::time::SystemTime::now();
-            println!("feature {:?} {:?} started at {:?}", i, feature_id, time1 );
+            println!("feature {:?} {:?} started at {}", i, feature_id, DateTime::<Local>::from(time1).format("%d/%m/%Y %T"));
 
             let query_points = query_points::calc_query_points(
                 c,
@@ -101,13 +104,15 @@ pub(crate) fn sample_expression(
             };
             let mu_ik_points = query_points.all_mu_ik();
             let start_points_theta_i = query_points.thetas();
-
-            println!("before insert_grid mu_ik_points.len() {:?}, start_points_theta_i.len() {:?}", mu_ik_points.len(), start_points_theta_i.len());
+            let time3 = std::time::SystemTime::now();
+            println!("{} before insert_grid mu_ik_points.len() {:?}, start_points_theta_i.len() {:?}", DateTime::<Local>::from(time3).format("%d/%m/%Y %T"), mu_ik_points.len(), start_points_theta_i.len());
             // Each feature gets its own ProbDistribution2d handle
             let likelihoods = ProbDistribution2d::with_connection(conn.clone(), feature_id).unwrap();
 
             // Compute grid in memory
             let probs = likelihoods.compute_grid(&mu_ik_points, &start_points_theta_i, calc_prob);
+            let time4 = std::time::SystemTime::now();
+            println!("{} after insert_grid, duration {:?}", DateTime::<Local>::from(time4).format("%d/%m/%Y %T"), time4.duration_since(time3).unwrap());
 
             // Write results to DuckDB (mutex ensures serialized access)
             likelihoods.write_output(&probs).unwrap();

@@ -7,6 +7,7 @@ use csv;
 use rayon::prelude::*;
 use duckdb::{Connection, params};
 use std::sync::{Arc, Mutex};
+use ordered_float::OrderedFloat;
 
 use crate::common::Outdir;
 // use crate::errors::Error;
@@ -42,12 +43,18 @@ pub(crate) fn group_expression(
         .try_for_each(|(i, feature_id)| -> Result<()> {
             println!("--------------feature {:?} {:?}", i, feature_id);
 
-            let sample_expression_likelihoods: Vec<ProbDistribution2d> = sample_expression_paths
+            // Open all sample expression likelihoods (read-only connections)
+            let sample_expression_likelihoods: Vec<_> = sample_expression_paths
                 .iter()
                 .map(|path| {
-                    // Each ProbDistribution2d owns its own connection
                     ProbDistribution2d::with_readonly_connection(path.to_str().unwrap(), &feature_id)
                 })
+                .collect::<duckdb::Result<_>>()?;
+
+            // Preload lookup tables into memory for each sample
+            let lookup_tables: Vec<_> = sample_expression_likelihoods
+                .iter()
+                .map(|likelihood| likelihood.load_lookup_table())
                 .collect::<duckdb::Result<_>>()?;
             println!("feature {:?} After reading likelihoods", feature_id);
             // let maximum_likelihood_mean = maximum_likelihood_means.iter().sum::<f64>()
@@ -61,14 +68,20 @@ pub(crate) fn group_expression(
                 if mu_ik == 0. {
                     return LogProb::ln_zero();
                 }
-                let prob = sample_expression_likelihoods
+
+                // Use the preloaded tables for fast repeated lookups
+                let prob = lookup_tables
                     .iter()
-                    .map(|sample_expression_likelihood| {
-                        sample_expression_likelihood.get(mu_ik, theta_i) //.unwrap_or(LogProb::ln_zero())
+                    .map(|table| {
+                        table
+                            .get(&(OrderedFloat(mu_ik), OrderedFloat(theta_i)))
+                            .cloned()
+                            .unwrap_or(LogProb::ln_zero())
                     })
-                    .sum::<LogProb>(); //Formula 5
-                //                        // +LogProb(*prior.prob(theta_i));
+                    .sum::<LogProb>(); // Formula 5
+                //                      // +LogProb(*prior.prob(theta_i));
                 //                        // prob = LogProb(f64::from(prob) * 8.);
+
 
                 // Result of formula 7.
                 // let prob= LogProb::ln_simpsons_integrate_exp(

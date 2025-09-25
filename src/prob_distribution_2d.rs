@@ -1,9 +1,13 @@
-use duckdb::{Connection, params, Config, AccessMode};
+use duckdb::{Connection, params, Config, AccessMode, types::Value, ToSql};
 use bio::stats::LogProb;
 use itertools::iproduct;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use ordered_float::OrderedFloat;
+extern crate chrono;
+use chrono::offset::Local;
+use chrono::DateTime;
+
 
 /// A probability distribution for a single feature, backed by DuckDB.
 
@@ -94,11 +98,18 @@ impl ProbDistribution2d {
         F: FnMut(f64, f64) -> LogProb,
     {
         let mut results = Vec::with_capacity(mus.len() * thetas.len());
+        let total = mus.len() * thetas.len();
+        let mut count = 0;
+        println!("feature {:?} compute_grid total points {}", self.feature, total);
         for (j, i) in iproduct!(0..thetas.len(), 0..mus.len()) {
             let mu = mus[i];
             let theta = thetas[j];
             let prob = calc(mu, theta);
             results.push((mu, theta, f64::from(prob)));
+            count += 1;
+            if count % 10000 == 0 {
+                println!("feature {:?} compute_grid progress {}/{}", self.feature, count, total);
+            }
         }
         results
     }
@@ -108,6 +119,8 @@ impl ProbDistribution2d {
         &self,
         grid: &[(f64, f64, f64)],
     ) -> duckdb::Result<()> {
+        let time1 = std::time::SystemTime::now();
+        println!("feature {:?} write_output started at {}", self.feature, DateTime::<Local>::from(time1).format("%d/%m/%Y %T") );
         let mut guard = self.conn.lock().unwrap();
         let tx = guard.unchecked_transaction()?;
         let mut stmt = tx.prepare(
@@ -122,6 +135,8 @@ impl ProbDistribution2d {
         }
 
         tx.commit()?;
+        let time2 = std::time::SystemTime::now();
+        println!("feature {:?} write_output finished at {}, duration {:?}", self.feature, DateTime::<Local>::from(time2).format("%d/%m/%Y %T"), time2.duration_since(time1).unwrap() );
         Ok(())
     }
 
