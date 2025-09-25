@@ -4,7 +4,8 @@ use bio::stats::LogProb;
 use rayon::prelude::*;
 use std::path::Path;
 use duckdb::{Connection, params};
-
+use std::collections::HashMap;
+use ordered_float::OrderedFloat;
 use crate::common::Outdir;
 use crate::preprocess::Preprocessing;
 use crate::prob_distribution_1d::ProbDistribution1d;
@@ -35,12 +36,14 @@ pub(crate) fn diff_exp(
         .try_for_each(|(i, feature_id)| -> Result<()> {
             println!("\n--------------feature {:?} {:?}", i, feature_id);
 
-            let prob_dist_i_k1 = ProbDistribution2d::with_readonly_connection(group_path1.to_str().unwrap(), &feature_id)?;
-            let prob_dist_i_k2 = ProbDistribution2d::with_readonly_connection(group_path2.to_str().unwrap(), &feature_id)?;
+            let prob_dist_i_k1_db = ProbDistribution2d::with_readonly_connection(group_path1.to_str().unwrap(), &feature_id)?;
+            let prob_dist_i_k2_db = ProbDistribution2d::with_readonly_connection(group_path2.to_str().unwrap(), &feature_id)?;
+            let prob_dist_i_k1 = prob_dist_i_k1_db.load_lookup_table()?;
+            let prob_dist_i_k2 = prob_dist_i_k2_db.load_lookup_table()?;
             println!("feature {:?} After reading likelihoods", feature_id);
 
 
-            if prob_dist_i_k1.is_na() || prob_dist_i_k2.is_na() {
+            if prob_dist_i_k1_db.is_na() || prob_dist_i_k2_db.is_na() {
                 println!("skipped {:?}", feature_id);
                 return Ok(());
             }
@@ -60,7 +63,7 @@ pub(crate) fn diff_exp(
             println!("feature {:?} possible_f.len() {:?}, start_points_mu_ik.len() {:?}, start_points_theta_i.len() {:?}", feature_id, possible_f.len(), start_points_mu_ik.len(), start_points_theta_i.len());
 
             // let calc_prob = |f: f64, list_mu| -> LogProb {
-            for f in possible_f.clone() {
+            for (i, f) in possible_f.clone().iter().enumerate() {
                 // let f =f64::from(f);
                 let calc_prob_fixed_theta = |theta| {
                     let density_x = |_, x: f64| {
@@ -77,8 +80,11 @@ pub(crate) fn diff_exp(
                         }
 
                         // println!("feature_id {:?} before get f {:?}, x {:?} fx {:?}, theta {:?}",feature_id, f, x, fx, theta);
-                        let p1 = prob_dist_i_k1.get(fx, theta);
-                        let p2 = prob_dist_i_k2.get(x, theta);
+                        // let p1 = prob_dist_i_k1.get(fx, theta);
+                        // let p2 = prob_dist_i_k2.get(x, theta);
+
+                        let p1 = prob_dist_i_k1.get(&(OrderedFloat(fx), OrderedFloat(theta))).cloned().unwrap_or(LogProb::ln_zero());
+                        let p2 = prob_dist_i_k2.get(&(OrderedFloat(x), OrderedFloat(theta))).cloned().unwrap_or(LogProb::ln_zero());
                         // println!("feature_id {:?} after get f {:?}, x {:?} fx {:?}, theta {:?}",feature_id, f, x, fx, theta);
                         p1 + p2
                     };
@@ -99,7 +105,10 @@ pub(crate) fn diff_exp(
                 // };
 
                 // let value = calc_prob(f64::from(f), list_mu);
-                prob_d_i_f.insert(f, prob_theta);
+                prob_d_i_f.insert(*f, prob_theta);
+                if i % 10 == 0 {
+                    println!("feature_id {:?} in f loop {:?}/{:?} f ", feature_id, i, possible_f.len());
+                }
             }
 
             println!("feature_id {:?} after first f loop", feature_id,);

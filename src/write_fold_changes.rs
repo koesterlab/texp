@@ -49,7 +49,8 @@ pub(crate) fn write_fold_changes(
                     diff_exp_distribution.get_max_prob(),
                 ))
                 .unwrap();
-            for (fold_change, (prob, _, _)) in diff_exp_distribution.points {
+            // for (fold_change, (prob, _, _)) in diff_exp_distribution.points {
+            for (fold_change, prob) in diff_exp_distribution.points {
                 wtr_dist
                     .serialize((feature_id, fold_change, prob.exp()))
                     .unwrap();

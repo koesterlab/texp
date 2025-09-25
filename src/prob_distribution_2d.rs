@@ -2,6 +2,8 @@ use duckdb::{Connection, params, Config, AccessMode};
 use bio::stats::LogProb;
 use itertools::iproduct;
 use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
+use ordered_float::OrderedFloat;
 
 /// A probability distribution for a single feature, backed by DuckDB.
 
@@ -121,6 +123,27 @@ impl ProbDistribution2d {
 
         tx.commit()?;
         Ok(())
+    }
+
+    /// Bulk-load all (mu, theta, prob) values for this feature into memory
+    pub fn load_lookup_table(&self) -> duckdb::Result<HashMap<(OrderedFloat<f64>, OrderedFloat<f64>), LogProb>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT mu, theta, prob
+             FROM distributions
+             WHERE feature = ?1"
+        )?;
+        let mut rows = stmt.query(params![self.feature])?;
+
+        let mut table: HashMap<(OrderedFloat<f64>, OrderedFloat<f64>), LogProb> = HashMap::new();
+        while let Some(row) = rows.next()? {
+            let mu: f64 = row.get(0)?;
+            let theta: f64 = row.get(1)?;
+            let prob: f64 = row.get(2)?;
+            // table.insert((mu, theta), LogProb::from(prob));
+            table.insert((OrderedFloat(mu), OrderedFloat(theta)), LogProb::from(prob));
+        }
+        Ok(table)
     }
 
     /// Query a probability by exact (mu, theta).
