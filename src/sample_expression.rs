@@ -66,7 +66,7 @@ pub(crate) fn sample_expression(
     let conn = Arc::new(Mutex::new(conn));
 
     feature_ids
-        .par_iter().take(5)
+        .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
             // print start time of feature
             let time1 = std::time::SystemTime::now();

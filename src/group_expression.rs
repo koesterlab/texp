@@ -39,7 +39,7 @@ pub(crate) fn group_expression(
 
     println!("Before feature_ids par_iter");
     feature_ids
-        .par_iter().take(5)
+        .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
             println!("--------------feature {:?} {:?}", i, feature_id);
 
@@ -95,6 +95,9 @@ pub(crate) fn group_expression(
                 // if theta_i == 0.01 {
                 //     wtr.serialize((mu_ik, prob.exp())).unwrap();
                 // }
+                if feature_id.as_str() == "ERCC-00060" {
+                    println!("feature_id {:?}, mu_ik {:?}, theta_i {:?}, prob {:?}", feature_id, mu_ik, theta_i, prob);
+                }
                 prob
             };
 
