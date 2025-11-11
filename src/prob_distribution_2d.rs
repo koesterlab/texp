@@ -1,30 +1,28 @@
-use duckdb::{Connection, params, Config, AccessMode, types::Value, ToSql};
+use duckdb::{Connection, params, Config, AccessMode};
 use bio::stats::LogProb;
 use itertools::iproduct;
-use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use ordered_float::OrderedFloat;
-extern crate chrono;
 use chrono::offset::Local;
 use chrono::DateTime;
 
-
-/// A probability distribution for a single feature, backed by DuckDB.
-
+/// Represents a 2D probability distribution for a given feature,
+/// stored in DuckDB.
 pub struct ProbDistribution2d {
-    conn: Arc<Mutex<Connection>>, // shared, thread-safe
+    conn: Connection,
     feature: String,
     is_na: bool,
 }
 
 impl ProbDistribution2d {
-    /// Open a shared, mutex-protected connection and initialize schema once.
-    pub fn open_shared(db_path: &str) -> duckdb::Result<Arc<Mutex<Connection>>> {
+    /// Open (and create schema if necessary) for a writable DuckDB connection.
+    pub fn open(db_path: &str) -> duckdb::Result<Connection> {
         let conn = Connection::open(db_path)?;
-        Self::init_schema(&conn)?; // create table once
-        Ok(Arc::new(Mutex::new(conn)))
+        Self::init_schema(&conn)?;
+        Ok(conn)
     }
 
+    /// Ensure the table schema exists.
     pub fn init_schema(conn: &Connection) -> duckdb::Result<()> {
         conn.execute(
             "CREATE TABLE IF NOT EXISTS distributions (
@@ -39,14 +37,10 @@ impl ProbDistribution2d {
         Ok(())
     }
 
-    /// Construct an instance that uses an existing shared connection.
-    pub fn with_connection(
-        conn: Arc<Mutex<Connection>>,
-        feature: &str,
-    ) -> duckdb::Result<Self> {
+    /// Construct a ProbDistribution2d tied to an existing writable connection.
+    pub fn with_connection(conn: &Connection, feature: &str) -> duckdb::Result<Self> {
         let is_na = {
-            let mut guard = conn.lock().unwrap();
-            let mut stmt = guard.prepare("SELECT COUNT(*) FROM distributions WHERE feature = ?1")?;
+            let mut stmt = conn.prepare("SELECT COUNT(*) FROM distributions WHERE feature = ?1")?;
             let mut rows = stmt.query(params![feature])?;
             if let Some(row) = rows.next()? {
                 let count: i64 = row.get(0)?;
@@ -55,74 +49,79 @@ impl ProbDistribution2d {
                 true
             }
         };
-        Ok(ProbDistribution2d {
-            conn,
+        Ok(Self {
+            conn: conn.try_clone()?,
             feature: feature.to_string(),
             is_na,
         })
     }
 
-    /// Open a DuckDB file in read-only mode for an existing feature
+    /// Open in read-only mode for querying existing results.
     pub fn with_readonly_connection(db_path: &str, feature: &str) -> duckdb::Result<Self> {
         let config = Config::default().access_mode(AccessMode::ReadOnly)?;
         let conn = Connection::open_with_flags(db_path, config)?;
         Ok(Self {
-            conn: Arc::new(Mutex::new(conn)),
+            conn,
             feature: feature.to_string(),
             is_na: false,
         })
     }
 
-
-   /// Construct an explicit NA distribution (no data for this feature).
-    pub fn na(conn: Arc<Mutex<Connection>>, feature: &str) -> Self {
-        ProbDistribution2d {
-            conn,
+    /// Construct an explicit NA distribution (represents missing data).
+    pub fn na(feature: &str) -> Self {
+        Self {
+            conn: Connection::open_in_memory().unwrap(),
             feature: feature.to_string(),
             is_na: true,
         }
     }
 
+    /// Whether this distribution represents a missing feature.
     pub fn is_na(&self) -> bool {
         self.is_na
     }
 
-    /// Compute the full probability grid in memory for given mus/thetas.
-    pub fn compute_grid<F>(
-        &self,
-        mus: &[f64],
-        thetas: &[f64],
-        mut calc: F,
-    ) -> Vec<(f64, f64, f64)>
+    /// Compute the full probability grid in memory given mus and thetas.
+    pub fn compute_grid<F>(&self, mus: &[f64], thetas: &[f64], mut calc: F) -> Vec<(f64, f64, f64)>
     where
         F: FnMut(f64, f64) -> LogProb,
     {
         let mut results = Vec::with_capacity(mus.len() * thetas.len());
         let total = mus.len() * thetas.len();
+        println!(
+            "feature {:?} compute_grid total points {}",
+            self.feature, total
+        );
+
         let mut count = 0;
-        println!("feature {:?} compute_grid total points {}", self.feature, total);
         for (j, i) in iproduct!(0..thetas.len(), 0..mus.len()) {
             let mu = mus[i];
             let theta = thetas[j];
             let prob = calc(mu, theta);
             results.push((mu, theta, f64::from(prob)));
             count += 1;
+
             if count % 10000 == 0 {
-                println!("feature {:?} compute_grid progress {}/{}", self.feature, count, total);
+                println!(
+                    "feature {:?} compute_grid progress {}/{}",
+                    self.feature, count, total
+                );
             }
         }
+
         results
     }
 
-    /// Write a precomputed grid into DuckDB with thread-safe mutex lock.
-    pub fn write_output(
-        &self,
-        grid: &[(f64, f64, f64)],
-    ) -> duckdb::Result<()> {
+    /// Write a computed grid to DuckDB.
+    pub fn write_output(&mut self, grid: &[(f64, f64, f64)]) -> duckdb::Result<()> {
         let time1 = std::time::SystemTime::now();
-        println!("feature {:?} write_output started at {}", self.feature, DateTime::<Local>::from(time1).format("%d/%m/%Y %T") );
-        let mut guard = self.conn.lock().unwrap();
-        let tx = guard.unchecked_transaction()?;
+        println!(
+            "feature {:?} write_output started at {}",
+            self.feature,
+            DateTime::<Local>::from(time1).format("%d/%m/%Y %T")
+        );
+
+        let tx = self.conn.unchecked_transaction()?;
         let mut stmt = tx.prepare(
             "INSERT INTO distributions (feature, mu, theta, prob)
              VALUES (?1, ?2, ?3, ?4)
@@ -136,32 +135,36 @@ impl ProbDistribution2d {
 
         tx.commit()?;
         let time2 = std::time::SystemTime::now();
-        println!("feature {:?} write_output finished at {}, duration {:?}", self.feature, DateTime::<Local>::from(time2).format("%d/%m/%Y %T"), time2.duration_since(time1).unwrap() );
+        println!(
+            "feature {:?} write_output finished at {}, duration {:?}",
+            self.feature,
+            DateTime::<Local>::from(time2).format("%d/%m/%Y %T"),
+            time2.duration_since(time1).unwrap()
+        );
         Ok(())
     }
 
-    /// Bulk-load all (mu, theta, prob) values for this feature into memory
-    pub fn load_lookup_table(&self) -> duckdb::Result<HashMap<(OrderedFloat<f64>, OrderedFloat<f64>), LogProb>> {
-        let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT mu, theta, prob
-             FROM distributions
-             WHERE feature = ?1"
-        )?;
+    /// Load a precomputed lookup table for this feature from the DB.
+    pub fn load_lookup_table(
+        &self,
+    ) -> duckdb::Result<HashMap<(OrderedFloat<f64>, OrderedFloat<f64>), LogProb>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT mu, theta, prob FROM distributions WHERE feature = ?1")?;
         let mut rows = stmt.query(params![self.feature])?;
 
-        let mut table: HashMap<(OrderedFloat<f64>, OrderedFloat<f64>), LogProb> = HashMap::new();
+        let mut table = HashMap::new();
         while let Some(row) = rows.next()? {
             let mu: f64 = row.get(0)?;
             let theta: f64 = row.get(1)?;
             let prob: f64 = row.get(2)?;
-            // table.insert((mu, theta), LogProb::from(prob));
             table.insert((OrderedFloat(mu), OrderedFloat(theta)), LogProb::from(prob));
         }
+
         Ok(table)
     }
 
-    /// Query a probability by exact (mu, theta).
+    /// Query a single (mu, theta) pair directly from DuckDB.
     pub fn get(&self, mu: f64, theta: f64) -> LogProb {
         if self.is_na {
             if mu == 0.0 {
@@ -170,12 +173,14 @@ impl ProbDistribution2d {
                 LogProb::ln_zero()
             }
         } else {
-            let mut guard = self.conn.lock().unwrap();
-            let mut stmt = guard
+            let mut stmt = self
+                .conn
                 .prepare(
-                    "SELECT prob FROM distributions WHERE feature = ?1 AND mu = ?2 AND theta = ?3",
+                    "SELECT prob FROM distributions
+                     WHERE feature = ?1 AND mu = ?2 AND theta = ?3",
                 )
                 .expect("prepare failed");
+
             let mut rows = stmt.query(params![self.feature, mu, theta]).unwrap();
             if let Some(row) = rows.next().unwrap() {
                 let raw_prob: f64 = row.get(0).unwrap();
@@ -186,3 +191,4 @@ impl ProbDistribution2d {
         }
     }
 }
+

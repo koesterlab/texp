@@ -98,9 +98,6 @@ pub(crate) fn diff_exp(
                         let p2 = prob_dist_i_k2.get(&(OrderedFloat(x), OrderedFloat(theta))).cloned().unwrap_or(LogProb::ln_zero());
                         // println!("feature_id {:?} after get f {:?}, x {:?} fx {:?}, theta {:?}",feature_id, f, x, fx, theta);
                         let prob = p1 + p2;
-                        if feature_id.as_str() == "ERCC-00060" {
-                            println!("feature_id {:?} f {:?}, x {:?} fx {:?}, theta {:?} p1 {:?}, p2 {:?}, p1+p2 {:?}", feature_id, f, x, fx, theta, p1, p2, p1 + p2);
-                        }
                         prob
 
                     };

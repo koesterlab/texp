@@ -19,6 +19,7 @@ rmp-serde = "1.1"
 itertools-num = "0.1"
 statrs = "0.15"
 bio = "1.4"
+logprob = "0.2.1"
 getset = "0.1"
 derive-new = "0.5"
 derefable = "0.1"
@@ -32,6 +33,7 @@ ordered-float ={ version = "3.4", features = ["serde"] }
 csv = "1.1"
 duckdb = { version = "1.3.2", features = ["bundled"]}
 chrono = "0.4"
+mpsc = "0.2.6"
 
 
 
