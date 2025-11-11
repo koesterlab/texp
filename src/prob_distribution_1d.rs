@@ -4,8 +4,6 @@ use ordered_float::OrderedFloat;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 extern crate chrono;
-use chrono::offset::Local;
-use chrono::DateTime;
 
 pub struct ProbDistribution1d {
     conn: Arc<Mutex<Connection>>,
@@ -38,7 +36,7 @@ impl ProbDistribution1d {
     /// Construct an instance that uses an existing shared connection.
     pub fn with_connection(conn: Arc<Mutex<Connection>>, feature: &str) -> duckdb::Result<Self> {
         let is_na = {
-            let mut guard = conn.lock().unwrap();
+            let guard = conn.lock().unwrap();
             let mut stmt =
                 guard.prepare("SELECT COUNT(*) FROM distributions_1d WHERE feature = ?1")?;
             let mut rows = stmt.query(params![feature])?;
@@ -70,7 +68,7 @@ impl ProbDistribution1d {
 
     /// Insert a single point
     pub fn insert(&self, x: f64, prob: LogProb) -> duckdb::Result<()> {
-        let mut guard = self.conn.lock().unwrap();
+        let guard = self.conn.lock().unwrap();
         let tx = guard.unchecked_transaction()?;
         let mut stmt = tx.prepare(
             "INSERT INTO distributions_1d (feature, x, prob)
@@ -102,7 +100,7 @@ impl ProbDistribution1d {
 
     /// Query a probability for a given x (direct DB query).
     pub fn get(&self, x: f64) -> LogProb {
-        let mut guard = self.conn.lock().unwrap();
+        let guard = self.conn.lock().unwrap();
         let mut stmt = guard
             .prepare("SELECT prob FROM distributions_1d WHERE feature = ?1 AND x = ?2")
             .unwrap();
@@ -117,7 +115,7 @@ impl ProbDistribution1d {
 
     /// Load the whole feature into a lookup table for fast repeated queries.
     pub fn load_lookup_table(&self) -> duckdb::Result<HashMap<OrderedFloat<f64>, LogProb>> {
-        let mut guard = self.conn.lock().unwrap();
+        let guard = self.conn.lock().unwrap();
         let mut stmt = guard.prepare("SELECT x, prob FROM distributions_1d WHERE feature = ?1")?;
         let mut rows = stmt.query(params![self.feature])?;
         let mut out = HashMap::new();

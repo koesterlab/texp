@@ -1,17 +1,14 @@
 //! This implements formula 5, 6, 7 of the document.
 use anyhow::Result;
 use bio::stats::LogProb;
-use duckdb::params;
 use duckdb::Connection;
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, Mutex};
 use std::thread;
 
-use crate::common::Outdir;
 use crate::preprocess::Preprocessing;
 use crate::prob_distribution_2d::ProbDistribution2d;
 use crate::query_points;

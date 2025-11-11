@@ -1,17 +1,15 @@
 //! This implements formula 9 of the document and calculates the fold change / differential expression.
-use crate::common::Outdir;
 use crate::preprocess::Preprocessing;
 use crate::prob_distribution_1d::ProbDistribution1d;
 use crate::prob_distribution_2d::ProbDistribution2d;
 use crate::query_points;
 use anyhow::Result;
 use bio::stats::LogProb;
-use duckdb::{params, Connection};
+use duckdb::Connection;
 use noisy_float::types::N64;
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;
 use std::collections::BTreeMap;
-use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 

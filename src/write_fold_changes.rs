@@ -4,7 +4,6 @@ use std::path::Path;
 
 use crate::common::Outdir;
 use crate::preprocess::Preprocessing;
-use crate::prob_distribution_1d::ProbDistribution1d;
 
 pub(crate) fn write_fold_changes(
     preprocessing: &Path,

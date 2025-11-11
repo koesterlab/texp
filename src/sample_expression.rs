@@ -12,16 +12,14 @@ use anyhow::Result;
 use bio::stats::LogProb;
 // use bio::stats::logprob::ln_sum_exp;
 
-use duckdb::{params, Connection};
+use duckdb::Connection;
 use getset::Getters;
 use rayon::prelude::*;
 use rmp_serde::Deserializer;
 use serde::Deserialize as SerdeDeserialize;
 use serde_derive::{Deserialize, Serialize};
 use statrs::function::beta::ln_beta;
-use std::sync::{Arc, Mutex};
 
-use crate::common::Outdir;
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
 use crate::prob_distribution_2d::ProbDistribution2d;
@@ -109,7 +107,7 @@ pub(crate) fn sample_expression(
 
             // Compute grid in memory
             // let likelihoods = ProbDistribution2d::new(feature_id);
-            let mut likelihoods = ProbDistribution2d::na(feature_id);
+            let likelihoods = ProbDistribution2d::na(feature_id);
             let probs = likelihoods.compute_grid(&mu_ik_points, &start_points_theta_i, calc_prob);
 
             // Send results to writer
