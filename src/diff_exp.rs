@@ -1,19 +1,19 @@
 //! This implements formula 9 of the document and calculates the fold change / differential expression.
-use anyhow::Result;
-use bio::stats::LogProb;
-use rayon::prelude::*;
-use std::path::Path;
-use duckdb::{Connection, params};
-use std::collections::HashMap;
-use ordered_float::OrderedFloat;
 use crate::common::Outdir;
 use crate::preprocess::Preprocessing;
 use crate::prob_distribution_1d::ProbDistribution1d;
 use crate::prob_distribution_2d::ProbDistribution2d;
 use crate::query_points;
+use anyhow::Result;
+use bio::stats::LogProb;
+use duckdb::{params, Connection};
 use noisy_float::types::N64;
-use std::sync::{Arc, Mutex};
+use ordered_float::OrderedFloat;
+use rayon::prelude::*;
 use std::collections::BTreeMap;
+use std::collections::HashMap;
+use std::path::Path;
+use std::sync::{Arc, Mutex};
 
 pub(crate) fn diff_exp(
     c: f64,
@@ -26,9 +26,8 @@ pub(crate) fn diff_exp(
     let db_path = out_dir.to_str().unwrap(); //format!("{}.duckdb", out_dir_path.to_str().unwrap());
     let conn = Connection::open(db_path)?;
     ProbDistribution1d::init_schema(&conn)?; // ensure schema exists
-    // Wrap in Arc<Mutex<Connection>> for parallel use
+                                             // Wrap in Arc<Mutex<Connection>> for parallel use
     let conn = Arc::new(Mutex::new(conn));
-
 
     let preprocessing = Preprocessing::from_path(preprocessing)?;
     let sample_ids = preprocessing

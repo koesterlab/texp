@@ -5,20 +5,20 @@ use std::path::Path;
 extern crate chrono;
 use chrono::offset::Local;
 use chrono::DateTime;
-use std::sync::mpsc::{self, Sender, Receiver};
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
 use anyhow::Result;
 use bio::stats::LogProb;
 // use bio::stats::logprob::ln_sum_exp;
 
+use duckdb::{params, Connection};
 use getset::Getters;
 use rayon::prelude::*;
 use rmp_serde::Deserializer;
 use serde::Deserialize as SerdeDeserialize;
 use serde_derive::{Deserialize, Serialize};
 use statrs::function::beta::ln_beta;
-use duckdb::{Connection, params};
 use std::sync::{Arc, Mutex};
 
 use crate::common::Outdir;
@@ -41,12 +41,13 @@ pub(crate) fn sample_expression(
         .cloned()
         .collect::<Vec<_>>();
 
-    let mean_disp_estimates = preprocessing
-        .mean_disp_estimates()
-        .get(sample_id)
-        .ok_or(Error::UnknownSampleId {
-            sample_id: sample_id.to_owned(),
-        })?;
+    let mean_disp_estimates =
+        preprocessing
+            .mean_disp_estimates()
+            .get(sample_id)
+            .ok_or(Error::UnknownSampleId {
+                sample_id: sample_id.to_owned(),
+            })?;
 
     let s_j = *preprocessing.scale_factors().get(sample_id).unwrap();
     let feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
@@ -55,7 +56,10 @@ pub(crate) fn sample_expression(
     println!("Using DuckDB at {:?}", db_path);
 
     // --- Channel setup ---
-    let (tx, rx): (Sender<(String, Vec<(f64, f64, f64)>)>, Receiver<(String, Vec<(f64, f64, f64)>)>) = mpsc::channel();
+    let (tx, rx): (
+        Sender<(String, Vec<(f64, f64, f64)>)>,
+        Receiver<(String, Vec<(f64, f64, f64)>)>,
+    ) = mpsc::channel();
 
     // --- Spawn the writer thread ---
     let writer_handle = thread::spawn(move || {
@@ -70,61 +74,62 @@ pub(crate) fn sample_expression(
     });
 
     // --- Parallel workers ---
-    feature_ids.par_iter().try_for_each(|(i, feature_id)| -> Result<()> {
-        let start_time = std::time::SystemTime::now();
-        println!(
-            "feature {:?} {:?} started at {}",
-            i,
-            feature_id,
-            DateTime::<Local>::from(start_time).format("%d/%m/%Y %T")
-        );
+    feature_ids
+        .par_iter()
+        .try_for_each(|(i, feature_id)| -> Result<()> {
+            let start_time = std::time::SystemTime::now();
+            println!(
+                "feature {:?} {:?} started at {}",
+                i,
+                feature_id,
+                DateTime::<Local>::from(start_time).format("%d/%m/%Y %T")
+            );
 
-        let d_ij = mean_disp_estimates.means()[*i];
-        let t_ij = if let Some(t_ij) = mean_disp_estimates.dispersions()[*i] {
-            t_ij
-        } else if let Some(t_ij) = preprocessing.interpolate_dispersion(*i) {
-            t_ij
-        } else {
-            println!("skipped {:?}", feature_id);
-            return Ok(());
-        };
+            let d_ij = mean_disp_estimates.means()[*i];
+            let t_ij = if let Some(t_ij) = mean_disp_estimates.dispersions()[*i] {
+                t_ij
+            } else if let Some(t_ij) = preprocessing.interpolate_dispersion(*i) {
+                t_ij
+            } else {
+                println!("skipped {:?}", feature_id);
+                return Ok(());
+            };
 
-        let query_points = query_points::calc_query_points(
-            c,
-            preprocessing.mean_disp_estimates().clone(),
-            sample_ids.clone(),
-            preprocessing.feature_ids().clone(),
-            *i,
-        );
+            let query_points = query_points::calc_query_points(
+                c,
+                preprocessing.mean_disp_estimates().clone(),
+                sample_ids.clone(),
+                preprocessing.feature_ids().clone(),
+                *i,
+            );
 
-        let calc_prob = |m, t| likelihood_mu_ik_theta_i(d_ij, m, t_ij, t, s_j, epsilon);
-        let mu_ik_points = query_points.all_mu_ik();
-        let start_points_theta_i = query_points.thetas();
+            let calc_prob = |m, t| likelihood_mu_ik_theta_i(d_ij, m, t_ij, t, s_j, epsilon);
+            let mu_ik_points = query_points.all_mu_ik();
+            let start_points_theta_i = query_points.thetas();
 
-        // Compute grid in memory
-        // let likelihoods = ProbDistribution2d::new(feature_id);
-        let mut likelihoods = ProbDistribution2d::na(feature_id);
-        let probs = likelihoods.compute_grid(&mu_ik_points, &start_points_theta_i, calc_prob);
+            // Compute grid in memory
+            // let likelihoods = ProbDistribution2d::new(feature_id);
+            let mut likelihoods = ProbDistribution2d::na(feature_id);
+            let probs = likelihoods.compute_grid(&mu_ik_points, &start_points_theta_i, calc_prob);
 
-        // Send results to writer
-        tx.send((feature_id.to_string(), probs)).unwrap();
+            // Send results to writer
+            tx.send((feature_id.to_string(), probs)).unwrap();
 
-        println!(
-            "feature {:?} {:?} finished in {:?}",
-            i,
-            feature_id,
-            start_time.elapsed().unwrap()
-        );
+            println!(
+                "feature {:?} {:?} finished in {:?}",
+                i,
+                feature_id,
+                start_time.elapsed().unwrap()
+            );
 
-        Ok(())
-    })?;
+            Ok(())
+        })?;
 
     drop(tx); // close channel
     writer_handle.join().unwrap();
 
     Ok(())
 }
-
 
 #[derive(Debug, Deserialize, Serialize, Getters)]
 #[getset(get = "pub(crate)")]

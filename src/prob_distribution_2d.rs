@@ -1,10 +1,10 @@
-use duckdb::{Connection, params, Config, AccessMode};
 use bio::stats::LogProb;
-use itertools::iproduct;
-use std::collections::HashMap;
-use ordered_float::OrderedFloat;
 use chrono::offset::Local;
 use chrono::DateTime;
+use duckdb::{params, AccessMode, Config, Connection};
+use itertools::iproduct;
+use ordered_float::OrderedFloat;
+use std::collections::HashMap;
 
 /// Represents a 2D probability distribution for a given feature,
 /// stored in DuckDB.
@@ -191,4 +191,3 @@ impl ProbDistribution2d {
         }
     }
 }
-

@@ -1,8 +1,8 @@
-use duckdb::{Connection, params, AccessMode, Config};
 use bio::stats::LogProb;
-use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
+use duckdb::{params, AccessMode, Config, Connection};
 use ordered_float::OrderedFloat;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 extern crate chrono;
 use chrono::offset::Local;
 use chrono::DateTime;
@@ -36,15 +36,11 @@ impl ProbDistribution1d {
     }
 
     /// Construct an instance that uses an existing shared connection.
-    pub fn with_connection(
-        conn: Arc<Mutex<Connection>>,
-        feature: &str,
-    ) -> duckdb::Result<Self> {
+    pub fn with_connection(conn: Arc<Mutex<Connection>>, feature: &str) -> duckdb::Result<Self> {
         let is_na = {
             let mut guard = conn.lock().unwrap();
-            let mut stmt = guard.prepare(
-                "SELECT COUNT(*) FROM distributions_1d WHERE feature = ?1"
-            )?;
+            let mut stmt =
+                guard.prepare("SELECT COUNT(*) FROM distributions_1d WHERE feature = ?1")?;
             let mut rows = stmt.query(params![feature])?;
             if let Some(row) = rows.next()? {
                 let count: i64 = row.get(0)?;
@@ -122,8 +118,7 @@ impl ProbDistribution1d {
     /// Load the whole feature into a lookup table for fast repeated queries.
     pub fn load_lookup_table(&self) -> duckdb::Result<HashMap<OrderedFloat<f64>, LogProb>> {
         let mut guard = self.conn.lock().unwrap();
-        let mut stmt = guard
-            .prepare("SELECT x, prob FROM distributions_1d WHERE feature = ?1")?;
+        let mut stmt = guard.prepare("SELECT x, prob FROM distributions_1d WHERE feature = ?1")?;
         let mut rows = stmt.query(params![self.feature])?;
         let mut out = HashMap::new();
 
