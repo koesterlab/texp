@@ -1,5 +1,4 @@
 //! This implements formula 3+4 of the document.
-use std::fs;
 use std::mem;
 use std::path::Path;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -8,7 +7,6 @@ use std::thread;
 use anyhow::Result;
 use bio::stats::LogProb;
 
-use duckdb::Connection;
 // use getset::Getters;
 use rayon::prelude::*;
 // use rmp_serde::Deserializer;

@@ -1,7 +1,6 @@
 //! This implements formula 5, 6, 7 of the document.
 use anyhow::Result;
 use bio::stats::LogProb;
-use duckdb::Connection;
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;
 use std::path::{Path, PathBuf};
