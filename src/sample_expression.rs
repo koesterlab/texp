@@ -2,26 +2,23 @@
 use std::fs;
 use std::mem;
 use std::path::Path;
-extern crate chrono;
-use chrono::offset::Local;
-use chrono::DateTime;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
 use anyhow::Result;
 use bio::stats::LogProb;
-// use bio::stats::logprob::ln_sum_exp;
 
 use duckdb::Connection;
-use getset::Getters;
+// use getset::Getters;
 use rayon::prelude::*;
-use rmp_serde::Deserializer;
-use serde::Deserialize as SerdeDeserialize;
-use serde_derive::{Deserialize, Serialize};
+// use rmp_serde::Deserializer;
+// use serde::Deserialize as SerdeDeserialize;
+// use serde_derive::{Deserialize, Serialize};
 use statrs::function::beta::ln_beta;
 
 use crate::errors::Error;
 use crate::preprocess::Preprocessing;
+use crate::prob_distribution_2d::compute_grid;
 use crate::prob_distribution_2d::ProbDistribution2d;
 use crate::query_points;
 
@@ -51,7 +48,6 @@ pub(crate) fn sample_expression(
     let feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
 
     let db_path = out_dir_path.to_str().unwrap().to_string();
-    println!("Using DuckDB at {:?}", db_path);
 
     // --- Channel setup ---
     let (tx, rx): (
@@ -61,13 +57,10 @@ pub(crate) fn sample_expression(
 
     // --- Spawn the writer thread ---
     let writer_handle = thread::spawn(move || {
-        let conn = Connection::open(&db_path).expect("Failed to open DuckDB in writer");
-        ProbDistribution2d::init_schema(&conn).unwrap();
-
-        // Writer loop
-        while let Ok((feature_id, probs)) = rx.recv() {
-            let mut likelihoods = ProbDistribution2d::with_connection(&conn, &feature_id).unwrap();
-            likelihoods.write_output(&probs);
+        let conn = ProbDistribution2d::open(&db_path).unwrap();
+        while let Ok((feature_id, grid)) = rx.recv() {
+            let mut writer = ProbDistribution2d::with_connection(&conn, &feature_id).unwrap();
+            writer.write_output(&grid);
         }
     });
 
@@ -75,14 +68,6 @@ pub(crate) fn sample_expression(
     feature_ids
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
-            let start_time = std::time::SystemTime::now();
-            println!(
-                "feature {:?} {:?} started at {}",
-                i,
-                feature_id,
-                DateTime::<Local>::from(start_time).format("%d/%m/%Y %T")
-            );
-
             let d_ij = mean_disp_estimates.means()[*i];
             let t_ij = if let Some(t_ij) = mean_disp_estimates.dispersions()[*i] {
                 t_ij
@@ -106,19 +91,10 @@ pub(crate) fn sample_expression(
             let start_points_theta_i = query_points.thetas();
 
             // Compute grid in memory
-            // let likelihoods = ProbDistribution2d::new(feature_id);
-            let likelihoods = ProbDistribution2d::na(feature_id);
-            let probs = likelihoods.compute_grid(&mu_ik_points, &start_points_theta_i, calc_prob);
+            let probs = compute_grid(&mu_ik_points, &start_points_theta_i, calc_prob);
 
             // Send results to writer
             tx.send((feature_id.to_string(), probs)).unwrap();
-
-            println!(
-                "feature {:?} {:?} finished in {:?}",
-                i,
-                feature_id,
-                start_time.elapsed().unwrap()
-            );
 
             Ok(())
         })?;
@@ -129,20 +105,20 @@ pub(crate) fn sample_expression(
     Ok(())
 }
 
-#[derive(Debug, Deserialize, Serialize, Getters)]
-#[getset(get = "pub(crate)")]
-pub(crate) struct SampleInfo {
-    sample_id: String,
-}
+// #[derive(Debug, Deserialize, Serialize, Getters)]
+// #[getset(get = "pub(crate)")]
+// pub(crate) struct SampleInfo {
+//     sample_id: String,
+// }
 
-impl SampleInfo {
-    #[allow(unused)]
-    pub(crate) fn from_path(path: &Path) -> Result<Self> {
-        Ok(SampleInfo::deserialize(&mut Deserializer::new(
-            fs::File::open(path)?,
-        ))?)
-    }
-}
+// impl SampleInfo {
+//     #[allow(unused)]
+//     pub(crate) fn from_path(path: &Path) -> Result<Self> {
+//         Ok(SampleInfo::deserialize(&mut Deserializer::new(
+//             fs::File::open(path)?,
+//         ))?)
+//     }
+// }
 
 fn prob_mu_ik_theta_i_x(
     x: f64,
@@ -152,13 +128,11 @@ fn prob_mu_ik_theta_i_x(
     theta_i: f64,
     s_j: f64,
 ) -> LogProb {
-    // println!("x {:?}, d_ij {:?}, mu_ik {:?}, t_ij {:?}, theta_i {:?}, s_j {:?}", x, d_ij, mu_ik, t_ij, theta_i, s_j);
     //METHOD /s_j?? mu_ik*s_j würde einluss von t_ij ändern, weil mu geändert wird.
     let left = neg_binom(d_ij / s_j, x, t_ij);
     let right = neg_binom(x, mu_ik, theta_i);
     // let right =  LogProb::from(Poisson::new(mu_ik).unwrap().ln_pmf(x as u64));
     let result = left + right;
-    // println!("result {:?}", result);
     result
 }
 
@@ -179,7 +153,6 @@ fn likelihood_mu_ik_theta_i(
     }
     let mut max_prob = LogProb::ln_zero();
     let mut probs = Vec::with_capacity(300);
-    // println!("mu_ik {:?} d_ij {:?}", mu_ik, d_ij/s_j);
     let mut x: f64 = 0.;
 
     loop {
@@ -195,7 +168,6 @@ fn likelihood_mu_ik_theta_i(
         x = x + 1.;
     }
     let result = LogProb::ln_sum_exp(&probs);
-    // println!("################# {:?} {:?} {:?}", result, result2, result==result2);
     result
 }
 
@@ -210,8 +182,7 @@ pub(crate) fn neg_binom(x: f64, mu: f64, theta: f64) -> LogProb {
     if p1 < p2 {
         mem::swap(&mut p1, &mut p2);
     }
-    // (p1 - b + p2).exp() / (x + n)
-    LogProb((p1 - b + p2) - (x + n).ln()) // TODO is this the correct form for returning LogProb?
+    LogProb((p1 - b + p2) - (x + n).ln())
 }
 
 #[cfg(test)]

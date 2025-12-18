@@ -10,6 +10,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 
 use crate::preprocess::Preprocessing;
+use crate::prob_distribution_2d::compute_grid;
 use crate::prob_distribution_2d::ProbDistribution2d;
 use crate::query_points;
 
@@ -39,13 +40,10 @@ pub(crate) fn group_expression(
 
     // --- Spawn the writer thread ---
     let writer_handle = thread::spawn(move || {
-        let conn = Connection::open(&db_path).expect("Failed to open DuckDB in writer");
-        ProbDistribution2d::init_schema(&conn).unwrap();
-
-        // Writer loop
-        while let Ok((feature_id, probs)) = rx.recv() {
-            let mut likelihoods = ProbDistribution2d::with_connection(&conn, &feature_id).unwrap();
-            likelihoods.write_output(&probs).unwrap();
+        let conn = ProbDistribution2d::open(&db_path).unwrap();
+        while let Ok((feature_id, grid)) = rx.recv() {
+            let mut writer = ProbDistribution2d::with_connection(&conn, &feature_id).unwrap();
+            writer.write_output(&grid);
         }
     });
 
@@ -55,24 +53,23 @@ pub(crate) fn group_expression(
     feature_ids
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
-            println!("Feature {i} ({feature_id}) — starting computation");
-
             // Open per-sample likelihood tables (read-only)
             let sample_expression_likelihoods: Vec<_> = sample_expression_paths
                 .iter()
                 .map(|path| {
-                    ProbDistribution2d::with_readonly_connection(path.to_str().unwrap(), feature_id)
+                    ProbDistribution2d::with_readonly_connection(
+                        path.to_str().unwrap(),
+                        &feature_id,
+                    )
                 })
-                .collect::<duckdb::Result<_>>()?;
+                .collect::<duckdb::Result<_>>()
+                .unwrap();
 
             // Preload all lookup tables in memory
             let lookup_tables: Vec<_> = sample_expression_likelihoods
                 .iter()
                 .map(|likelihood| likelihood.load_lookup_table())
                 .collect::<duckdb::Result<_>>()?;
-
-            // let prob_dist = ProbDistribution2d::new(feature_id);
-            let prob_dist = ProbDistribution2d::na(feature_id);
 
             let calc_prob = |mu_ik: f64, theta_i: f64| {
                 if mu_ik == 0.0 {
@@ -99,12 +96,11 @@ pub(crate) fn group_expression(
             let mu_ik_points = query_points.all_mu_ik();
             let theta_points = query_points.thetas();
 
-            let probs = prob_dist.compute_grid(&mu_ik_points, &theta_points, calc_prob);
+            let probs = compute_grid(&mu_ik_points, &theta_points, calc_prob);
 
             // Send computed result to writer thread
             tx.send((feature_id.to_string(), probs)).unwrap();
 
-            println!("Feature {i} ({feature_id}) — computation done, sent to writer.");
             Ok(())
         })?;
 

@@ -40,19 +40,21 @@ pub(crate) fn diff_exp(
     feature_ids
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
-            println!("\n--------------feature {:?} {:?}", i, feature_id);
-
-            let prob_dist_i_k1_db = ProbDistribution2d::with_readonly_connection(group_path1.to_str().unwrap(), &feature_id)?;
-            let prob_dist_i_k2_db = ProbDistribution2d::with_readonly_connection(group_path2.to_str().unwrap(), &feature_id)?;
+            let prob_dist_i_k1_db = ProbDistribution2d::with_readonly_connection(
+                group_path1.to_str().unwrap(),
+                &feature_id,
+            )?;
+            let prob_dist_i_k2_db = ProbDistribution2d::with_readonly_connection(
+                group_path2.to_str().unwrap(),
+                &feature_id,
+            )?;
             let prob_dist_i_k1 = prob_dist_i_k1_db.load_lookup_table()?;
             let prob_dist_i_k2 = prob_dist_i_k2_db.load_lookup_table()?;
-            println!("feature {:?} After reading likelihoods", feature_id);
 
-
-            if prob_dist_i_k1_db.is_na() || prob_dist_i_k2_db.is_na() {
-                println!("skipped {:?}", feature_id);
-                return Ok(());
-            }
+            // if prob_dist_i_k1_db.is_na() || prob_dist_i_k2_db.is_na() {
+            //     println!("skipped {:?}", feature_id);
+            //     return Ok(());
+            // }
             let query_points = query_points::calc_query_points(
                 c,
                 preprocessing.mean_disp_estimates().clone(),
@@ -64,11 +66,9 @@ pub(crate) fn diff_exp(
             let start_points_mu_ik = query_points.start_points_mu_ik();
             let start_points_theta_i = query_points.thetas();
 
-            // let mut prob_d_i_f = ProbDistribution1d::new();
-            // let mut diff_exp_distribution = ProbDistribution1d::new();
-            let mut prob_d_i_f =  BTreeMap::<N64, LogProb>::new();
-            let diff_exp_distribution = ProbDistribution1d::with_connection(conn.clone(), feature_id).unwrap();
-            println!("feature {:?} possible_f.len() {:?}, start_points_mu_ik.len() {:?}, start_points_theta_i.len() {:?}", feature_id, possible_f.len(), start_points_mu_ik.len(), start_points_theta_i.len());
+            let mut prob_d_i_f = BTreeMap::<N64, LogProb>::new();
+            let diff_exp_distribution =
+                ProbDistribution1d::with_connection(conn.clone(), feature_id).unwrap();
 
             // let calc_prob = |f: f64, list_mu| -> LogProb {
             for (i, f) in possible_f.clone().iter().enumerate() {
@@ -87,16 +87,16 @@ pub(crate) fn diff_exp(
                             fx = (fx * 10.).round() / 10.;
                         }
 
-                        // println!("feature_id {:?} before get f {:?}, x {:?} fx {:?}, theta {:?}",feature_id, f, x, fx, theta);
-                        // let p1 = prob_dist_i_k1.get(fx, theta);
-                        // let p2 = prob_dist_i_k2.get(x, theta);
-
-                        let p1 = prob_dist_i_k1.get(&(OrderedFloat(fx), OrderedFloat(theta))).cloned().unwrap_or(LogProb::ln_zero());
-                        let p2 = prob_dist_i_k2.get(&(OrderedFloat(x), OrderedFloat(theta))).cloned().unwrap_or(LogProb::ln_zero());
-                        // println!("feature_id {:?} after get f {:?}, x {:?} fx {:?}, theta {:?}",feature_id, f, x, fx, theta);
+                        let p1 = prob_dist_i_k1
+                            .get(&(OrderedFloat(fx), OrderedFloat(theta)))
+                            .cloned()
+                            .unwrap_or(LogProb::ln_zero());
+                        let p2 = prob_dist_i_k2
+                            .get(&(OrderedFloat(x), OrderedFloat(theta)))
+                            .cloned()
+                            .unwrap_or(LogProb::ln_zero());
                         let prob = p1 + p2;
                         prob
-
                     };
                     let prob_x =
                         LogProb::ln_trapezoidal_integrate_grid_exp(density_x, &start_points_mu_ik);
@@ -117,37 +117,22 @@ pub(crate) fn diff_exp(
                 // let value = calc_prob(f64::from(f), list_mu);
                 let f = N64::new(*f);
                 prob_d_i_f.insert(f, prob_theta);
-                if i % 10 == 0 {
-                    println!("feature_id {:?} in f loop {:?}/{:?} f ", feature_id, i, possible_f.len());
-                }
             }
-
-            println!("feature_id {:?} after first f loop", feature_id,);
 
             let density = |_, f| *prob_d_i_f.get(&N64::new(f)).unwrap();
 
             let prob_f = LogProb::ln_trapezoidal_integrate_grid_exp(density, &possible_f);
             let calc_prob_f = |f| {
                 let noisy_f = N64::new(f);
-                println!("feature_id {:?}  prob_d_i_f.get(f) {:?}, prob_f {:?}", feature_id, prob_d_i_f.get(&noisy_f), prob_f);
                 let prob = prob_d_i_f.get(&noisy_f).unwrap() - prob_f;
                 prob
             };
 
             for f in possible_f.clone() {
-
                 let value = calc_prob_f(f);
                 // println!("feature_id {:?} diff_exp_distribution f {:?} {:?}", feature_id, f, value);
                 diff_exp_distribution.insert(f, value);
             }
-            println!("feature {:?} after second f loop", feature_id,);
-
-            // println!("prob_d_i_f get_max_prob_position {:?}", prob_d_i_f.get_max_prob_position());
-            // println!("diff exp get_max_prob_position {:?}", diff_exp_distribution.get_max_prob_position());
-
-            // // Step 3: Write output
-            // out_dir.serialize_value(feature_id, diff_exp_distribution)?;
-            // }
             Ok(())
         })?;
 
