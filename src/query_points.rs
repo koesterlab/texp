@@ -8,6 +8,7 @@ use ndarray::{Array1, Dim};
 use serde_derive::{Deserialize, Serialize};
 
 use crate::preprocess::Estimates;
+use crate::preprocess::Preprocessing;
 
 #[derive(Serialize, Deserialize, Debug, Getters)]
 pub(crate) struct QueryPoints {
@@ -19,6 +20,69 @@ pub(crate) struct QueryPoints {
     thetas: Vec<f64>,
     #[get = "pub(crate)"]
     possible_f: Vec<f64>,
+}
+
+#[derive(Debug)]
+pub(crate) struct QueryPointsPerFeature {
+    per_feature: Vec<QueryPoints>,
+}
+
+
+impl QueryPointsPerFeature {
+    #[inline]
+    pub(crate) fn get(&self, feature_id: usize) -> &QueryPoints {
+        &self.per_feature[feature_id]
+    }
+
+    #[inline]
+    pub(crate) fn len(&self) -> usize {
+        self.per_feature.len()
+    }
+}
+
+impl QueryPointsPerFeature {
+    pub(crate) fn new(
+        preprocessing: &Preprocessing,
+        c: f64,
+    ) -> Self {
+        let sample_ids: Vec<_> =
+            preprocessing.scale_factors().keys().cloned().collect();
+
+        let num_features = preprocessing.feature_ids().len();
+        let num_samples = sample_ids.len() as f64;
+
+        // ---- mean per feature ----
+        let mut means_per_feature = vec![0.0; num_features];
+
+        for sample_id in &sample_ids {
+            let est = &preprocessing.mean_disp_estimates()[sample_id];
+            for (i, &v) in est.means().iter().enumerate() {
+                means_per_feature[i] += v;
+            }
+        }
+
+        for v in &mut means_per_feature {
+            *v /= num_samples;
+        }
+
+        // ---- min / max per feature ----
+        let min_max_values =
+            compute_min_max_values(preprocessing.mean_disp_estimates());
+
+        // ---- build QueryPoints for all features ----
+        let per_feature = (0..num_features)
+            .map(|i| {
+                QueryPoints::new(
+                    c,
+                    means_per_feature[i],
+                    min_max_values[&i],
+                )
+                .unwrap()
+            })
+            .collect();
+
+        Self { per_feature }
+    }
 }
 
 impl QueryPoints {
@@ -116,56 +180,23 @@ fn compute_min_max_values(
     min_max_values
 }
 
-// calc query points for each feature
-pub(crate) fn calc_query_points(
-    c: f64,
-    mean_disp_estimates: HashMap<String, Estimates>,
-    sample_ids: Vec<String>,
-    feature_ids: Array1<String>,
-    id: usize,
-) -> QueryPoints {
-    // pub(crate) fn calc_query_points(c: f64, mean_disp_estimates: HashMap<String, Estimates> , sample_ids: Vec<String>, feature_ids: Array1<String> ) ->HashMap<String, QueryPoints> {
-    //     // let mut query_points_per_feature = HashMap::<String, QueryPoints>::new();
-    // get minimum, mean and maximum mu_ik per feature
+fn compute_means_per_feature(preprocessing: &Preprocessing) -> Vec<f64> {
+    let sample_ids: Vec<_> = preprocessing.scale_factors().keys().cloned().collect();
+    let num_features = preprocessing.feature_ids().len();
+    let num_samples = sample_ids.len() as f64;
 
-    let mut means_per_feature: Array1<f64> =
-        Array1::zeros(Dim([mean_disp_estimates[&sample_ids[0]].means().len()]));
-    means_per_feature = sample_ids
-        .iter()
-        .fold(means_per_feature, |acc: Array1<f64>, x: &String| {
-            acc + mean_disp_estimates[x].means()
-        });
+    let mut means = vec![0.0; num_features];
 
-    let min_max_values = compute_min_max_values(&mean_disp_estimates);
-    let number_of_samples = sample_ids.len() as f64;
-    means_per_feature = means_per_feature.map(|x| -> f64 { x / number_of_samples });
+    for sample_id in sample_ids {
+        let est = &preprocessing.mean_disp_estimates()[&sample_id];
+        for (i, &v) in est.means().iter().enumerate() {
+            means[i] += v;
+        }
+    }
 
-    //    let mut min_per_feature : Array1<f64> = Array1::zeros(Dim([mean_disp_estimates[&sample_ids[0]].means().len()]));
-    //    // get list of minimum mu_ik per feature
-    //     min_per_feature =  sample_ids
-    //        .iter()
-    //        .fold(min_per_feature, |acc: Array1<f64>, x: &String| {
-    //            let mut min = acc.clone();
-    //            for (i, x) in mean_disp_estimates[x].means().iter().enumerate() {
-    //                if x.is_finite() {
-    //                    if x < &min[i] {
-    //                        min[i] = *x;
-    //                    }
-    //                }
-    //            }
-    //            min
-    //        });
-    // println!("min_per_feature 1 {:?}", min_per_feature[190432]);
-    // println!("min_per_feature -1 {:?}", min_per_feature[min_per_feature.len()-1]);
-    //enumerate over features
-    // for (i, feature_id ) in feature_ids.iter().enumerate() {
-    //     let mean = means_per_feature[i];
-    //     let query_points = QueryPoints::new(c, mean, *min_max_values.get(&i).unwrap()).unwrap();
-    //     query_points_per_feature.insert(feature_id.to_string(), query_points);
-    // }
+    for v in &mut means {
+        *v /= num_samples;
+    }
 
-    // query_points_per_feature
-    let mean = means_per_feature[id];
-    let query_points = QueryPoints::new(c, mean, *min_max_values.get(&id).unwrap()).unwrap();
-    query_points
+    means
 }

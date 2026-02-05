@@ -46,6 +46,8 @@ pub(crate) fn group_expression(
         }
     });
 
+    let query_points_per_feature = query_points::QueryPointsPerFeature::new(&preprocessing, c);
+
     // -----------------------------------------
     // Parallel worker threads (compute only)
     // -----------------------------------------
@@ -84,13 +86,7 @@ pub(crate) fn group_expression(
                 LogProb::ln_sum_exp(&probs)
             };
 
-            let query_points = query_points::calc_query_points(
-                c,
-                preprocessing.mean_disp_estimates().clone(),
-                sample_ids.clone(),
-                preprocessing.feature_ids().clone(),
-                *i,
-            );
+            let query_points = query_points_per_feature.get(*i);
 
             let mu_ik_points = query_points.all_mu_ik();
             let theta_points = query_points.thetas();

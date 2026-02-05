@@ -62,6 +62,9 @@ pub(crate) fn sample_expression(
         }
     });
 
+    let query_points_per_feature = query_points::QueryPointsPerFeature::new(&preprocessing, c);
+
+
     // --- Parallel workers ---
     feature_ids
         .par_iter()
@@ -76,13 +79,7 @@ pub(crate) fn sample_expression(
                 return Ok(());
             };
 
-            let query_points = query_points::calc_query_points(
-                c,
-                preprocessing.mean_disp_estimates().clone(),
-                sample_ids.clone(),
-                preprocessing.feature_ids().clone(),
-                *i,
-            );
+            let query_points = query_points_per_feature.get(*i);
 
             let calc_prob = |m, t| likelihood_mu_ik_theta_i(d_ij, m, t_ij, t, s_j, epsilon);
             let mu_ik_points = query_points.all_mu_ik();

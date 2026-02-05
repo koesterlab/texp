@@ -36,6 +36,8 @@ pub(crate) fn diff_exp(
     let prior = preprocessing.prior()?;
     let feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
 
+    let query_points_per_feature = query_points::QueryPointsPerFeature::new(&preprocessing, c);
+
     println!("Before feature_ids par_iter");
     feature_ids
         .par_iter()
@@ -55,13 +57,8 @@ pub(crate) fn diff_exp(
             //     println!("skipped {:?}", feature_id);
             //     return Ok(());
             // }
-            let query_points = query_points::calc_query_points(
-                c,
-                preprocessing.mean_disp_estimates().clone(),
-                sample_ids.clone(),
-                preprocessing.feature_ids().clone(),
-                *i,
-            );
+
+            let query_points = query_points_per_feature.get(*i);
             let possible_f = query_points.possible_f();
             let start_points_mu_ik = query_points.start_points_mu_ik();
             let start_points_theta_i = query_points.thetas();
