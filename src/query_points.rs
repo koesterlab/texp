@@ -28,16 +28,16 @@ impl QueryPoints {
         let max = min_max.1;
         let mut start_points_mu_ik = vec![0.];
         if mean_mu < 0.1 {
-            start_points_mu_ik.extend(linspace(0.001, 0.2, 50).step_by(1));
+            start_points_mu_ik.extend(linspace(0.001, 0.2, 40).step_by(1));
         } else if mean_mu < 1. {
-            start_points_mu_ik.extend(linspace(0.01, 2., 50).step_by(1));
+            start_points_mu_ik.extend(linspace(0.01, 2., 40).step_by(1));
         } else if mean_mu < 10. && min == 0. {
-            start_points_mu_ik.extend(linspace(min, max, 50).step_by(1));
+            start_points_mu_ik.extend(linspace(min, max, 40).step_by(1));
         } else if min == 0. {
             min = mean_mu - mean_mu * 0.1;
-            start_points_mu_ik.extend(linspace(min, max, 50).step_by(1));
+            start_points_mu_ik.extend(linspace(min, max, 40).step_by(1));
         } else {
-            start_points_mu_ik.extend(linspace(min, max, 50).step_by(1));
+            start_points_mu_ik.extend(linspace(min, max, 40).step_by(1));
         }
         start_points_mu_ik.sort_by(|a, b| a.partial_cmp(b).unwrap());
         // round each value to 3 decimal places
@@ -48,17 +48,17 @@ impl QueryPoints {
         start_points_mu_ik.dedup();
         // start_points_mu_ik = start_points_mu_ik.iter().step_by(2).map(|x| *x).collect();
 
-        let mut possible_f: Vec<f64> = linspace(0.05, 5., 100).step_by(1).collect();
-        possible_f.extend(linspace(5., 10., 20).step_by(1));
-        possible_f.extend(linspace(10.5, 20., 20).step_by(1));
+        let mut possible_f: Vec<f64> = linspace(0.05, 5., 40).step_by(1).collect();
+        possible_f.extend(linspace(5., 10., 15).step_by(1));
+        possible_f.extend(linspace(10.5, 20., 15).step_by(1));
         // println!("len possible_f {:?}", possible_f.len());
         possible_f.sort_by(|a, b| a.partial_cmp(b).unwrap());
         possible_f.dedup();
 
-        let mut thetas: Vec<f64> = linspace(0.01, 0.1, 10).take(1).collect();
+        let mut thetas: Vec<f64> = linspace(0.01, 0.1, 5).collect();
         thetas.extend(linspace(0.1, 1., 10).step_by(1));
-        thetas.extend(linspace(1.5, 10., 18).step_by(2));
-        thetas.extend(linspace(11., 165., 155).step_by(10));
+        thetas.extend(linspace(1.5, 10., 15).step_by(2));
+        thetas.extend(linspace(11., 165., 115).step_by(10));
         // println!("len thetas {:?}", thetas.len());
         thetas.sort_by(|a, b| a.partial_cmp(b).unwrap());
         thetas.dedup();

@@ -1,16 +1,16 @@
-//! This implements formula 5,6,7 of the document.
-use std::path::{Path, PathBuf};
-
+//! This implements formula 5, 6, 7 of the document.
 use anyhow::Result;
 use bio::stats::LogProb;
-use csv;
+use ordered_float::OrderedFloat;
 use rayon::prelude::*;
+use std::path::{Path, PathBuf};
+use std::sync::mpsc::channel;
+use std::sync::mpsc::{Receiver, Sender};
+use std::thread;
 
-use crate::common::Outdir;
-// use crate::errors::Error;
 use crate::preprocess::Preprocessing;
+use crate::prob_distribution_2d::compute_grid;
 use crate::prob_distribution_2d::ProbDistribution2d;
-// use crate::sample_expression::SampleInfo;
 use crate::query_points;
 
 pub(crate) fn group_expression(
@@ -19,120 +19,69 @@ pub(crate) fn group_expression(
     c: f64,
     out_dir_path: &Path,
 ) -> Result<()> {
+    // Load preprocessing
     let preprocessing = Preprocessing::from_path(preprocessing)?;
     let sample_ids = preprocessing
         .scale_factors()
         .keys()
         .cloned()
         .collect::<Vec<_>>();
-    // let prior = preprocessing.prior()?;
     let feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
 
-    // let file = File::open("/vol/nano/bayesian-diff-exp-analysis/texp-evaluation/estimated_dispersion.csv")?;
-    // let mut rdr = csv::Reader::from_reader(file);
-    // let mut thetas = Vec::<f64>::new();
-    // for result in rdr.records() {
-    //     let record = result?;
-    //     let dispersion: f64 = record[1].parse().unwrap();
-    //     thetas.push(dispersion);
-    // }
+    // Shared writer connection (only writer thread touches this)
+    let db_path = out_dir_path.to_str().unwrap().to_string();
 
-    let out_dir = Outdir::create(out_dir_path)?;
+    // --- Channel setup ---
+    let (tx, rx): (
+        Sender<(String, Vec<(f64, f64, f64)>)>,
+        Receiver<(String, Vec<(f64, f64, f64)>)>,
+    ) = channel();
+
+    // --- Spawn the writer thread ---
+    let writer_handle = thread::spawn(move || {
+        let conn = ProbDistribution2d::open(&db_path).unwrap();
+        while let Ok((feature_id, grid)) = rx.recv() {
+            let mut writer = ProbDistribution2d::with_connection(&conn, &feature_id).unwrap();
+            writer.write_output(&grid);
+        }
+    });
+
+    // -----------------------------------------
+    // Parallel worker threads (compute only)
+    // -----------------------------------------
     feature_ids
         .par_iter()
         .try_for_each(|(i, feature_id)| -> Result<()> {
-            // println!("--------------feature {:?} {:?}", i, feature_id);
-            // let maximum_likelihood_means: Vec<f64> = sample_expression_paths
-            //     .iter()
-            //     .map(|sample_expression_path| {
-            //         let sample_info: SampleInfo =
-            //             Outdir::open(sample_expression_path)?.deserialize_value("info")?;
-            //         Ok(preprocessing
-            //             .mean_disp_estimates()
-            //             .get(sample_info.sample_id())
-            //             .ok_or(Error::UnknownSampleId {
-            //                 sample_id: sample_info.sample_id().to_owned(),
-            //             })?
-            //             .means()[*i])
-            //     })
-            //     .collect::<Result<Vec<_>>>()?;
-            // println!("1");
-            let sample_expression_likelihoods = sample_expression_paths
+            // Open per-sample likelihood tables (read-only)
+            let sample_expression_likelihoods: Vec<_> = sample_expression_paths
                 .iter()
-                .map(|sample_expression_path| {
-                    let dir = Outdir::open(sample_expression_path)?;
-                    let feature_id_with_mpk = format!("{}{}", feature_id, ".mpk");
-                    let mut fullpath = format!(
-                        "{}{}",
-                        sample_expression_path.to_str().unwrap(),
-                        feature_id_with_mpk
-                    );
-                    if sample_expression_path
-                        .to_str()
-                        .unwrap()
-                        .chars()
-                        .last()
-                        .unwrap()
-                        != '/'
-                    {
-                        fullpath = format!(
-                            "{}/{}",
-                            sample_expression_path.to_str().unwrap(),
-                            feature_id_with_mpk
-                        );
-                    }
-
-                    if Path::new(&fullpath).exists() {
-                        let likelihoods: ProbDistribution2d = dir.deserialize_value(feature_id)?;
-                        Ok(likelihoods)
-                    } else {
-                        Ok(ProbDistribution2d::na())
-                    }
+                .map(|path| {
+                    ProbDistribution2d::with_readonly_connection(
+                        path.to_str().unwrap(),
+                        &feature_id,
+                    )
                 })
-                .collect::<Result<Vec<_>>>()?;
-            if sample_expression_likelihoods.iter().all(|x| x.is_na()) {
-                out_dir.serialize_value(feature_id, ProbDistribution2d::na())?;
-                return Ok(());
-            }
+                .collect::<duckdb::Result<_>>()
+                .unwrap();
 
-            // let maximum_likelihood_mean = maximum_likelihood_means.iter().sum::<f64>()
-            //     / maximum_likelihood_means.len() as f64;
+            // Preload all lookup tables in memory
+            let lookup_tables: Vec<_> = sample_expression_likelihoods
+                .iter()
+                .map(|likelihood| likelihood.load_lookup_table())
+                .collect::<duckdb::Result<_>>()?;
 
-            let mut prob_dist = ProbDistribution2d::new();
-            // Extend out_dir_path with feature_id and extension csv
-            let mut output = out_dir_path.to_path_buf();
-            output.push(feature_id);
-            output.set_extension("csv");
-
-            let mut wtr = csv::Writer::from_path(output)?;
-            wtr.serialize(("mu_ik", "probability")).unwrap();
             let calc_prob = |mu_ik: f64, theta_i: f64| {
-                // println!("mu_ik {:?}", mu_ik);
-                if mu_ik == 0. {
+                if mu_ik == 0.0 {
                     return LogProb::ln_zero();
                 }
-                let prob = sample_expression_likelihoods
-                    .iter()
-                    .map(|sample_expression_likelihood| {
-                        sample_expression_likelihood.get(&[mu_ik, theta_i])
-                    })
-                    .sum::<LogProb>(); //Formula 5
-                                       // +LogProb(*prior.prob(theta_i));
-                                       // prob = LogProb(f64::from(prob) * 8.);
 
-                // Result of formula 7.
-                // let prob= LogProb::ln_simpsons_integrate_exp(
-                //     density,
-                //     prior.min_value(),
-                //     prior.max_value(),
-                //     451,
-                // );
-                // let prob = density(0., prior.mean());
-                // println!("mu_ik {:?}, prob {:?}", mu_ik, prob);
-                if theta_i == 0.01 {
-                    wtr.serialize((mu_ik, prob.exp())).unwrap();
-                }
-                prob
+                let key = (OrderedFloat(mu_ik), OrderedFloat(theta_i));
+                let probs: Vec<LogProb> = lookup_tables
+                    .iter()
+                    .map(|table| table.get(&key).cloned().unwrap_or(LogProb::ln_zero()))
+                    .collect();
+
+                LogProb::ln_sum_exp(&probs)
             };
 
             let query_points = query_points::calc_query_points(
@@ -142,20 +91,20 @@ pub(crate) fn group_expression(
                 preprocessing.feature_ids().clone(),
                 *i,
             );
-            let start_points_mu_ik = query_points.all_mu_ik();
-            let start_points_theta_i = query_points.thetas();
 
-            prob_dist.insert_grid(
-                start_points_mu_ik.clone(),
-                start_points_theta_i.clone(),
-                calc_prob,
-            );
+            let mu_ik_points = query_points.all_mu_ik();
+            let theta_points = query_points.thetas();
 
-            // let norm_factor = prob_dist.normalize(); // remove factor c_ik
-            out_dir.serialize_value(feature_id, prob_dist)?;
-            // }
+            let probs = compute_grid(&mu_ik_points, &theta_points, calc_prob);
+
+            // Send computed result to writer thread
+            tx.send((feature_id.to_string(), probs)).unwrap();
+
             Ok(())
         })?;
+
+    drop(tx); // close channel
+    writer_handle.join().unwrap();
 
     Ok(())
 }

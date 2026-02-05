@@ -4,7 +4,6 @@ use std::path::Path;
 
 use crate::common::Outdir;
 use crate::preprocess::Preprocessing;
-use crate::prob_distribution_1d::ProbDistribution1d;
 
 pub(crate) fn write_fold_changes(
     preprocessing: &Path,
@@ -41,19 +40,21 @@ pub(crate) fn write_fold_changes(
                 return Ok(());
             }
 
-            let diff_exp_distribution: ProbDistribution1d = in_dir.deserialize_value(feature_id)?;
-            wtr_max_prob_fc
-                .serialize((
-                    feature_id,
-                    diff_exp_distribution.get_max_prob_position(),
-                    diff_exp_distribution.get_max_prob(),
-                ))
-                .unwrap();
-            for (fold_change, (prob, _, _)) in diff_exp_distribution.points {
-                wtr_dist
-                    .serialize((feature_id, fold_change, prob.exp()))
-                    .unwrap();
-            }
+            // let diff_exp_distribution: ProbDistribution1d = in_dir.deserialize_value(feature_id)?;
+            // wtr_max_prob_fc
+            //     .serialize((
+            //         feature_id,
+            //         // TODO
+            //         // diff_exp_distribution.get_max_prob_position(),
+            //         // diff_exp_distribution.get_max_prob(),
+            //     ))
+            //     .unwrap();
+            // // for (fold_change, (prob, _, _)) in diff_exp_distribution.points {
+            // for (fold_change, prob) in diff_exp_distribution.points {
+            //     wtr_dist
+            //         .serialize((feature_id, fold_change, prob.exp()))
+            //         .unwrap();
+            // }
             Ok(())
         })?;
     Ok(())
