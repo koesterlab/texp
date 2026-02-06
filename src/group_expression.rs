@@ -72,7 +72,7 @@ pub(crate) fn group_expression(
                 .map(|likelihood| likelihood.load_lookup_table())
                 .collect::<duckdb::Result<_>>()?;
 
-            let calc_prob = |mu_ik: f64, theta_i: f64| {
+            let calc_prob = |mu_ik: f64, theta_i: f64, theta_idx: usize| {
                 if mu_ik == 0.0 {
                     return LogProb::ln_zero();
                 }

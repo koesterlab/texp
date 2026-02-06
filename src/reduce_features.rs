@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use std::io::stdout;
 use std::path::Path;
 
-// use crate::common::Outdir;
 use crate::preprocess::{Estimates, Preprocessing};
 
 pub(crate) fn reduce_features(
@@ -74,6 +73,7 @@ pub(crate) fn reduce_features(
         mean_disp_estimates_filtered,
         feature_ids,
         *prior_parameters,
+        preprocessing.ln_beta_caches().to_vec(),
     );
     filtered_preprocessing.serialize(&mut Serializer::new(stdout()))?;
 

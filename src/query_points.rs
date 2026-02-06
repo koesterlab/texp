@@ -4,7 +4,6 @@ use anyhow::Result;
 use getset::Getters;
 use itertools::iproduct;
 use itertools_num::linspace;
-use ndarray::{Array1, Dim};
 use serde_derive::{Deserialize, Serialize};
 
 use crate::preprocess::Estimates;
@@ -27,7 +26,6 @@ pub(crate) struct QueryPointsPerFeature {
     per_feature: Vec<QueryPoints>,
 }
 
-
 impl QueryPointsPerFeature {
     #[inline]
     pub(crate) fn get(&self, feature_id: usize) -> &QueryPoints {
@@ -41,12 +39,8 @@ impl QueryPointsPerFeature {
 }
 
 impl QueryPointsPerFeature {
-    pub(crate) fn new(
-        preprocessing: &Preprocessing,
-        c: f64,
-    ) -> Self {
-        let sample_ids: Vec<_> =
-            preprocessing.scale_factors().keys().cloned().collect();
+    pub(crate) fn new(preprocessing: &Preprocessing, c: f64) -> Self {
+        let sample_ids: Vec<_> = preprocessing.scale_factors().keys().cloned().collect();
 
         let num_features = preprocessing.feature_ids().len();
         let num_samples = sample_ids.len() as f64;
@@ -66,19 +60,11 @@ impl QueryPointsPerFeature {
         }
 
         // ---- min / max per feature ----
-        let min_max_values =
-            compute_min_max_values(preprocessing.mean_disp_estimates());
+        let min_max_values = compute_min_max_values(preprocessing.mean_disp_estimates());
 
         // ---- build QueryPoints for all features ----
         let per_feature = (0..num_features)
-            .map(|i| {
-                QueryPoints::new(
-                    c,
-                    means_per_feature[i],
-                    min_max_values[&i],
-                )
-                .unwrap()
-            })
+            .map(|i| QueryPoints::new(c, means_per_feature[i], min_max_values[&i]).unwrap())
             .collect();
 
         Self { per_feature }

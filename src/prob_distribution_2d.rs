@@ -120,13 +120,13 @@ impl ProbDistribution2d {
 /// This is used by parallel compute threads — no DB connection needed.
 pub fn compute_grid<F>(mus: &[f64], thetas: &[f64], mut calc: F) -> Vec<(f64, f64, f64)>
 where
-    F: FnMut(f64, f64) -> LogProb + Send + Sync,
+    F: FnMut(f64, f64, usize) -> LogProb + Send + Sync,
 {
     let mut results = Vec::with_capacity(mus.len() * thetas.len());
     for (j, i) in iproduct!(0..thetas.len(), 0..mus.len()) {
         let mu = mus[i];
         let theta = thetas[j];
-        let prob = calc(mu, theta);
+        let prob = calc(mu, theta, j);
         results.push((mu, theta, f64::from(prob)));
     }
     results

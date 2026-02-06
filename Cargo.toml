@@ -13,7 +13,7 @@ hdf5 = { package = "hdf5-metno", version = "0.12.1" }
 ndarray = { version = "0.17.1", features = ["serde", "rayon"] }
 ndarray-stats = "0.7"
 noisy_float = { version = "0.2", features = ["serde"] }
-serde = "1.0"
+serde = { version = "1.0" }
 serde_derive = "1.0"
 rmp-serde = "1.1"
 itertools-num = "0.1"

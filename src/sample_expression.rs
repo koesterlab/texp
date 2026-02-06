@@ -1,7 +1,7 @@
 //! This implements formula 3+4 of the document.
 use std::mem;
 use std::path::Path;
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::mpsc::{self, Receiver, SyncSender};
 use std::thread;
 
 use anyhow::Result;
@@ -15,6 +15,7 @@ use rayon::prelude::*;
 use statrs::function::beta::ln_beta;
 
 use crate::errors::Error;
+use crate::preprocess::LnBetaCache;
 use crate::preprocess::Preprocessing;
 use crate::prob_distribution_2d::compute_grid;
 use crate::prob_distribution_2d::ProbDistribution2d;
@@ -49,7 +50,7 @@ pub(crate) fn sample_expression(
 
     // --- Channel setup ---
     let (tx, rx): (
-        mpsc::SyncSender<(String, Vec<(f64, f64, f64)>)>,
+        SyncSender<(String, Vec<(f64, f64, f64)>)>,
         Receiver<(String, Vec<(f64, f64, f64)>)>,
     ) = mpsc::sync_channel(10); //TODO Determine optimal buffer size (tradeoff between memory usage and writer blocking)
 
@@ -78,11 +79,23 @@ pub(crate) fn sample_expression(
                 return Ok(());
             };
 
+            let preprocessing = &preprocessing;
             let query_points = query_points_per_feature.get(*i);
-
-            let calc_prob = |m, t| likelihood_mu_ik_theta_i(d_ij, m, t_ij, t, s_j, epsilon);
             let mu_ik_points = query_points.all_mu_ik();
             let start_points_theta_i = query_points.thetas();
+
+            let calc_prob = |m, theta_i, theta_idx| {
+                likelihood_mu_ik_theta_i(
+                    d_ij,
+                    m,
+                    t_ij,
+                    theta_i,
+                    theta_idx,
+                    s_j,
+                    epsilon,
+                    preprocessing,
+                )
+            };
 
             // Compute grid in memory
             let probs = compute_grid(&mu_ik_points, &start_points_theta_i, calc_prob);
@@ -114,16 +127,16 @@ pub(crate) fn sample_expression(
 //     }
 // }
 
-
-
 /// Inner of equation 3/4 in the document.
 fn likelihood_mu_ik_theta_i(
     d_ij: f64,
     mu_ik: f64,
     t_ij: f64,
     theta_i: f64,
+    theta_idx: usize,
     s_j: f64,
     _: LogProb, // epsilon
+    preprocessing: &Preprocessing,
 ) -> LogProb {
     if d_ij != 0. && mu_ik == 0. {
         return LogProb::ln_zero();
@@ -133,25 +146,45 @@ fn likelihood_mu_ik_theta_i(
     }
     let mut max_prob = LogProb::ln_zero();
     let mut probs = Vec::with_capacity(300);
-    let mut x: f64 = 0.;
+    let cache: &LnBetaCache = &preprocessing.ln_beta_caches()[theta_idx];
+    let threshold = LogProb(0.001_f64.ln());
 
-    let nb_right = NegBinomPrepared::new(mu_ik, theta_i);
+    let nb_right = NegBinomPrepared::new(mu_ik, theta_i, cache);
 
-    loop {
-        let nb_left = NegBinomPrepared::new(x, t_ij);
-        let calced_prob = nb_left.ln_pmf(d_ij / s_j) + nb_right.ln_pmf(x);
+    for x in 0..200 {
+        let nb_left = NegBinomPreparedUncached::new(x as f64, t_ij);
+        let calced_prob = nb_left.ln_pmf(d_ij / s_j) + nb_right.ln_pmf(x as f64);
         if calced_prob > max_prob {
             max_prob = calced_prob;
         }
         probs.push(calced_prob);
-
-        if x > 200. && calced_prob - max_prob < LogProb(0.001_f64.ln()) {
+    }
+    for x in 200..10000 {
+        let nb_left = NegBinomPreparedUncached::new(x as f64, t_ij);
+        let calced_prob = nb_left.ln_pmf(d_ij / s_j) + nb_right.ln_pmf(x as f64);
+        if calced_prob > max_prob {
+            max_prob = calced_prob;
+        }
+        if calced_prob - max_prob < threshold {
+            let result = LogProb::ln_sum_exp(&probs);
+            return result;
+        }
+        probs.push(calced_prob);
+    }
+    let nb_right = NegBinomPreparedUncached::new(mu_ik, theta_i);
+    for x in 10000.. {
+        let nb_left = NegBinomPreparedUncached::new(x as f64, t_ij);
+        let calced_prob = nb_left.ln_pmf(d_ij / s_j) + nb_right.ln_pmf(x as f64);
+        if calced_prob > max_prob {
+            max_prob = calced_prob;
+        }
+        if calced_prob - max_prob < threshold {
             break;
         }
-        x = x + 1.;
+        probs.push(calced_prob);
     }
     let result = LogProb::ln_sum_exp(&probs);
-    result
+    return result;
 }
 
 pub(crate) fn neg_binom(x: f64, mu: f64, theta: f64) -> LogProb {
@@ -168,28 +201,61 @@ pub(crate) fn neg_binom(x: f64, mu: f64, theta: f64) -> LogProb {
     LogProb((p1 - b + p2) - (x + n).ln())
 }
 
-struct NegBinomPrepared {
+struct NegBinomPreparedUncached {
     n: f64,
-    ln_p: f64,
     ln_1mp: f64,
+    p1: f64,
 }
 
-impl NegBinomPrepared {
+impl NegBinomPreparedUncached {
     fn new(mu: f64, theta: f64) -> Self {
         let n = 1.0 / theta;
         let p = n / (n + mu);
         Self {
             n,
-            ln_p: p.ln(),
             ln_1mp: (1.0 - p).ln(),
+            p1: n * p.ln(),
         }
     }
 
     #[inline]
     fn ln_pmf(&self, x: f64) -> LogProb {
         let b = ln_beta(x + 1.0, self.n);
-        let mut p1 = self.n * self.ln_p;
-        let mut p2 = if x > 0.0 { x * self.ln_1mp } else { 0.0 };
+        let mut p1 = self.p1;
+        let mut p2 = x * self.ln_1mp;
+
+        if p1 < p2 {
+            mem::swap(&mut p1, &mut p2);
+        }
+        LogProb((p1 - b + p2) - (x + self.n).ln())
+    }
+}
+
+struct NegBinomPrepared<'a> {
+    n: f64,
+    ln_1mp: f64,
+    p1: f64,
+    beta_cache: &'a LnBetaCache,
+}
+
+impl<'a> NegBinomPrepared<'a> {
+    fn new(mu: f64, theta: f64, beta_cache: &'a LnBetaCache) -> Self {
+        let n = 1.0 / theta;
+        let p = n / (n + mu);
+        Self {
+            n,
+            ln_1mp: (1.0 - p).ln(),
+            p1: n * p.ln(),
+            beta_cache,
+        }
+    }
+
+    #[inline]
+    fn ln_pmf(&self, x: f64) -> LogProb {
+        // let b = ln_beta(x + 1.0, self.n);
+        let b = self.beta_cache.get(x as usize);
+        let mut p1 = self.p1;
+        let mut p2 = x * self.ln_1mp;
 
         if p1 < p2 {
             mem::swap(&mut p1, &mut p2);

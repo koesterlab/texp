@@ -8,6 +8,7 @@ use std::thread;
 
 use anyhow::Result;
 use getset::Getters;
+use itertools_num::linspace;
 use ndarray::{Array1, Axis};
 use ndarray_stats::{interpolate, Quantile1dExt, QuantileExt};
 use noisy_float::types::N64;
@@ -15,6 +16,7 @@ use rmp_serde::{Deserializer, Serializer};
 use serde::Deserialize as SerdeDeserialize;
 use serde::Serialize as SerdeSerialize;
 use serde_derive::{Deserialize, Serialize};
+use statrs::function::beta::ln_beta;
 
 use crate::errors::Error;
 use crate::kallisto::KallistoQuant;
@@ -48,11 +50,26 @@ pub(crate) fn preprocess(
 
     let feature_ids = quants[0].feature_ids()?;
 
+    //TODO Get thetas from query points instead of hardcoding them here. We need to make sure that the same thetas are used for both the cache and the query points.
+    let mut thetas: Vec<f64> = linspace(0.01, 0.1, 5).collect();
+    thetas.extend(linspace(0.1, 1., 10).step_by(1));
+    thetas.extend(linspace(1.5, 10., 15).step_by(2));
+    thetas.extend(linspace(11., 165., 115).step_by(10));
+    // println!("len thetas {:?}", thetas.len());
+    thetas.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    thetas.dedup();
+
+    let ln_beta_caches = thetas
+        .iter()
+        .map(|&theta| LnBetaCache::new(theta, 10000))
+        .collect();
+
     let preprocessing = Preprocessing {
         scale_factors,
         mean_disp_estimates,
         feature_ids: feature_ids,
         prior_parameters,
+        ln_beta_caches,
     };
 
     preprocessing.serialize(&mut Serializer::new(stdout()))?;
@@ -67,6 +84,7 @@ pub(crate) struct Preprocessing {
     mean_disp_estimates: HashMap<String, Estimates>,
     feature_ids: Array1<String>,
     prior_parameters: PriorParameters,
+    ln_beta_caches: Vec<LnBetaCache>, // one per theta
 }
 
 impl Preprocessing {
@@ -76,12 +94,14 @@ impl Preprocessing {
         mean_disp_estimates: HashMap<String, Estimates>,
         feature_ids: Array1<String>,
         prior_parameters: PriorParameters,
+        ln_beta_caches: Vec<LnBetaCache>,
     ) -> Self {
         Preprocessing {
             scale_factors,
             mean_disp_estimates,
             feature_ids,
             prior_parameters,
+            ln_beta_caches,
         }
     }
 
@@ -199,4 +219,26 @@ fn mean_disp_estimates(
         .collect();
 
     Ok(sample_ids.iter().cloned().zip(estimates?).collect())
+}
+
+#[derive(Serialize, Deserialize, Debug, Getters, Clone)]
+pub struct LnBetaCache {
+    n: f64,
+    values: Vec<f64>, // ln_beta(x+1, n)
+}
+
+impl LnBetaCache {
+    pub fn new(theta: f64, initial_x: usize) -> Self {
+        let n = 1.0 / theta;
+        let mut v = Vec::with_capacity(initial_x + 1);
+        for x in 0..=initial_x {
+            v.push(ln_beta((x as f64) + 1.0, n));
+        }
+        Self { n, values: v }
+    }
+
+    #[inline]
+    pub fn get(&self, x: usize) -> f64 {
+        self.values[x]
+    }
 }
