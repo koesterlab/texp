@@ -49,9 +49,9 @@ pub(crate) fn sample_expression(
 
     // --- Channel setup ---
     let (tx, rx): (
-        Sender<(String, Vec<(f64, f64, f64)>)>,
+        mpsc::SyncSender<(String, Vec<(f64, f64, f64)>)>,
         Receiver<(String, Vec<(f64, f64, f64)>)>,
-    ) = mpsc::channel();
+    ) = mpsc::sync_channel(10); //TODO Determine optimal buffer size (tradeoff between memory usage and writer blocking)
 
     // --- Spawn the writer thread ---
     let writer_handle = thread::spawn(move || {
@@ -63,7 +63,6 @@ pub(crate) fn sample_expression(
     });
 
     let query_points_per_feature = query_points::QueryPointsPerFeature::new(&preprocessing, c);
-
 
     // --- Parallel workers ---
     feature_ids
@@ -115,21 +114,7 @@ pub(crate) fn sample_expression(
 //     }
 // }
 
-fn prob_mu_ik_theta_i_x(
-    x: f64,
-    d_ij: f64,
-    mu_ik: f64,
-    t_ij: f64,
-    theta_i: f64,
-    s_j: f64,
-) -> LogProb {
-    //METHOD /s_j?? mu_ik*s_j würde einluss von t_ij ändern, weil mu geändert wird.
-    let left = neg_binom(d_ij / s_j, x, t_ij);
-    let right = neg_binom(x, mu_ik, theta_i);
-    // let right =  LogProb::from(Poisson::new(mu_ik).unwrap().ln_pmf(x as u64));
-    let result = left + right;
-    result
-}
+
 
 /// Inner of equation 3/4 in the document.
 fn likelihood_mu_ik_theta_i(
@@ -150,8 +135,11 @@ fn likelihood_mu_ik_theta_i(
     let mut probs = Vec::with_capacity(300);
     let mut x: f64 = 0.;
 
+    let nb_right = NegBinomPrepared::new(mu_ik, theta_i);
+
     loop {
-        let calced_prob = prob_mu_ik_theta_i_x(x as f64, d_ij, mu_ik, t_ij, theta_i, s_j);
+        let nb_left = NegBinomPrepared::new(x, t_ij);
+        let calced_prob = nb_left.ln_pmf(d_ij / s_j) + nb_right.ln_pmf(x);
         if calced_prob > max_prob {
             max_prob = calced_prob;
         }
@@ -180,19 +168,80 @@ pub(crate) fn neg_binom(x: f64, mu: f64, theta: f64) -> LogProb {
     LogProb((p1 - b + p2) - (x + n).ln())
 }
 
+struct NegBinomPrepared {
+    n: f64,
+    ln_p: f64,
+    ln_1mp: f64,
+}
+
+impl NegBinomPrepared {
+    fn new(mu: f64, theta: f64) -> Self {
+        let n = 1.0 / theta;
+        let p = n / (n + mu);
+        Self {
+            n,
+            ln_p: p.ln(),
+            ln_1mp: (1.0 - p).ln(),
+        }
+    }
+
+    #[inline]
+    fn ln_pmf(&self, x: f64) -> LogProb {
+        let b = ln_beta(x + 1.0, self.n);
+        let mut p1 = self.n * self.ln_p;
+        let mut p2 = if x > 0.0 { x * self.ln_1mp } else { 0.0 };
+
+        if p1 < p2 {
+            mem::swap(&mut p1, &mut p2);
+        }
+        LogProb((p1 - b + p2) - (x + self.n).ln())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use approx::assert_relative_eq;
     #[test]
     fn test_neg_binom() {
-        assert_relative_eq!(neg_binom(0., 10., 2.38).exp(), 0.2594752460369642);
-        assert_relative_eq!(neg_binom(0., 30., 2.38).exp(), 0.16542351363026533);
+        assert_relative_eq!(
+            neg_binom(0., 10., 2.38).exp(),
+            0.2594752460369642,
+            epsilon = 1e-12
+        );
+        assert_relative_eq!(
+            neg_binom(0., 30., 2.38).exp(),
+            0.16542351363026533,
+            epsilon = 1e-12
+        );
         assert_relative_eq!(
             neg_binom(0., 30., 500.38).exp(),
             0.9809648435381609,
-            epsilon = 1e-7
+            epsilon = 1e-12
         );
+    }
+
+    #[test]
+    fn test_neg_binom_prepared_matches_old() {
+        let test_cases = [
+            (0.0, 10.0, 2.38),
+            (0.0, 30.0, 2.38),
+            (0.0, 30.0, 500.38),
+            (5.0, 10.0, 0.5),
+            (20.0, 50.0, 1.2),
+            (200.0, 50.0, 50.0),
+            (200.0, 150.0, 1.2),
+            (200.0, 350.0, 1.2),
+        ];
+
+        for (x, mu, theta) in test_cases {
+            let old = neg_binom(x, mu, theta).exp();
+
+            let nb = NegBinomPrepared::new(mu, theta);
+            let new = nb.ln_pmf(x).exp();
+
+            assert_relative_eq!(old, new, epsilon = 1e-14);
+        }
     }
 }
 
