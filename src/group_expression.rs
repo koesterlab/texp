@@ -4,8 +4,8 @@ use bio::stats::LogProb;
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::channel;
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::sync_channel;
+use std::sync::mpsc::{Receiver, SyncSender};
 use std::thread;
 
 use crate::preprocess::Preprocessing;
@@ -33,9 +33,9 @@ pub(crate) fn group_expression(
 
     // --- Channel setup ---
     let (tx, rx): (
-        Sender<(String, Vec<(f64, f64, f64)>)>,
+        SyncSender<(String, Vec<(f64, f64, f64)>)>,
         Receiver<(String, Vec<(f64, f64, f64)>)>,
-    ) = channel();
+    ) = sync_channel(10);
 
     // --- Spawn the writer thread ---
     let writer_handle = thread::spawn(move || {
