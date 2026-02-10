@@ -150,10 +150,11 @@ fn likelihood_mu_ik_theta_i(
     let threshold = LogProb(0.001_f64.ln());
 
     let nb_right = NegBinomPrepared::new(mu_ik, theta_i, cache);
+    let scaled_d_ij = d_ij / s_j;
 
     for x in 0..200 {
         let nb_left = NegBinomPreparedUncached::new(x as f64, t_ij);
-        let calced_prob = nb_left.ln_pmf(d_ij / s_j) + nb_right.ln_pmf(x as f64);
+        let calced_prob = nb_left.ln_pmf(scaled_d_ij) + nb_right.ln_pmf(x as f64);
         if calced_prob > max_prob {
             max_prob = calced_prob;
         }
@@ -161,7 +162,7 @@ fn likelihood_mu_ik_theta_i(
     }
     for x in 200..10000 {
         let nb_left = NegBinomPreparedUncached::new(x as f64, t_ij);
-        let calced_prob = nb_left.ln_pmf(d_ij / s_j) + nb_right.ln_pmf(x as f64);
+        let calced_prob = nb_left.ln_pmf(scaled_d_ij) + nb_right.ln_pmf(x as f64);
         if calced_prob > max_prob {
             max_prob = calced_prob;
         }
@@ -174,7 +175,7 @@ fn likelihood_mu_ik_theta_i(
     let nb_right = NegBinomPreparedUncached::new(mu_ik, theta_i);
     for x in 10000.. {
         let nb_left = NegBinomPreparedUncached::new(x as f64, t_ij);
-        let calced_prob = nb_left.ln_pmf(d_ij / s_j) + nb_right.ln_pmf(x as f64);
+        let calced_prob = nb_left.ln_pmf(scaled_d_ij) + nb_right.ln_pmf(x as f64);
         if calced_prob > max_prob {
             max_prob = calced_prob;
         }
