@@ -14,6 +14,10 @@ use rayon::prelude::*;
 // use serde_derive::{Deserialize, Serialize};
 use statrs::function::beta::ln_beta;
 
+use rayon::ThreadPoolBuilder;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::fs;
+
 use crate::errors::Error;
 use crate::preprocess::LnBetaCache;
 use crate::preprocess::Preprocessing;
@@ -67,43 +71,49 @@ pub(crate) fn sample_expression(
 
     // --- Parallel workers ---
     feature_ids
-        .par_iter()
-        .try_for_each(|(i, feature_id)| -> Result<()> {
-            let d_ij = mean_disp_estimates.means()[*i];
-            let t_ij = if let Some(t_ij) = mean_disp_estimates.dispersions()[*i] {
-                t_ij
-            } else if let Some(t_ij) = preprocessing.interpolate_dispersion(*i) {
-                t_ij
-            } else {
-                println!("skipped {:?}", feature_id);
-                return Ok(());
-            };
+        // .par_iter()
+        // .try_for_each(|(i, feature_id)| -> Result<()> {
+        .par_chunks(10) // Process features in chunks to reduce overhead of thread spawning and channel communication
+        .try_for_each(|chunk| -> Result<()> {
+            for (i, feature_id) in chunk {
+                let d_ij = mean_disp_estimates.means()[*i];
+                let t_ij = if let Some(t_ij) = mean_disp_estimates.dispersions()[*i] {
+                    t_ij
+                } else if let Some(t_ij) = preprocessing.interpolate_dispersion(*i) {
+                    t_ij
+                } else {
+                    println!("skipped {:?}", feature_id);
+                    return Ok(());
+                };
 
-            let preprocessing = &preprocessing;
-            let query_points = query_points_per_feature.get(*i);
-            let mu_ik_points = query_points.all_mu_ik();
-            let start_points_theta_i = query_points.thetas();
+                let preprocessing = &preprocessing;
+                let query_points = query_points_per_feature.get(*i);
+                let mu_ik_points = query_points.all_mu_ik();
+                let start_points_theta_i = query_points.thetas();
 
-            let calc_prob = |m, theta_i, theta_idx| {
-                likelihood_mu_ik_theta_i(
-                    d_ij,
-                    m,
-                    t_ij,
-                    theta_i,
-                    theta_idx,
-                    s_j,
-                    epsilon,
-                    preprocessing,
-                )
-            };
+                let calc_prob = |m, theta_i, theta_idx| {
+                    likelihood_mu_ik_theta_i(
+                        d_ij,
+                        m,
+                        t_ij,
+                        theta_i,
+                        theta_idx,
+                        s_j,
+                        epsilon,
+                        preprocessing,
+                    )
+                };
 
-            // Compute grid in memory
-            let probs = compute_grid(&mu_ik_points, &start_points_theta_i, calc_prob);
+                // Compute grid in memory
+                let probs = compute_grid(&mu_ik_points, &start_points_theta_i, calc_prob);
 
-            // Send results to writer
-            tx.send((feature_id.to_string(), probs)).unwrap();
+                // Send results to writer
+                tx.send((feature_id.to_string(), probs)).unwrap();
+            }
+
 
             Ok(())
+
         })?;
 
     drop(tx); // close channel

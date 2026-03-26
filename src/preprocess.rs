@@ -5,6 +5,10 @@ use std::fs::File;
 use std::io::stdout;
 use std::path::{Path, PathBuf};
 use std::thread;
+use rand::Rng;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
+
 
 use anyhow::Result;
 use getset::Getters;
@@ -58,11 +62,24 @@ pub(crate) fn preprocess(
     // println!("len thetas {:?}", thetas.len());
     thetas.sort_by(|a, b| a.partial_cmp(b).unwrap());
     thetas.dedup();
+    dbg!(&thetas);
+    dbg!(thetas.len());
 
     let ln_beta_caches = thetas
         .iter()
         .map(|&theta| LnBetaCache::new(theta, 10000))
         .collect();
+
+    let prior = Prior::new(&prior_parameters)?;
+    // fixed seed
+    let mut rng = StdRng::seed_from_u64(12345);
+
+    // draw 150 dispersions
+    let mut thetas_rand = prior.sample_n(35, &mut rng);
+    thetas_rand.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    thetas_rand.dedup();
+    dbg!(&thetas_rand);
+    dbg!(thetas_rand.len());
 
     let preprocessing = Preprocessing {
         scale_factors,
@@ -114,6 +131,8 @@ impl Preprocessing {
     pub(crate) fn prior(&self) -> Result<Prior> {
         Prior::new(self.prior_parameters())
     }
+
+
 
     pub(crate) fn interpolate_dispersion(&self, feature_idx: usize) -> Option<f64> {
         let disp = |estimates: &Estimates| estimates.dispersions[feature_idx];

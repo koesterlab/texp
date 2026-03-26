@@ -52,51 +52,56 @@ pub(crate) fn group_expression(
     // Parallel worker threads (compute only)
     // -----------------------------------------
     feature_ids
-        .par_iter()
-        .try_for_each(|(i, feature_id)| -> Result<()> {
-            // Open per-sample likelihood tables (read-only)
-            let sample_expression_likelihoods: Vec<_> = sample_expression_paths
-                .iter()
-                .map(|path| {
-                    ProbDistribution2d::with_readonly_connection(
-                        path.to_str().unwrap(),
-                        &feature_id,
-                    )
-                })
-                .collect::<duckdb::Result<_>>()
-                .unwrap();
-
-            // Preload all lookup tables in memory
-            let lookup_tables: Vec<_> = sample_expression_likelihoods
-                .iter()
-                .map(|likelihood| likelihood.load_lookup_table())
-                .collect::<duckdb::Result<_>>()?;
-
-            let calc_prob = |mu_ik: f64, theta_i: f64, theta_idx: usize| {
-                if mu_ik == 0.0 {
-                    return LogProb::ln_zero();
-                }
-
-                let key = (OrderedFloat(mu_ik), OrderedFloat(theta_i));
-                let probs: Vec<LogProb> = lookup_tables
+        // .par_iter()
+        // .try_for_each(|(i, feature_id)| -> Result<()> {
+        .par_chunks(10)
+        .try_for_each(|chunk| -> Result<()> {
+            for (i, feature_id) in chunk {
+                // Open per-sample likelihood tables (read-only)
+                let sample_expression_likelihoods: Vec<_> = sample_expression_paths
                     .iter()
-                    .map(|table| table.get(&key).cloned().unwrap_or(LogProb::ln_zero()))
-                    .collect();
+                    .map(|path| {
+                        ProbDistribution2d::with_readonly_connection(
+                            path.to_str().unwrap(),
+                            &feature_id,
+                        )
+                    })
+                    .collect::<duckdb::Result<_>>()
+                    .unwrap();
 
-                LogProb::ln_sum_exp(&probs)
-            };
+                // Preload all lookup tables in memory
+                let lookup_tables: Vec<_> = sample_expression_likelihoods
+                    .iter()
+                    .map(|likelihood| likelihood.load_lookup_table())
+                    .collect::<duckdb::Result<_>>()?;
 
-            let query_points = query_points_per_feature.get(*i);
+                let calc_prob = |mu_ik: f64, theta_i: f64, theta_idx: usize| {
+                    if mu_ik == 0.0 {
+                        return LogProb::ln_zero();
+                    }
 
-            let mu_ik_points = query_points.all_mu_ik();
-            let theta_points = query_points.thetas();
+                    let key = (OrderedFloat(mu_ik), OrderedFloat(theta_i));
+                    let probs: Vec<LogProb> = lookup_tables
+                        .iter()
+                        .map(|table| table.get(&key).cloned().unwrap_or(LogProb::ln_zero()))
+                        .collect();
 
-            let probs = compute_grid(&mu_ik_points, &theta_points, calc_prob);
+                    LogProb::ln_sum_exp(&probs)
+                };
 
-            // Send computed result to writer thread
-            tx.send((feature_id.to_string(), probs)).unwrap();
+                let query_points = query_points_per_feature.get(*i);
+
+                let mu_ik_points = query_points.all_mu_ik();
+                let theta_points = query_points.thetas();
+
+                let probs = compute_grid(&mu_ik_points, &theta_points, calc_prob);
+
+                // Send computed result to writer thread
+                tx.send((feature_id.to_string(), probs)).unwrap();
+            }
 
             Ok(())
+
         })?;
 
     drop(tx); // close channel

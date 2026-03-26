@@ -4,8 +4,11 @@ use getset::Getters;
 use itertools_num::linspace;
 use serde_derive::{Deserialize, Serialize};
 use statrs::distribution::{Continuous, ContinuousCDF, InverseGamma};
-use statrs::statistics::Distribution;
+// use statrs::statistics::Distribution;
 use typed_builder::TypedBuilder;
+use rand::Rng;
+use rand::distributions::Distribution;
+
 
 #[derive(TypedBuilder, Copy, Clone, Debug, Getters, Serialize, Deserialize)]
 pub(crate) struct PriorParameters {
@@ -56,14 +59,28 @@ impl Prior {
         })
     }
 
+    pub(crate) fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> f64 {
+        self.inv_gamma.sample(rng) + self.shift
+    }
+
+    pub(crate) fn sample_n<R: Rng + ?Sized>(
+        &self,
+        n: usize,
+        rng: &mut R,
+    ) -> Vec<f64> {
+        (0..n)
+            .map(|_| self.inv_gamma.sample(rng) + self.shift)
+            .collect()
+    }
+
     pub(crate) fn prob(&self, x: f64) -> LogProb {
         LogProb(self.inv_gamma.ln_pdf(x - self.shift)) //TODO
     }
 
-    #[allow(unused)]
-    pub(crate) fn mean(&self) -> f64 {
-        self.inv_gamma.mean().unwrap() + self.shift
-    }
+    // #[allow(unused)]
+    // pub(crate) fn mean(&self) -> f64 {
+    //     self.inv_gamma.mean().unwrap() + self.shift
+    // }
 
     // pub(crate) fn min_value(&self) -> f64 {
     //     self.inv_gamma.inverse_cdf(0.001)
