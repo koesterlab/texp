@@ -314,10 +314,10 @@ fn main() -> Result<()> {
             out_dir,
             threads,
         } => {
-            rayon::ThreadPoolBuilder::new()
-                .num_threads(threads)
-                .build_global()
-                .unwrap();
+            // rayon::ThreadPoolBuilder::new()
+            //     .num_threads(threads)
+            //     .build_global()
+            //     .unwrap();
 
             // calculate per sample likelihoods
             sample_expression::sample_expression(
@@ -325,6 +325,7 @@ fn main() -> Result<()> {
                 &sample_id,
                 LogProb::from(Prob::checked(epsilon)?),
                 c,
+                threads,
                 &out_dir,
             )
         }
@@ -335,13 +336,8 @@ fn main() -> Result<()> {
             threads,
             sample_exprs,
         } => {
-            rayon::ThreadPoolBuilder::new()
-                .num_threads(threads)
-                .build_global()
-                .unwrap();
-
             // calculate per group posteriors
-            group_expression::group_expression(&preprocessing_path, &sample_exprs, c, &out_dir)
+            group_expression::group_expression(&preprocessing_path, &sample_exprs, c, threads, &out_dir)
         }
         Cli::DiffExp {
             group_path1,
@@ -351,10 +347,6 @@ fn main() -> Result<()> {
             out_dir,
             threads,
         } => {
-            rayon::ThreadPoolBuilder::new()
-                .num_threads(threads)
-                .build_global()
-                .unwrap();
             // calculate differential expression between groups
             diff_exp::diff_exp(c, &preprocessing_path, &group_path1, &group_path2, &out_dir)
         }

@@ -7,18 +7,15 @@ use std::thread;
 use anyhow::Result;
 use bio::stats::LogProb;
 
-// use getset::Getters;
 use rayon::prelude::*;
-// use rmp_serde::Deserializer;
-// use serde::Deserialize as SerdeDeserialize;
-// use serde_derive::{Deserialize, Serialize};
 use statrs::function::beta::ln_beta;
 
 use rayon::ThreadPoolBuilder;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::fs;
-
+use duckdb::Connection;
 use crate::errors::Error;
+use crate::prob_distribution_2d::SchemaMode;
 use crate::preprocess::LnBetaCache;
 use crate::preprocess::Preprocessing;
 use crate::prob_distribution_2d::compute_grid;
@@ -30,6 +27,7 @@ pub(crate) fn sample_expression(
     sample_id: &str,
     epsilon: LogProb,
     c: f64,
+    threads: usize,
     out_dir_path: &Path,
 ) -> Result<()> {
     let preprocessing = Preprocessing::from_path(preprocessing)?;
@@ -50,92 +48,112 @@ pub(crate) fn sample_expression(
     let s_j = *preprocessing.scale_factors().get(sample_id).unwrap();
     let feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
 
-    let db_path = out_dir_path.to_str().unwrap().to_string();
-
-    // --- Channel setup ---
-    let (tx, rx): (
-        SyncSender<(String, Vec<(f64, f64, f64)>)>,
-        Receiver<(String, Vec<(f64, f64, f64)>)>,
-    ) = mpsc::sync_channel(10); //TODO Determine optimal buffer size (tradeoff between memory usage and writer blocking)
-
-    // --- Spawn the writer thread ---
-    let writer_handle = thread::spawn(move || {
-        let conn = ProbDistribution2d::open(&db_path).unwrap();
-        while let Ok((feature_id, grid)) = rx.recv() {
-            let mut writer = ProbDistribution2d::with_connection(&conn, &feature_id).unwrap();
-            writer.write_output(&grid);
-        }
-    });
+    let base_db_path = out_dir_path.to_str().unwrap().to_string();
 
     let query_points_per_feature = query_points::QueryPointsPerFeature::new(&preprocessing, c);
 
-    // --- Parallel workers ---
-    feature_ids
-        // .par_iter()
-        // .try_for_each(|(i, feature_id)| -> Result<()> {
-        .par_chunks(10) // Process features in chunks to reduce overhead of thread spawning and channel communication
-        .try_for_each(|chunk| -> Result<()> {
-            for (i, feature_id) in chunk {
-                let d_ij = mean_disp_estimates.means()[*i];
-                let t_ij = if let Some(t_ij) = mean_disp_estimates.dispersions()[*i] {
-                    t_ij
-                } else if let Some(t_ij) = preprocessing.interpolate_dispersion(*i) {
-                    t_ij
+    // -------------------------------
+    // 1. HPC SAFEGUARD
+    // -------------------------------
+    let max_threads = std::cmp::min(threads, 32);
+    let custom_pool = ThreadPoolBuilder::new()
+        .num_threads(max_threads)
+        .build()?;
+
+
+    // -------------------------------
+    // 2. SCATTER PHASE
+    // -------------------------------
+    let temp_paths: Vec<String> = (0..max_threads)
+        .map(|i| format!("{}_temp_{}.duckdb", base_db_path, i))
+        .collect();
+
+    custom_pool.install(|| {
+        feature_ids
+            .into_par_iter()
+            .map_init(
+                 // INIT → runs once per thread
+            {
+                let temp_paths = temp_paths.clone();
+
+                move || {
+                    let thread_idx = rayon::current_thread_index().unwrap();
+
+                    let path = &temp_paths[thread_idx];
+
+                    let conn = ProbDistribution2d::open(path)
+                        .expect("Failed to open DuckDB");
+
+                    (path.clone(), conn)
+                }
+            },
+
+            // WORK
+            |(temp_path, conn), (i, feature_id)| {
+                let d_ij = mean_disp_estimates.means()[i];
+
+                let t_ij = if let Some(t) = mean_disp_estimates.dispersions()[i] {
+                    t
+                } else if let Some(t) = preprocessing.interpolate_dispersion(i) {
+                    t
                 } else {
                     println!("skipped {:?}", feature_id);
-                    return Ok(());
+                    return;
                 };
 
-                let preprocessing = &preprocessing;
-                let query_points = query_points_per_feature.get(*i);
-                let mu_ik_points = query_points.all_mu_ik();
-                let start_points_theta_i = query_points.thetas();
+                    let query_points = query_points_per_feature.get(i);
+                    let mu_ik_points = query_points.all_mu_ik();
+                    let start_points_theta_i = query_points.thetas();
 
-                let calc_prob = |m, theta_i, theta_idx| {
-                    likelihood_mu_ik_theta_i(
-                        d_ij,
-                        m,
-                        t_ij,
-                        theta_i,
-                        theta_idx,
-                        s_j,
-                        epsilon,
-                        preprocessing,
-                    )
-                };
+                    let calc_prob = |m, theta_i, theta_idx| {
+                        likelihood_mu_ik_theta_i(
+                            d_ij,
+                            m,
+                            t_ij,
+                            theta_i,
+                            theta_idx,
+                            s_j,
+                            epsilon,
+                            &preprocessing,
+                        )
+                    };
+                    let probs =
+                        compute_grid(&mu_ik_points, &start_points_theta_i, calc_prob);
 
-                // Compute grid in memory
-                let probs = compute_grid(&mu_ik_points, &start_points_theta_i, calc_prob);
+                    let mut writer =
+                        ProbDistribution2d::with_connection(&*conn, &feature_id.to_string()).expect("writer");
 
-                // Send results to writer
-                tx.send((feature_id.to_string(), probs)).unwrap();
-            }
+                    writer.write_output(&probs).expect("write failed");
+                },
+            )
+            .count(); // Force execution of the parallel iterator
+        });
 
 
-            Ok(())
+    // -------------------------------
+    // 3. GATHER PHASE
+    // -------------------------------
+    let final_conn = duckdb::Connection::open(&base_db_path)?;
+    ProbDistribution2d::init_schema(&final_conn)?;
 
-        })?;
+    for temp_path in temp_paths {
+        final_conn.execute(
+            &format!("ATTACH '{}' AS temp_db", temp_path),
+            [],
+        )?;
 
-    drop(tx); // close channel
-    writer_handle.join().unwrap();
+        final_conn.execute(
+            "INSERT INTO distributions SELECT * FROM temp_db.distributions",
+            [],
+        )?;
+
+        final_conn.execute("DETACH temp_db", [])?;
+        fs::remove_file(&temp_path)?;
+    }
 
     Ok(())
 }
 
-// #[derive(Debug, Deserialize, Serialize, Getters)]
-// #[getset(get = "pub(crate)")]
-// pub(crate) struct SampleInfo {
-//     sample_id: String,
-// }
-
-// impl SampleInfo {
-//     #[allow(unused)]
-//     pub(crate) fn from_path(path: &Path) -> Result<Self> {
-//         Ok(SampleInfo::deserialize(&mut Deserializer::new(
-//             fs::File::open(path)?,
-//         ))?)
-//     }
-// }
 
 /// Inner of equation 3/4 in the document.
 fn likelihood_mu_ik_theta_i(

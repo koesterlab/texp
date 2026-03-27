@@ -3,11 +3,17 @@ use duckdb::{params, AccessMode, Config, Connection};
 use itertools::iproduct;
 use ordered_float::OrderedFloat;
 use std::collections::HashMap;
+use duckdb::ToSql;
 
 /// Represents a 2D probability distribution for a given feature stored in DuckDB.
 pub struct ProbDistribution2d {
     conn: Connection,
     feature: String,
+}
+
+pub enum SchemaMode {
+    Temp,
+    Final,
 }
 
 impl ProbDistribution2d {
@@ -20,7 +26,7 @@ impl ProbDistribution2d {
         Ok(conn)
     }
 
-    /// Ensures that the required schema exists in DuckDB.
+    // /// Ensures that the required schema exists in DuckDB.
     pub fn init_schema(conn: &Connection) -> duckdb::Result<()> {
         conn.execute(
             "CREATE TABLE IF NOT EXISTS distributions (
@@ -56,21 +62,20 @@ impl ProbDistribution2d {
     // Writer Thread: Output
 
     /// Writes a precomputed grid to DuckDB.
-    /// This is only called by the writer thread.
     pub fn write_output(&mut self, grid: &[(f64, f64, f64)]) -> duckdb::Result<()> {
-        let tx = self.conn.unchecked_transaction()?;
-        let mut stmt = tx.prepare(
-            "INSERT INTO distributions (feature, mu, theta, prob)
-             VALUES (?1, ?2, ?3, ?4)
-             ON CONFLICT (feature, mu, theta)
-             DO UPDATE SET prob = excluded.prob",
-        )?;
+        let mut appender = self.conn.appender("distributions")?;
+
+        let feature = &self.feature as &dyn ToSql;
 
         for (mu, theta, prob) in grid {
-            stmt.execute(params![self.feature, mu, theta, prob])?;
+            appender.append_row(&[
+                feature,
+                mu as &dyn ToSql,
+                theta as &dyn ToSql,
+                prob as &dyn ToSql,
+            ])?;
         }
-
-        tx.commit()?;
+        appender.flush()?;
         Ok(())
     }
 

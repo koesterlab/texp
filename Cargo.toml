@@ -17,7 +17,8 @@ serde = { version = "1.0" }
 serde_derive = "1.0"
 rmp-serde = "1.1"
 itertools-num = "0.1"
-statrs = "0.18"
+statrs = {version = "0.18", features = ["rand"] }
+rand = "0.8"
 bio = "3.0"
 logprob = "0.2.1"
 getset = "0.1"
