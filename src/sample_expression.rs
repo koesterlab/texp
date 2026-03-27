@@ -1,7 +1,6 @@
 //! This implements formula 3+4 of the document.
 use std::mem;
 use std::path::Path;
-use std::sync::mpsc::{self, Receiver, SyncSender};
 use std::thread;
 
 use anyhow::Result;
@@ -11,11 +10,8 @@ use rayon::prelude::*;
 use statrs::function::beta::ln_beta;
 
 use rayon::ThreadPoolBuilder;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::fs;
-use duckdb::Connection;
 use crate::errors::Error;
-use crate::prob_distribution_2d::SchemaMode;
 use crate::preprocess::LnBetaCache;
 use crate::preprocess::Preprocessing;
 use crate::prob_distribution_2d::compute_grid;
@@ -136,7 +132,7 @@ pub(crate) fn sample_expression(
     let final_conn = duckdb::Connection::open(&base_db_path)?;
     ProbDistribution2d::init_schema(&final_conn)?;
 
-    for temp_path in temp_paths {
+    for temp_path in &temp_paths {
         final_conn.execute(
             &format!("ATTACH '{}' AS temp_db", temp_path),
             [],
@@ -148,8 +144,11 @@ pub(crate) fn sample_expression(
         )?;
 
         final_conn.execute("DETACH temp_db", [])?;
-        fs::remove_file(&temp_path)?;
     }
+    // cleanup phase (parallel)
+    temp_paths.par_iter().for_each(|path| {
+        let _ = fs::remove_file(path);
+    });
 
     Ok(())
 }

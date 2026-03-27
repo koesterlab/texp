@@ -4,16 +4,11 @@ use bio::stats::LogProb;
 use ordered_float::OrderedFloat;
 use rayon::prelude::*;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::sync_channel;
-use std::sync::mpsc::{Receiver, SyncSender};
-use std::thread;
 use rayon::ThreadPoolBuilder;
 use std::fs;
-use duckdb::Connection;
 use std::collections::HashMap;
 
 use crate::preprocess::Preprocessing;
-use crate::prob_distribution_2d::SchemaMode;
 use crate::prob_distribution_2d::compute_grid;
 use crate::prob_distribution_2d::ProbDistribution2d;
 use crate::query_points;
@@ -138,7 +133,7 @@ pub(crate) fn group_expression(
     let final_conn = duckdb::Connection::open(&base_db_path)?;
     ProbDistribution2d::init_schema(&final_conn)?;
 
-    for temp_path in temp_paths {
+    for temp_path in &temp_paths {
         final_conn.execute(
             &format!("ATTACH '{}' AS temp_db", temp_path),
             [],
@@ -150,8 +145,11 @@ pub(crate) fn group_expression(
         )?;
 
         final_conn.execute("DETACH temp_db", [])?;
-        fs::remove_file(&temp_path)?;
     }
+    // cleanup phase (parallel)
+    temp_paths.par_iter().for_each(|path| {
+        let _ = fs::remove_file(path);
+    });
 
     Ok(())
 }

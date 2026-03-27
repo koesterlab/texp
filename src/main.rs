@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
-use rayon;
 use structopt::StructOpt;
 
 mod common;
