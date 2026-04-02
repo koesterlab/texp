@@ -79,6 +79,30 @@ impl ProbDistribution2d {
         Ok(())
     }
 
+    pub fn write_batch(
+        &mut self,
+        batch: &[(String, Vec<(f64, f64, f64)>)],
+    ) -> duckdb::Result<()> {
+        let mut appender = self.conn.appender("distributions")?;
+
+        for (feature, grid) in batch {
+            let feature_ref = feature as &dyn ToSql;
+
+            for (mu, theta, prob) in grid {
+                appender.append_row(&[
+                    feature_ref,
+                    mu as &dyn ToSql,
+                    theta as &dyn ToSql,
+                    prob as &dyn ToSql,
+                ])?;
+            }
+        }
+
+        // single flush for entire chunk
+        appender.flush()?;
+        Ok(())
+    }
+
     // Reader Thread: Lookup Loading
 
     /// Loads all stored probabilities for this feature into an in-memory HashMap.

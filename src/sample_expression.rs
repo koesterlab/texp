@@ -8,6 +8,8 @@ use bio::stats::LogProb;
 
 use rayon::prelude::*;
 use statrs::function::beta::ln_beta;
+// use datetime::Instant;
+use std::time::{Duration, Instant};
 
 use rayon::ThreadPoolBuilder;
 use std::fs;
@@ -26,6 +28,7 @@ pub(crate) fn sample_expression(
     threads: usize,
     out_dir_path: &Path,
 ) -> Result<()> {
+    let time0 = Instant::now();
     let preprocessing = Preprocessing::from_path(preprocessing)?;
     let sample_ids = preprocessing
         .scale_factors()
@@ -63,13 +66,17 @@ pub(crate) fn sample_expression(
     let temp_paths: Vec<String> = (0..max_threads)
         .map(|i| format!("{}_temp_{}.duckdb", base_db_path, i))
         .collect();
+    print!("Time taken for initialization: {:?}\n", time0.elapsed());
+
 
     custom_pool.install(|| {
         feature_ids
-            .into_par_iter()
+            // .into_par_iter()
+            .par_chunks(10)
             .map_init(
                  // INIT → runs once per thread
             {
+                // let time1 = Instant::now();
                 let temp_paths = temp_paths.clone();
 
                 move || {
@@ -82,50 +89,81 @@ pub(crate) fn sample_expression(
 
                     (path.clone(), conn)
                 }
+
             },
 
             // WORK
-            |(temp_path, conn), (i, feature_id)| {
-                let d_ij = mean_disp_estimates.means()[i];
+            // |(temp_path, conn), (i, feature_id)| {
+            |(temp_path, conn), chunk| {
+                // collect all results for this chunk
+                let mut time_chunk = Instant::now();
+                let mut batch_results: Vec<(String, Vec<(f64, f64, f64)>)> = Vec::with_capacity(chunk.len());
 
-                let t_ij = if let Some(t) = mean_disp_estimates.dispersions()[i] {
-                    t
-                } else if let Some(t) = preprocessing.interpolate_dispersion(i) {
-                    t
-                } else {
-                    println!("skipped {:?}", feature_id);
-                    return;
-                };
+                for &(i, ref feature_id) in chunk {
+                    let mut time1 = Instant::now();
+                    let d_ij = mean_disp_estimates.means()[i];
 
-                    let query_points = query_points_per_feature.get(i);
-                    let mu_ik_points = query_points.all_mu_ik();
-                    let start_points_theta_i = query_points.thetas();
-
-                    let calc_prob = |m, theta_i, theta_idx| {
-                        likelihood_mu_ik_theta_i(
-                            d_ij,
-                            m,
-                            t_ij,
-                            theta_i,
-                            theta_idx,
-                            s_j,
-                            epsilon,
-                            &preprocessing,
-                        )
+                    let t_ij = if let Some(t) = mean_disp_estimates.dispersions()[i] {
+                        t
+                    } else if let Some(t) = preprocessing.interpolate_dispersion(i) {
+                        t
+                    } else {
+                        println!("skipped {:?}", feature_id);
+                        continue;
                     };
-                    let probs =
-                        compute_grid(&mu_ik_points, &start_points_theta_i, calc_prob);
 
-                    let mut writer =
-                        ProbDistribution2d::with_connection(&*conn, &feature_id.to_string()).expect("writer");
+                        let query_points = query_points_per_feature.get(i);
+                        let mu_ik_points = query_points.all_mu_ik();
+                        let start_points_theta_i = query_points.thetas();
 
-                    writer.write_output(&probs).expect("write failed");
-                },
-            )
-            .count(); // Force execution of the parallel iterator
-        });
+                        let calc_prob = |m, theta_i, theta_idx| {
+                            likelihood_mu_ik_theta_i(
+                                d_ij,
+                                m,
+                                t_ij,
+                                theta_i,
+                                theta_idx,
+                                s_j,
+                                epsilon,
+                                &preprocessing,
+                            )
+                        };
+                        let probs =
+                            compute_grid(&mu_ik_points, &start_points_theta_i, calc_prob);
+                        print!("Calculation time taken for feature {}: {:?}\n", feature_id, time1.elapsed());
+                        time1 = Instant::now();
 
+                        // let mut writer =
+                        //     ProbDistribution2d::with_connection(&*conn, &feature_id.to_string()).expect("writer");
 
+                        // writer.write_output(&probs).expect("write failed");
+                        // print!("Write time taken for feature {}: {:?}", feature_id, time1.elapsed());
+                        // f writing immediately
+                        batch_results.push((feature_id.to_string(), probs));
+                }
+
+                let write_start = Instant::now();
+
+                // ONE writer per chunk
+                let mut writer = ProbDistribution2d::with_connection(
+                    &*conn,
+                    "batch", // optional grouping key
+                )
+                .expect("writer");
+
+                writer.write_batch(&batch_results).expect("write failed");
+                println!(
+                    "Chunk write time: {:?} (total chunk {:?})\n",
+                    write_start.elapsed(),
+                    time_chunk.elapsed()
+                );
+            },
+        )
+        .count(); // Force execution of the parallel iterator
+    });
+
+    let time2 = Instant::now();
+    print!("Time taken for scatter phase: {:?}\n", time2 - time0);
     // -------------------------------
     // 3. GATHER PHASE
     // -------------------------------
@@ -149,7 +187,9 @@ pub(crate) fn sample_expression(
     temp_paths.par_iter().for_each(|path| {
         let _ = fs::remove_file(path);
     });
+    print!("Time taken for gather phase: {:?}\n", Instant::now() - time2);
 
+    print!("Total time taken: {:?}\n", time0.elapsed());
     Ok(())
 }
 

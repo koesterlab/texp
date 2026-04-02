@@ -29,8 +29,6 @@ pub(crate) fn group_expression(
         .collect::<Vec<_>>();
     let feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
 
-
-
     let base_db_path = out_dir_path.to_str().unwrap().to_string();
 
     let query_points_per_feature = query_points::QueryPointsPerFeature::new(&preprocessing, c);
@@ -53,7 +51,8 @@ pub(crate) fn group_expression(
 
     custom_pool.install(|| {
         feature_ids
-            .into_par_iter()
+            // .into_par_iter()
+             .par_chunks(10)
             // .try_for_each_init(
             .map_init(
                  // INIT → runs once per thread
@@ -72,7 +71,12 @@ pub(crate) fn group_expression(
                 }
             },
              // WORK
-            |(temp_path, conn), (i, feature_id)| {
+            // |(temp_path, conn), (i, feature_id)| {
+            |(temp_path, conn), chunk| {
+                // collect all results for this chunk
+                let mut batch_results: Vec<(String, Vec<(f64, f64, f64)>)> = Vec::with_capacity(chunk.len());
+
+                for &(i, ref feature_id) in chunk {
                 // Open per-sample likelihood tables (read-only)
                 let sample_expression_likelihoods: Vec<_> = sample_expression_paths
                     .iter()
@@ -112,15 +116,28 @@ pub(crate) fn group_expression(
                 };
 
                 let query_points = query_points_per_feature.get(i);
-
                 let mu_ik_points = query_points.all_mu_ik();
                 let theta_points = query_points.thetas();
 
                 let probs = compute_grid(&mu_ik_points, &theta_points, calc_prob);
 
-                let mut writer = ProbDistribution2d::with_connection(&*conn, &feature_id.to_string()).expect("writer");
+        //         let mut writer = ProbDistribution2d::with_connection(&*conn, &feature_id.to_string()).expect("writer");
 
-                writer.write_output(&probs).expect("write failed");
+        //         writer.write_output(&probs).expect("write failed");
+        //     },
+        // )
+                    batch_results.push((feature_id.to_string(), probs));
+                }
+
+
+                // ONE writer per chunk
+                let mut writer = ProbDistribution2d::with_connection(
+                    &*conn,
+                    "batch", // optional grouping key
+                )
+                .expect("writer");
+
+                writer.write_batch(&batch_results).expect("write failed");
             },
         )
         .count(); // Force execution of the parallel iterator
@@ -140,7 +157,7 @@ pub(crate) fn group_expression(
         )?;
 
         final_conn.execute(
-            "INSERT OR REPLACE INTO distributions SELECT * FROM temp_db.distributions",
+            "INSERT INTO distributions SELECT * FROM temp_db.distributions",
             [],
         )?;
 
