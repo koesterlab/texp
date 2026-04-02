@@ -219,17 +219,37 @@ fn likelihood_mu_ik_theta_i(
     let nb_right = NegBinomPrepared::new(mu_ik, theta_i, cache);
     let scaled_d_ij = d_ij / s_j;
 
+    // Pre-calculate loop invariants for the "left" distribution
+    let n_left = 1.0 / t_ij;
+    let b_left = ln_beta(scaled_d_ij + 1.0, n_left);
+    let left_const_term = (scaled_d_ij + n_left).ln();
+
+    // fast inline closure for the left pmf
+    let calc_left_pmf = |x_f64: f64| -> LogProb {
+        let p = n_left / (n_left + x_f64);
+        let mut p1 = if n_left > 0.0 { n_left * p.ln() } else { 0.0 };
+        let mut p2 = if scaled_d_ij > 0.0 { scaled_d_ij * (1.0 - p).ln() } else { 0.0 };
+
+        if p1 < p2 {
+            std::mem::swap(&mut p1, &mut p2);
+        }
+        LogProb((p1 - b_left + p2) - left_const_term)
+    };
+
+
     for x in 0..200 {
-        let nb_left = NegBinomPreparedUncached::new(x as f64, t_ij);
-        let calced_prob = nb_left.ln_pmf(scaled_d_ij) + nb_right.ln_pmf(x as f64);
+        // let nb_left = NegBinomPreparedUncached::new(x as f64, t_ij);
+        // let calced_prob = nb_left.ln_pmf(scaled_d_ij) + nb_right.ln_pmf(x as f64);
+        let calced_prob = calc_left_pmf(x as f64) + nb_right.ln_pmf(x as f64);
         if calced_prob > max_prob {
             max_prob = calced_prob;
         }
         probs.push(calced_prob);
     }
     for x in 200..10000 {
-        let nb_left = NegBinomPreparedUncached::new(x as f64, t_ij);
-        let calced_prob = nb_left.ln_pmf(scaled_d_ij) + nb_right.ln_pmf(x as f64);
+        // let nb_left = NegBinomPreparedUncached::new(x as f64, t_ij);
+        // let calced_prob = nb_left.ln_pmf(scaled_d_ij) + nb_right.ln_pmf(x as f64);
+        let calced_prob = calc_left_pmf(x as f64) + nb_right.ln_pmf(x as f64);
         if calced_prob > max_prob {
             max_prob = calced_prob;
         }
@@ -241,8 +261,9 @@ fn likelihood_mu_ik_theta_i(
     }
     let nb_right = NegBinomPreparedUncached::new(mu_ik, theta_i);
     for x in 10000.. {
-        let nb_left = NegBinomPreparedUncached::new(x as f64, t_ij);
-        let calced_prob = nb_left.ln_pmf(scaled_d_ij) + nb_right.ln_pmf(x as f64);
+        // let nb_left = NegBinomPreparedUncached::new(x as f64, t_ij);
+        // let calced_prob = nb_left.ln_pmf(scaled_d_ij) + nb_right.ln_pmf(x as f64);
+        let calced_prob = calc_left_pmf(x as f64) + nb_right.ln_pmf(x as f64);
         if calced_prob > max_prob {
             max_prob = calced_prob;
         }
