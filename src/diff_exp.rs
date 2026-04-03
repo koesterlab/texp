@@ -123,8 +123,8 @@ pub(crate) fn diff_exp(
                 let prob_f = LogProb::ln_trapezoidal_integrate_grid_exp(density, possible_f);
                 let calc_prob_f = |f| {
                     let noisy_f = N64::new(f);
-                    let prob = prob_d_i_f.get(&noisy_f).unwrap() - prob_f;
-                    prob
+
+                    prob_d_i_f.get(&noisy_f).unwrap() - prob_f
                 };
 
                 for f in possible_f.clone() {
