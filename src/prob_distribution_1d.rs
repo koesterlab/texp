@@ -1,5 +1,5 @@
 use bio::stats::LogProb;
-use duckdb::{params, AccessMode, Config, Connection};
+use duckdb::{AccessMode, Config, Connection, params};
 use ordered_float::OrderedFloat;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

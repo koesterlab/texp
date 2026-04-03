@@ -1,20 +1,18 @@
 //! This infers scale factors, mean and dispersion from Kallisto results.
 
+use rand::SeedableRng;
+use rand::rngs::StdRng;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::stdout;
 use std::path::{Path, PathBuf};
 use std::thread;
-use rand::Rng;
-use rand::rngs::StdRng;
-use rand::SeedableRng;
-
 
 use anyhow::Result;
 use getset::Getters;
 use itertools_num::linspace;
 use ndarray::{Array1, Axis};
-use ndarray_stats::{interpolate, Quantile1dExt, QuantileExt};
+use ndarray_stats::{Quantile1dExt, QuantileExt, interpolate};
 use noisy_float::types::N64;
 use rmp_serde::{Deserializer, Serializer};
 use serde::Deserialize as SerdeDeserialize;
@@ -32,7 +30,7 @@ pub(crate) fn preprocess(
     sample_ids: &[String],
     prior_parameters: PriorParameters,
 ) -> Result<()> {
-    if kallisto_quants.len() < 1 {
+    if kallisto_quants.is_empty() {
         return Err(Error::NotEnoughQuants.into());
     }
     let quants: Result<Vec<_>> = kallisto_quants
@@ -84,7 +82,7 @@ pub(crate) fn preprocess(
     let preprocessing = Preprocessing {
         scale_factors,
         mean_disp_estimates,
-        feature_ids: feature_ids,
+        feature_ids,
         prior_parameters,
         ln_beta_caches,
     };
@@ -132,8 +130,6 @@ impl Preprocessing {
         Prior::new(self.prior_parameters())
     }
 
-
-
     pub(crate) fn interpolate_dispersion(&self, feature_idx: usize) -> Option<f64> {
         let disp = |estimates: &Estimates| estimates.dispersions[feature_idx];
         let count = self.mean_disp_estimates.values().filter_map(&disp).count();
@@ -172,10 +168,9 @@ fn calc_scale_factors(
                     feature_counts
                         .quantile_mut(N64::unchecked_new(0.75), &interpolate::Linear)
                         .unwrap()
-                        .clone()
                 })
                 .collect();
-            return upper_quartiles;
+            upper_quartiles
         })
         .unwrap();
 
@@ -190,7 +185,7 @@ fn calc_scale_factors(
     //             .clone()
     //     })
     //     .collect();
-    let max_quartile = upper_quartiles.max()?.clone();
+    let max_quartile = *upper_quartiles.max()?;
     let scale_factors = upper_quartiles.mapv(|quartile| max_quartile / quartile);
     Ok(sample_ids
         .iter()
@@ -232,10 +227,7 @@ fn mean_disp_estimates(
     kallisto_quants: &[KallistoQuant],
     sample_ids: &[String],
 ) -> Result<HashMap<String, Estimates>> {
-    let estimates: Result<Vec<_>> = kallisto_quants
-        .iter()
-        .map(|quant| Estimates::new(quant))
-        .collect();
+    let estimates: Result<Vec<_>> = kallisto_quants.iter().map(Estimates::new).collect();
 
     Ok(sample_ids.iter().cloned().zip(estimates?).collect())
 }

@@ -150,7 +150,7 @@ fn compute_min_max_values(
     let mut min_max_values: HashMap<usize, (f64, f64)> = HashMap::new();
 
     // Iterate over each sample
-    for (_, estimates) in mean_disp_estimates {
+    for estimates in mean_disp_estimates.values() {
         // Iterate over each feature in the estimate
         for (i, &value) in estimates.means().iter().enumerate() {
             // Update the minimum and maximum values for the current feature

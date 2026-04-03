@@ -24,11 +24,11 @@ pub(crate) fn diff_exp(
     let db_path = out_dir.to_str().unwrap(); //format!("{}.duckdb", out_dir_path.to_str().unwrap());
     let conn = Connection::open(db_path)?;
     ProbDistribution1d::init_schema(&conn)?; // ensure schema exists
-                                             // Wrap in Arc<Mutex<Connection>> for parallel use
+    // Wrap in Arc<Mutex<Connection>> for parallel use
     let conn = Arc::new(Mutex::new(conn));
 
     let preprocessing = Preprocessing::from_path(preprocessing)?;
-    let sample_ids = preprocessing
+    let _sample_ids = preprocessing
         .scale_factors()
         .keys()
         .cloned()
@@ -47,11 +47,11 @@ pub(crate) fn diff_exp(
             for (i, feature_id) in chunk {
                 let prob_dist_i_k1_db = ProbDistribution2d::with_readonly_connection(
                     group_path1.to_str().unwrap(),
-                    &feature_id,
+                    feature_id,
                 )?;
                 let prob_dist_i_k2_db = ProbDistribution2d::with_readonly_connection(
                     group_path2.to_str().unwrap(),
-                    &feature_id,
+                    feature_id,
                 )?;
                 let prob_dist_i_k1 = prob_dist_i_k1_db.load_lookup_table()?;
                 let prob_dist_i_k2 = prob_dist_i_k2_db.load_lookup_table()?;
@@ -71,7 +71,7 @@ pub(crate) fn diff_exp(
                     ProbDistribution1d::with_connection(conn.clone(), feature_id).unwrap();
 
                 // let calc_prob = |f: f64, list_mu| -> LogProb {
-                for (i, f) in possible_f.clone().iter().enumerate() {
+                for f in possible_f.clone().iter() {
                     // let f =f64::from(f);
                     let calc_prob_fixed_theta = |theta| {
                         let density_x = |_, x: f64| {
@@ -95,12 +95,11 @@ pub(crate) fn diff_exp(
                                 .get(&(OrderedFloat(x), OrderedFloat(theta)))
                                 .cloned()
                                 .unwrap_or(LogProb::ln_zero());
-                            let prob = p1 + p2;
-                            prob
+
+                            p1 + p2
                         };
-                        let prob_x =
-                            LogProb::ln_trapezoidal_integrate_grid_exp(density_x, &start_points_mu_ik);
-                        prob_x
+
+                        LogProb::ln_trapezoidal_integrate_grid_exp(density_x, start_points_mu_ik)
                     };
 
                     let density_theta =
@@ -109,7 +108,7 @@ pub(crate) fn diff_exp(
 
                     let prob_theta = LogProb::ln_trapezoidal_integrate_grid_exp(
                         density_theta,
-                        &start_points_theta_i,
+                        start_points_theta_i,
                     );
                     // prob_theta
                     // };
@@ -121,21 +120,20 @@ pub(crate) fn diff_exp(
 
                 let density = |_, f| *prob_d_i_f.get(&N64::new(f)).unwrap();
 
-                let prob_f = LogProb::ln_trapezoidal_integrate_grid_exp(density, &possible_f);
+                let prob_f = LogProb::ln_trapezoidal_integrate_grid_exp(density, possible_f);
                 let calc_prob_f = |f| {
                     let noisy_f = N64::new(f);
-                    let prob = prob_d_i_f.get(&noisy_f).unwrap() - prob_f;
-                    prob
+
+                    prob_d_i_f.get(&noisy_f).unwrap() - prob_f
                 };
 
                 for f in possible_f.clone() {
                     let value = calc_prob_f(f);
                     // println!("feature_id {:?} diff_exp_distribution f {:?} {:?}", feature_id, f, value);
-                    diff_exp_distribution.insert(f, value);
+                    diff_exp_distribution.insert(f, value)?;
                 }
             }
             Ok(())
-
         })?;
 
     Ok(())

@@ -1,9 +1,9 @@
 use bio::stats::LogProb;
-use duckdb::{params, AccessMode, Config, Connection};
+use duckdb::ToSql;
+use duckdb::{AccessMode, Config, Connection, params};
 use itertools::iproduct;
 use ordered_float::OrderedFloat;
 use std::collections::HashMap;
-use duckdb::ToSql;
 
 /// Represents a 2D probability distribution for a given feature stored in DuckDB.
 pub struct ProbDistribution2d {
@@ -68,7 +68,7 @@ impl ProbDistribution2d {
         let feature = &self.feature as &dyn ToSql;
 
         for (mu, theta, prob) in grid {
-            appender.append_row(&[
+            appender.append_row([
                 feature,
                 mu as &dyn ToSql,
                 theta as &dyn ToSql,
@@ -79,17 +79,14 @@ impl ProbDistribution2d {
         Ok(())
     }
 
-    pub fn write_batch(
-        &mut self,
-        batch: &[(String, Vec<(f64, f64, f64)>)],
-    ) -> duckdb::Result<()> {
+    pub fn write_batch(&mut self, batch: &[(String, Vec<(f64, f64, f64)>)]) -> duckdb::Result<()> {
         let mut appender = self.conn.appender("distributions")?;
 
         for (feature, grid) in batch {
             let feature_ref = feature as &dyn ToSql;
 
             for (mu, theta, prob) in grid {
-                appender.append_row(&[
+                appender.append_row([
                     feature_ref,
                     mu as &dyn ToSql,
                     theta as &dyn ToSql,

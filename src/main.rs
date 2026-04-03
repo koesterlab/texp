@@ -1,8 +1,7 @@
-use std::path::PathBuf;
-
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
-use structopt::StructOpt;
+use clap::Parser;
+use std::path::PathBuf;
 
 mod common;
 mod diff_exp;
@@ -18,269 +17,191 @@ mod reduce_features;
 mod sample_expression;
 mod write_fold_changes;
 
-#[derive(StructOpt, Debug)]
-#[structopt(
+#[derive(Parser, Debug)]
+#[command(
     name = "t-exp",
     about = "Tyrannosaurus Exp: Bayesian framework for gene/transcript expression analysis.",
-    setting = structopt::clap::AppSettings::ColoredHelp,
+    version
 )]
 enum Cli {
-    #[structopt(
-        name = "preprocess",
-        about = "Calculate mean and dispersion estimates as well as scale factors for each given sample by upper quartile normalization.",
-        setting = structopt::clap::AppSettings::ColoredHelp,
-    )]
+    /// Calculate mean and dispersion estimates as well as scale factors for each given sample by upper quartile normalization.
     Preprocess {
-        #[structopt(
-            short = "c",
+        #[arg(
+            short,
             default_value = "0",
             help = "Pseudo counts c for fold change calculation."
         )]
         c: f64,
-        #[structopt(
-            parse(from_os_str),
-            long = "kallisto-quants",
-            help = "Paths to Kallisto HDF5 output for each sample."
-        )]
+
+        #[arg(long, help = "Paths to Kallisto HDF5 output for each sample.")]
         kallisto_quants: Vec<PathBuf>,
-        #[structopt(
-            long = "sample-ids",
+
+        #[arg(
+            long,
             help = "Sample IDs to use (for each sample given by --kallisto-quants in same order)."
         )]
         sample_ids: Vec<String>,
-        #[structopt(
-            long = "prior-shape",
+
+        #[arg(
+            long,
             default_value = "1.0409428761583088",
             help = "Shape of prior distribution (inverse gamma)."
         )]
         prior_shape: f64,
-        #[structopt(
-            long = "prior-scale",
+
+        #[arg(
+            long,
             default_value = "2.064553353135377",
             help = "Scale of prior distribution (inverse gamma)."
         )]
         prior_scale: f64,
-        #[structopt(
-            long = "prior-shift",
+
+        #[arg(
+            long,
             default_value = "-0.017934198042149123",
             help = "Shift of prior distribution (inverse gamma)."
         )]
         prior_shift: f64,
     },
-    #[structopt(
-        name = "reduce-features",
-        about = "Reduce features in datasat to only those contained in list $feature-ids",
-        setting = structopt::clap::AppSettings::ColoredHelp,
-    )]
+
+    /// Reduce features in dataset to only those contained in list $feature-ids
     ReduceFeatures {
-        #[structopt(
-            parse(from_os_str),
-            long = "preprocessing_path",
-            short = "p",
-            help = "Path to preprocessed Kallisto results."
-        )]
+        #[arg(long, short = 'p', help = "Path to preprocessed Kallisto results.")]
         preprocessing_path: PathBuf,
-        #[structopt(
-            parse(from_os_str),
-            long = "feature-ids",
-            short = "i",
-            help = "Path to list of feature ids."
-        )]
+
+        #[arg(long, short = 'i', help = "Path to list of feature ids.")]
         feature_ids: PathBuf,
     },
-    #[structopt(
-        name = "sample-expression",
-        about = "Calculate sample expression likelihoods.",
-        setting = structopt::clap::AppSettings::ColoredHelp,
-    )]
+
+    /// Calculate sample expression likelihoods.
     SampleExp {
-        #[structopt(long = "sample-id", help = "ID of sample to process.")]
+        #[arg(long, help = "ID of sample to process.")]
         sample_id: String,
-        #[structopt(
-            parse(from_os_str),
-            long = "preprocessing_path",
-            short = "p",
-            help = "Path to preprocessed Kallisto results."
-        )]
+
+        #[arg(long, short = 'p', help = "Path to preprocessed Kallisto results.")]
         preprocessing_path: PathBuf,
-        #[structopt(
-            parse(from_os_str),
-            long = "output",
-            short = "o",
-            help = "Path to output directory."
-        )]
+
+        #[arg(long, short = 'o', help = "Path to output directory.")]
         out_dir: PathBuf,
-        #[structopt(
-            long = "epsilon",
+
+        #[arg(
+            long,
             default_value = "1e-9",
             help = "Epsilon for stopping likelihood calculation."
         )]
         epsilon: f64,
-        #[structopt(
-            short = "c",
+
+        #[arg(
+            short,
             default_value = "0",
             help = "Pseudo counts c for fold change calculation."
         )]
         c: f64,
-        #[structopt(
-            long = "threads",
-            default_value = "1",
-            help = "Number of threads to use."
-        )]
+
+        #[arg(long, default_value = "1", help = "Number of threads to use.")]
         threads: usize,
     },
-    #[structopt(
-        name = "group-expression",
-        about = "Calculate group expression posteriors.",
-        setting = structopt::clap::AppSettings::ColoredHelp,
-    )]
+
+    /// Calculate group expression posteriors.
     GroupExp {
-        #[structopt(parse(from_os_str), help = "Paths to sample expressions.")]
+        #[arg(help = "Paths to sample expressions.")]
         sample_exprs: Vec<PathBuf>,
-        #[structopt(
-            parse(from_os_str),
-            long = "preprocessing_path",
-            short = "p",
-            help = "Path to preprocessed Kallisto results."
-        )]
+
+        #[arg(long, short = 'p', help = "Path to preprocessed Kallisto results.")]
         preprocessing_path: PathBuf,
-        #[structopt(
-            short = "c",
+
+        #[arg(
+            short,
             default_value = "0",
             help = "Pseudo counts c for fold change calculation."
         )]
         c: f64,
-        #[structopt(
-            parse(from_os_str),
-            long = "output",
-            short = "o",
-            help = "Path to output directory."
-        )]
-        out_dir: PathBuf,
-        #[structopt(
-            long = "threads",
-            default_value = "1",
-            help = "Number of threads to use."
-        )]
+
+        #[arg(long, short = 'o', help = "Path to output directory.")]
+        output: PathBuf,
+
+        #[arg(long, default_value = "1", help = "Number of threads to use.")]
         threads: usize,
     },
-    #[structopt(
-        name = "differential-expression",
-        about = "Calculate differential expression posteriors between groups.",
-        setting = structopt::clap::AppSettings::ColoredHelp,
-    )]
+
+    /// Calculate differential expression posteriors between groups.
+    #[command(name = "differential-expression")]
     DiffExp {
-        #[structopt(
-            parse(from_os_str),
+        #[arg(
             long = "group_path1",
-            short = "g1",
+            short = '1',
             help = "Path to group expressions of group 1."
         )]
         group_path1: PathBuf,
-        #[structopt(
-            parse(from_os_str),
+
+        #[arg(
             long = "group_path2",
-            short = "t2",
+            short = '2',
             help = "Path to group expressions of group 2."
         )]
         group_path2: PathBuf,
-        #[structopt(
-            parse(from_os_str),
-            long = "preprocessing_path",
-            short = "p",
-            help = "Path to preprocessed Kallisto results."
-        )]
+
+        #[arg(long, short = 'p', help = "Path to preprocessed Kallisto results.")]
         preprocessing_path: PathBuf,
-        #[structopt(
-            short = "c",
+
+        #[arg(
+            short,
             default_value = "0",
             help = "Pseudo counts c for fold change calculation."
         )]
         c: f64,
-        #[structopt(
-            parse(from_os_str),
-            long = "output",
-            short = "o",
-            help = "Path to output directory."
-        )]
-        out_dir: PathBuf,
-        #[structopt(
-            long = "threads",
-            default_value = "1",
-            help = "Number of threads to use."
-        )]
+
+        #[arg(long, short = 'o', help = "Path to output directory.")]
+        output: PathBuf,
+
+        #[arg(long, default_value = "1", help = "Number of threads to use.")]
         threads: usize,
     },
-    #[structopt(
-        name = "to-text",
-        about = "write fold changes from differential expression posteriors between groups into csv file.",
-        setting = structopt::clap::AppSettings::ColoredHelp,
-    )]
+
+    /// Write fold changes from differential expression posteriors between groups into csv file.
+    #[command(name = "to-text")]
     ToText {
-        #[structopt(
-            parse(from_os_str),
-            long = "diff_exp_path",
-            short = "d",
-            help = "Path to differential expressions"
-        )]
+        #[arg(long, short = 'd', help = "Path to differential expressions")]
         diff_exp_path: PathBuf,
-        #[structopt(
-            parse(from_os_str),
-            long = "preprocessing_path",
-            short = "p",
-            help = "Path to preprocessed Kallisto results."
-        )]
+
+        #[arg(long, short = 'p', help = "Path to preprocessed Kallisto results.")]
         preprocessing_path: PathBuf,
-        #[structopt(
-            parse(from_os_str),
-            long = "output_dist",
-            short = "odist",
-            help = "Path to output file."
-        )]
-        out_file_dist: PathBuf,
-        #[structopt(
-            parse(from_os_str),
+
+        #[arg(long = "output_dist", short = 'd', help = "Path to output file.")]
+        output_dist: PathBuf,
+
+        #[arg(
             long = "output_max_prob_fc",
-            short = "ofc",
+            short = 'm',
             help = "Path to output file."
         )]
         out_file_max_prob_fc: PathBuf,
     },
-    #[structopt(
-        name = "kallisto-values",
-        about = "write counts or fold changes from kallisto between groups into csv file.",
-        setting = structopt::clap::AppSettings::ColoredHelp,
-    )]
+
+    /// Write counts or fold changes from kallisto between groups into csv file.
+    #[command(name = "kallisto-values")]
     KallistoValues {
-        //add boolean parameter for fold change or counts
-        #[structopt(
-            long = "foldchange",
-            short = "f",
-            help = "If --foldchange is set, fold changes are calculated and written into the output file.
-            If --foldchange is not set, counts are written into the output file."
+        #[arg(
+            long,
+            short = 'f',
+            help = "If --foldchange is set, fold changes are calculated. Otherwise, counts are written."
         )]
         foldchange: bool,
-        #[structopt(
-            parse(from_os_str),
-            long = "preprocessing_path",
-            short = "p",
-            help = "Path to preprocessed Kallisto results."
-        )]
+
+        #[arg(long, short = 'p', help = "Path to preprocessed Kallisto results.")]
         preprocessing_path: PathBuf,
-        #[structopt(long = "sample-id", help = "ID of sample to process.")]
+
+        #[arg(long = "sample-id", help = "ID of sample to process.")]
         sample_ids: Vec<String>,
-        #[structopt(
-            parse(from_os_str),
-            long = "output",
-            short = "o",
-            help = "Path to output file."
-        )]
+
+        #[arg(long, short = 'o', help = "Path to output file.")]
         out_file: PathBuf,
     },
 }
 
 fn main() -> Result<()> {
-    let cli = Cli::from_args();
+    let cli = Cli::parse();
+
     match cli {
         Cli::Preprocess {
             c,
@@ -301,10 +222,7 @@ fn main() -> Result<()> {
         Cli::ReduceFeatures {
             preprocessing_path,
             feature_ids,
-            // out_dir,
-        } => {
-            reduce_features::reduce_features(&preprocessing_path, &feature_ids) //, &out_dir)
-        }
+        } => reduce_features::reduce_features(&preprocessing_path, &feature_ids),
         Cli::SampleExp {
             preprocessing_path,
             epsilon,
@@ -312,52 +230,44 @@ fn main() -> Result<()> {
             c,
             out_dir,
             threads,
-        } => {
-            // rayon::ThreadPoolBuilder::new()
-            //     .num_threads(threads)
-            //     .build_global()
-            //     .unwrap();
-
-            // calculate per sample likelihoods
-            sample_expression::sample_expression(
-                &preprocessing_path,
-                &sample_id,
-                LogProb::from(Prob::checked(epsilon)?),
-                c,
-                threads,
-                &out_dir,
-            )
-        }
+        } => sample_expression::sample_expression(
+            &preprocessing_path,
+            &sample_id,
+            LogProb::from(Prob::checked(epsilon)?),
+            c,
+            threads,
+            &out_dir,
+        ),
         Cli::GroupExp {
             preprocessing_path,
             c,
-            out_dir,
+            output,
             threads,
             sample_exprs,
-        } => {
-            // calculate per group posteriors
-            group_expression::group_expression(&preprocessing_path, &sample_exprs, c, threads, &out_dir)
-        }
+        } => group_expression::group_expression(
+            &preprocessing_path,
+            &sample_exprs,
+            c,
+            threads,
+            &output,
+        ),
         Cli::DiffExp {
             group_path1,
             group_path2,
             preprocessing_path,
             c,
-            out_dir,
-            threads,
-        } => {
-            // calculate differential expression between groups
-            diff_exp::diff_exp(c, &preprocessing_path, &group_path1, &group_path2, &out_dir)
-        }
+            output: out_dir,
+            threads: _, // threads unused in original match arm
+        } => diff_exp::diff_exp(c, &preprocessing_path, &group_path1, &group_path2, &out_dir),
         Cli::ToText {
             diff_exp_path,
             preprocessing_path,
-            out_file_dist,
+            output_dist,
             out_file_max_prob_fc,
         } => write_fold_changes::write_fold_changes(
             &preprocessing_path,
             &diff_exp_path,
-            &out_file_dist,
+            &output_dist,
             &out_file_max_prob_fc,
         ),
         Cli::KallistoValues {
