@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use anyhow::Result;
-use ndarray::{s, Array1, Array2, Dim};
+use ndarray::{Array1, Array2, Dim, s};
 use noisy_float::types::N64;
 
 pub(crate) struct KallistoQuant {

@@ -24,7 +24,7 @@ pub(crate) fn diff_exp(
     let db_path = out_dir.to_str().unwrap(); //format!("{}.duckdb", out_dir_path.to_str().unwrap());
     let conn = Connection::open(db_path)?;
     ProbDistribution1d::init_schema(&conn)?; // ensure schema exists
-                                             // Wrap in Arc<Mutex<Connection>> for parallel use
+    // Wrap in Arc<Mutex<Connection>> for parallel use
     let conn = Arc::new(Mutex::new(conn));
 
     let preprocessing = Preprocessing::from_path(preprocessing)?;

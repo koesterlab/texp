@@ -1,6 +1,6 @@
 use bio::stats::LogProb;
 use duckdb::ToSql;
-use duckdb::{params, AccessMode, Config, Connection};
+use duckdb::{AccessMode, Config, Connection, params};
 use itertools::iproduct;
 use ordered_float::OrderedFloat;
 use std::collections::HashMap;

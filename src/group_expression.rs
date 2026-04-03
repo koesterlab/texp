@@ -2,15 +2,15 @@
 use anyhow::Result;
 use bio::stats::LogProb;
 use ordered_float::OrderedFloat;
-use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::preprocess::Preprocessing;
-use crate::prob_distribution_2d::compute_grid;
 use crate::prob_distribution_2d::ProbDistribution2d;
+use crate::prob_distribution_2d::compute_grid;
 use crate::query_points;
 
 pub(crate) fn group_expression(

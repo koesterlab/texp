@@ -1,7 +1,7 @@
 //! This infers scale factors, mean and dispersion from Kallisto results.
 
-use rand::rngs::StdRng;
 use rand::SeedableRng;
+use rand::rngs::StdRng;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::stdout;
@@ -12,7 +12,7 @@ use anyhow::Result;
 use getset::Getters;
 use itertools_num::linspace;
 use ndarray::{Array1, Axis};
-use ndarray_stats::{interpolate, Quantile1dExt, QuantileExt};
+use ndarray_stats::{Quantile1dExt, QuantileExt, interpolate};
 use noisy_float::types::N64;
 use rmp_serde::{Deserializer, Serializer};
 use serde::Deserialize as SerdeDeserialize;
