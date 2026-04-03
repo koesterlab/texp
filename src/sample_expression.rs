@@ -11,14 +11,14 @@ use statrs::function::beta::ln_beta;
 // use datetime::Instant;
 use std::time::{Duration, Instant};
 
-use rayon::ThreadPoolBuilder;
-use std::fs;
 use crate::errors::Error;
 use crate::preprocess::LnBetaCache;
 use crate::preprocess::Preprocessing;
 use crate::prob_distribution_2d::compute_grid;
 use crate::prob_distribution_2d::ProbDistribution2d;
 use crate::query_points;
+use rayon::ThreadPoolBuilder;
+use std::fs;
 
 pub(crate) fn sample_expression(
     preprocessing: &Path,
@@ -55,10 +55,7 @@ pub(crate) fn sample_expression(
     // 1. HPC SAFEGUARD
     // -------------------------------
     let max_threads = std::cmp::min(threads, 32);
-    let custom_pool = ThreadPoolBuilder::new()
-        .num_threads(max_threads)
-        .build()?;
-
+    let custom_pool = ThreadPoolBuilder::new().num_threads(max_threads).build()?;
 
     // -------------------------------
     // 2. SCATTER PHASE
@@ -68,49 +65,46 @@ pub(crate) fn sample_expression(
         .collect();
     print!("Time taken for initialization: {:?}\n", time0.elapsed());
 
-
     custom_pool.install(|| {
         feature_ids
             // .into_par_iter()
             .par_chunks(10)
             .map_init(
-                 // INIT → runs once per thread
-            {
-                // let time1 = Instant::now();
-                let temp_paths = temp_paths.clone();
+                // INIT → runs once per thread
+                {
+                    // let time1 = Instant::now();
+                    let temp_paths = temp_paths.clone();
 
-                move || {
-                    let thread_idx = rayon::current_thread_index().unwrap();
+                    move || {
+                        let thread_idx = rayon::current_thread_index().unwrap();
 
-                    let path = &temp_paths[thread_idx];
+                        let path = &temp_paths[thread_idx];
 
-                    let conn = ProbDistribution2d::open(path)
-                        .expect("Failed to open DuckDB");
+                        let conn = ProbDistribution2d::open(path).expect("Failed to open DuckDB");
 
-                    (path.clone(), conn)
-                }
+                        (path.clone(), conn)
+                    }
+                },
+                // WORK
+                // |(temp_path, conn), (i, feature_id)| {
+                |(temp_path, conn), chunk| {
+                    // collect all results for this chunk
+                    let mut time_chunk = Instant::now();
+                    let mut batch_results: Vec<(String, Vec<(f64, f64, f64)>)> =
+                        Vec::with_capacity(chunk.len());
 
-            },
+                    for &(i, ref feature_id) in chunk {
+                        let mut time1 = Instant::now();
+                        let d_ij = mean_disp_estimates.means()[i];
 
-            // WORK
-            // |(temp_path, conn), (i, feature_id)| {
-            |(temp_path, conn), chunk| {
-                // collect all results for this chunk
-                let mut time_chunk = Instant::now();
-                let mut batch_results: Vec<(String, Vec<(f64, f64, f64)>)> = Vec::with_capacity(chunk.len());
-
-                for &(i, ref feature_id) in chunk {
-                    let mut time1 = Instant::now();
-                    let d_ij = mean_disp_estimates.means()[i];
-
-                    let t_ij = if let Some(t) = mean_disp_estimates.dispersions()[i] {
-                        t
-                    } else if let Some(t) = preprocessing.interpolate_dispersion(i) {
-                        t
-                    } else {
-                        println!("skipped {:?}", feature_id);
-                        continue;
-                    };
+                        let t_ij = if let Some(t) = mean_disp_estimates.dispersions()[i] {
+                            t
+                        } else if let Some(t) = preprocessing.interpolate_dispersion(i) {
+                            t
+                        } else {
+                            println!("skipped {:?}", feature_id);
+                            continue;
+                        };
 
                         let query_points = query_points_per_feature.get(i);
                         let mu_ik_points = query_points.all_mu_ik();
@@ -128,9 +122,12 @@ pub(crate) fn sample_expression(
                                 &preprocessing,
                             )
                         };
-                        let probs =
-                            compute_grid(&mu_ik_points, &start_points_theta_i, calc_prob);
-                        print!("Calculation time taken for feature {}: {:?}\n", feature_id, time1.elapsed());
+                        let probs = compute_grid(&mu_ik_points, &start_points_theta_i, calc_prob);
+                        print!(
+                            "Calculation time taken for feature {}: {:?}\n",
+                            feature_id,
+                            time1.elapsed()
+                        );
                         time1 = Instant::now();
 
                         // let mut writer =
@@ -140,26 +137,25 @@ pub(crate) fn sample_expression(
                         // print!("Write time taken for feature {}: {:?}", feature_id, time1.elapsed());
                         // f writing immediately
                         batch_results.push((feature_id.to_string(), probs));
-                }
+                    }
 
-                let write_start = Instant::now();
+                    let write_start = Instant::now();
 
-                // ONE writer per chunk
-                let mut writer = ProbDistribution2d::with_connection(
-                    &*conn,
-                    "batch", // optional grouping key
-                )
-                .expect("writer");
+                    // ONE writer per chunk
+                    let mut writer = ProbDistribution2d::with_connection(
+                        &*conn, "batch", // optional grouping key
+                    )
+                    .expect("writer");
 
-                writer.write_batch(&batch_results).expect("write failed");
-                println!(
-                    "Chunk write time: {:?} (total chunk {:?})\n",
-                    write_start.elapsed(),
-                    time_chunk.elapsed()
-                );
-            },
-        )
-        .count(); // Force execution of the parallel iterator
+                    writer.write_batch(&batch_results).expect("write failed");
+                    println!(
+                        "Chunk write time: {:?} (total chunk {:?})\n",
+                        write_start.elapsed(),
+                        time_chunk.elapsed()
+                    );
+                },
+            )
+            .count(); // Force execution of the parallel iterator
     });
 
     let time2 = Instant::now();
@@ -171,10 +167,7 @@ pub(crate) fn sample_expression(
     ProbDistribution2d::init_schema(&final_conn)?;
 
     for temp_path in &temp_paths {
-        final_conn.execute(
-            &format!("ATTACH '{}' AS temp_db", temp_path),
-            [],
-        )?;
+        final_conn.execute(&format!("ATTACH '{}' AS temp_db", temp_path), [])?;
 
         final_conn.execute(
             "INSERT INTO distributions SELECT * FROM temp_db.distributions",
@@ -187,12 +180,14 @@ pub(crate) fn sample_expression(
     temp_paths.par_iter().for_each(|path| {
         let _ = fs::remove_file(path);
     });
-    print!("Time taken for gather phase: {:?}\n", Instant::now() - time2);
+    print!(
+        "Time taken for gather phase: {:?}\n",
+        Instant::now() - time2
+    );
 
     print!("Total time taken: {:?}\n", time0.elapsed());
     Ok(())
 }
-
 
 /// Inner of equation 3/4 in the document.
 fn likelihood_mu_ik_theta_i(

@@ -98,8 +98,10 @@ pub(crate) fn diff_exp(
                             let prob = p1 + p2;
                             prob
                         };
-                        let prob_x =
-                            LogProb::ln_trapezoidal_integrate_grid_exp(density_x, &start_points_mu_ik);
+                        let prob_x = LogProb::ln_trapezoidal_integrate_grid_exp(
+                            density_x,
+                            &start_points_mu_ik,
+                        );
                         prob_x
                     };
 
@@ -131,11 +133,10 @@ pub(crate) fn diff_exp(
                 for f in possible_f.clone() {
                     let value = calc_prob_f(f);
                     // println!("feature_id {:?} diff_exp_distribution f {:?} {:?}", feature_id, f, value);
-                    diff_exp_distribution.insert(f, value);
+                    diff_exp_distribution.insert(f, value)?;
                 }
             }
             Ok(())
-
         })?;
 
     Ok(())

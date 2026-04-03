@@ -1,14 +1,13 @@
 //! This infers scale factors, mean and dispersion from Kallisto results.
 
+use rand::rngs::StdRng;
+use rand::Rng;
+use rand::SeedableRng;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::stdout;
 use std::path::{Path, PathBuf};
 use std::thread;
-use rand::Rng;
-use rand::rngs::StdRng;
-use rand::SeedableRng;
-
 
 use anyhow::Result;
 use getset::Getters;
@@ -131,8 +130,6 @@ impl Preprocessing {
     pub(crate) fn prior(&self) -> Result<Prior> {
         Prior::new(self.prior_parameters())
     }
-
-
 
     pub(crate) fn interpolate_dispersion(&self, feature_idx: usize) -> Option<f64> {
         let disp = |estimates: &Estimates| estimates.dispersions[feature_idx];

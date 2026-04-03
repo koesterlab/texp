@@ -5,10 +5,9 @@ use itertools_num::linspace;
 use serde_derive::{Deserialize, Serialize};
 use statrs::distribution::{Continuous, ContinuousCDF, InverseGamma};
 // use statrs::statistics::Distribution;
-use typed_builder::TypedBuilder;
-use rand::Rng;
 use rand::distributions::Distribution;
-
+use rand::Rng;
+use typed_builder::TypedBuilder;
 
 #[derive(TypedBuilder, Copy, Clone, Debug, Getters, Serialize, Deserialize)]
 pub(crate) struct PriorParameters {
@@ -63,11 +62,7 @@ impl Prior {
         self.inv_gamma.sample(rng) + self.shift
     }
 
-    pub(crate) fn sample_n<R: Rng + ?Sized>(
-        &self,
-        n: usize,
-        rng: &mut R,
-    ) -> Vec<f64> {
+    pub(crate) fn sample_n<R: Rng + ?Sized>(&self, n: usize, rng: &mut R) -> Vec<f64> {
         (0..n)
             .map(|_| self.inv_gamma.sample(rng) + self.shift)
             .collect()
