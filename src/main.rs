@@ -1,6 +1,6 @@
 use anyhow::Result;
 use bio::stats::{LogProb, Prob};
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use std::path::PathBuf;
 
 mod common;

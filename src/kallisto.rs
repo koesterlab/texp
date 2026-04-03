@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use anyhow::Result;
-use hdf5;
 use ndarray::{s, Array1, Array2, Dim};
 use noisy_float::types::N64;
 
@@ -20,7 +19,7 @@ impl KallistoQuant {
         let counts = self.reader.dataset("est_counts")?.read_1d::<f64>()?;
         // let lens = self.reader.dataset("aux/lengths")?.read_1d::<f64>()?;
         // Ok((counts / lens).mapv(|v| N64::unchecked_new(v)))
-        Ok((counts).mapv(|v| N64::unchecked_new(v)))
+        Ok((counts).mapv(N64::unchecked_new))
     }
 
     pub(crate) fn bootstrapped_counts(&self) -> Result<Array2<f64>> {

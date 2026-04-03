@@ -25,7 +25,7 @@ pub(crate) fn reduce_features(
     let wanted_feature_ids: Vec<&str> = wanted_feature_ids
         .iter()
         .filter(|&s| !s.is_empty())
-        .map(|&s| s)
+        .copied()
         .collect();
     // println!("wanted_feature_ids {:?}", wanted_feature_ids);
     // let reduced_preprocessing = preprocessing.reduce_features(wanted_feature_ids)?;

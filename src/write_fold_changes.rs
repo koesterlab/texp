@@ -1,5 +1,4 @@
 use anyhow::Result;
-use csv;
 use std::path::Path;
 
 use crate::common::Outdir;
@@ -11,7 +10,7 @@ pub(crate) fn write_fold_changes(
     output_dist: &Path,
     output_max_prob_fc: &Path,
 ) -> Result<()> {
-    let in_dir = Outdir::open(&differential_expression_path)?;
+    let _in_dir = Outdir::open(differential_expression_path)?;
     let preprocessing = Preprocessing::from_path(preprocessing)?;
     let feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
 

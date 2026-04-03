@@ -68,7 +68,7 @@ impl ProbDistribution2d {
         let feature = &self.feature as &dyn ToSql;
 
         for (mu, theta, prob) in grid {
-            appender.append_row(&[
+            appender.append_row([
                 feature,
                 mu as &dyn ToSql,
                 theta as &dyn ToSql,
@@ -86,7 +86,7 @@ impl ProbDistribution2d {
             let feature_ref = feature as &dyn ToSql;
 
             for (mu, theta, prob) in grid {
-                appender.append_row(&[
+                appender.append_row([
                     feature_ref,
                     mu as &dyn ToSql,
                     theta as &dyn ToSql,

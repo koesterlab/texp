@@ -1,7 +1,6 @@
 //! This implements formula 3+4 of the document.
 use std::mem;
 use std::path::Path;
-use std::thread;
 
 use anyhow::Result;
 use bio::stats::LogProb;
@@ -9,7 +8,7 @@ use bio::stats::LogProb;
 use rayon::prelude::*;
 use statrs::function::beta::ln_beta;
 // use datetime::Instant;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use crate::errors::Error;
 use crate::preprocess::LnBetaCache;
@@ -30,7 +29,7 @@ pub(crate) fn sample_expression(
 ) -> Result<()> {
     let time0 = Instant::now();
     let preprocessing = Preprocessing::from_path(preprocessing)?;
-    let sample_ids = preprocessing
+    let _sample_ids = preprocessing
         .scale_factors()
         .keys()
         .cloned()
@@ -63,7 +62,7 @@ pub(crate) fn sample_expression(
     let temp_paths: Vec<String> = (0..max_threads)
         .map(|i| format!("{}_temp_{}.duckdb", base_db_path, i))
         .collect();
-    print!("Time taken for initialization: {:?}\n", time0.elapsed());
+    println!("Time taken for initialization: {:?}", time0.elapsed());
 
     custom_pool.install(|| {
         feature_ids
@@ -87,9 +86,9 @@ pub(crate) fn sample_expression(
                 },
                 // WORK
                 // |(temp_path, conn), (i, feature_id)| {
-                |(temp_path, conn), chunk| {
+                |(_temp_path, conn), chunk| {
                     // collect all results for this chunk
-                    let mut time_chunk = Instant::now();
+                    let time_chunk = Instant::now();
                     let mut batch_results: Vec<(String, Vec<(f64, f64, f64)>)> =
                         Vec::with_capacity(chunk.len());
 
@@ -122,9 +121,9 @@ pub(crate) fn sample_expression(
                                 &preprocessing,
                             )
                         };
-                        let probs = compute_grid(&mu_ik_points, &start_points_theta_i, calc_prob);
-                        print!(
-                            "Calculation time taken for feature {}: {:?}\n",
+                        let probs = compute_grid(mu_ik_points, start_points_theta_i, calc_prob);
+                        println!(
+                            "Calculation time taken for feature {}: {:?}",
                             feature_id,
                             time1.elapsed()
                         );
@@ -159,7 +158,7 @@ pub(crate) fn sample_expression(
     });
 
     let time2 = Instant::now();
-    print!("Time taken for scatter phase: {:?}\n", time2 - time0);
+    println!("Time taken for scatter phase: {:?}", time2 - time0);
     // -------------------------------
     // 3. GATHER PHASE
     // -------------------------------
@@ -180,12 +179,9 @@ pub(crate) fn sample_expression(
     temp_paths.par_iter().for_each(|path| {
         let _ = fs::remove_file(path);
     });
-    print!(
-        "Time taken for gather phase: {:?}\n",
-        Instant::now() - time2
-    );
+    println!("Time taken for gather phase: {:?}", Instant::now() - time2);
 
-    print!("Total time taken: {:?}\n", time0.elapsed());
+    println!("Total time taken: {:?}", time0.elapsed());
     Ok(())
 }
 
@@ -223,14 +219,17 @@ fn likelihood_mu_ik_theta_i(
     let calc_left_pmf = |x_f64: f64| -> LogProb {
         let p = n_left / (n_left + x_f64);
         let mut p1 = if n_left > 0.0 { n_left * p.ln() } else { 0.0 };
-        let mut p2 = if scaled_d_ij > 0.0 { scaled_d_ij * (1.0 - p).ln() } else { 0.0 };
+        let mut p2 = if scaled_d_ij > 0.0 {
+            scaled_d_ij * (1.0 - p).ln()
+        } else {
+            0.0
+        };
 
         if p1 < p2 {
             std::mem::swap(&mut p1, &mut p2);
         }
         LogProb((p1 - b_left + p2) - left_const_term)
     };
-
 
     for x in 0..200 {
         // let nb_left = NegBinomPreparedUncached::new(x as f64, t_ij);
@@ -267,8 +266,8 @@ fn likelihood_mu_ik_theta_i(
         }
         probs.push(calced_prob);
     }
-    let result = LogProb::ln_sum_exp(&probs);
-    return result;
+
+    LogProb::ln_sum_exp(&probs)
 }
 
 pub(crate) fn neg_binom(x: f64, mu: f64, theta: f64) -> LogProb {

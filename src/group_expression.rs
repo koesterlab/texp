@@ -22,7 +22,7 @@ pub(crate) fn group_expression(
 ) -> Result<()> {
     // Load preprocessing
     let preprocessing = Preprocessing::from_path(preprocessing)?;
-    let sample_ids = preprocessing
+    let _sample_ids = preprocessing
         .scale_factors()
         .keys()
         .cloned()
@@ -68,7 +68,7 @@ pub(crate) fn group_expression(
                 },
                 // WORK
                 // |(temp_path, conn), (i, feature_id)| {
-                |(temp_path, conn), chunk| {
+                |(_temp_path, conn), chunk| {
                     // collect all results for this chunk
                     let mut batch_results: Vec<(String, Vec<(f64, f64, f64)>)> =
                         Vec::with_capacity(chunk.len());
@@ -80,7 +80,7 @@ pub(crate) fn group_expression(
                             .map(|path| {
                                 ProbDistribution2d::with_readonly_connection(
                                     path.to_str().unwrap(),
-                                    &feature_id,
+                                    feature_id,
                                 )
                             })
                             .collect::<duckdb::Result<_>>()
@@ -98,7 +98,7 @@ pub(crate) fn group_expression(
                             })
                             .collect();
 
-                        let calc_prob = |mu_ik: f64, theta_i: f64, theta_idx: usize| {
+                        let calc_prob = |mu_ik: f64, theta_i: f64, _theta_idx: usize| {
                             if mu_ik == 0.0 {
                                 return LogProb::ln_zero();
                             }
@@ -116,7 +116,7 @@ pub(crate) fn group_expression(
                         let mu_ik_points = query_points.all_mu_ik();
                         let theta_points = query_points.thetas();
 
-                        let probs = compute_grid(&mu_ik_points, &theta_points, calc_prob);
+                        let probs = compute_grid(mu_ik_points, theta_points, calc_prob);
 
                         //         let mut writer = ProbDistribution2d::with_connection(&*conn, &feature_id.to_string()).expect("writer");
 

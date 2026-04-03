@@ -1,7 +1,6 @@
 //! This infers scale factors, mean and dispersion from Kallisto results.
 
 use rand::rngs::StdRng;
-use rand::Rng;
 use rand::SeedableRng;
 use std::collections::HashMap;
 use std::fs::File;
@@ -31,7 +30,7 @@ pub(crate) fn preprocess(
     sample_ids: &[String],
     prior_parameters: PriorParameters,
 ) -> Result<()> {
-    if kallisto_quants.len() < 1 {
+    if kallisto_quants.is_empty() {
         return Err(Error::NotEnoughQuants.into());
     }
     let quants: Result<Vec<_>> = kallisto_quants
@@ -83,7 +82,7 @@ pub(crate) fn preprocess(
     let preprocessing = Preprocessing {
         scale_factors,
         mean_disp_estimates,
-        feature_ids: feature_ids,
+        feature_ids,
         prior_parameters,
         ln_beta_caches,
     };
@@ -169,10 +168,9 @@ fn calc_scale_factors(
                     feature_counts
                         .quantile_mut(N64::unchecked_new(0.75), &interpolate::Linear)
                         .unwrap()
-                        .clone()
                 })
                 .collect();
-            return upper_quartiles;
+            upper_quartiles
         })
         .unwrap();
 
@@ -187,7 +185,7 @@ fn calc_scale_factors(
     //             .clone()
     //     })
     //     .collect();
-    let max_quartile = upper_quartiles.max()?.clone();
+    let max_quartile = *upper_quartiles.max()?;
     let scale_factors = upper_quartiles.mapv(|quartile| max_quartile / quartile);
     Ok(sample_ids
         .iter()
@@ -229,10 +227,7 @@ fn mean_disp_estimates(
     kallisto_quants: &[KallistoQuant],
     sample_ids: &[String],
 ) -> Result<HashMap<String, Estimates>> {
-    let estimates: Result<Vec<_>> = kallisto_quants
-        .iter()
-        .map(|quant| Estimates::new(quant))
-        .collect();
+    let estimates: Result<Vec<_>> = kallisto_quants.iter().map(Estimates::new).collect();
 
     Ok(sample_ids.iter().cloned().zip(estimates?).collect())
 }
