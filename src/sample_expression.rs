@@ -116,15 +116,23 @@ pub(crate) fn sample_expression(
                         let mu_ik_points = query_points.all_mu_ik();
                         let start_points_theta_i = query_points.thetas();
 
+                        // Pre-calculate loop invariants for the "left" nb distribution
+                        let scaled_d_ij = d_ij / s_j;
+                        let n_left = 1.0 / t_ij;
+                        let b_left = ln_beta(scaled_d_ij + 1.0, n_left);
+                        let left_const_term = (scaled_d_ij + n_left).ln();
+
                         let calc_prob = |m, theta_i, theta_idx| {
                             likelihood_mu_ik_theta_i(
-                                d_ij,
+                                scaled_d_ij,
                                 m,
                                 t_ij,
                                 theta_i,
                                 theta_idx,
-                                s_j,
                                 epsilon,
+                                n_left,
+                                b_left,
+                                left_const_term,
                                 &preprocessing,
                             )
                         };
@@ -133,12 +141,6 @@ pub(crate) fn sample_expression(
                         print!("Calculation time taken for feature {}: {:?}\n", feature_id, time1.elapsed());
                         time1 = Instant::now();
 
-                        // let mut writer =
-                        //     ProbDistribution2d::with_connection(&*conn, &feature_id.to_string()).expect("writer");
-
-                        // writer.write_output(&probs).expect("write failed");
-                        // print!("Write time taken for feature {}: {:?}", feature_id, time1.elapsed());
-                        // f writing immediately
                         batch_results.push((feature_id.to_string(), probs));
                 }
 
@@ -183,6 +185,7 @@ pub(crate) fn sample_expression(
 
         final_conn.execute("DETACH temp_db", [])?;
     }
+
     // cleanup phase (parallel)
     temp_paths.par_iter().for_each(|path| {
         let _ = fs::remove_file(path);
@@ -196,33 +199,26 @@ pub(crate) fn sample_expression(
 
 /// Inner of equation 3/4 in the document.
 fn likelihood_mu_ik_theta_i(
-    d_ij: f64,
+    scaled_d_ij: f64,
     mu_ik: f64,
     t_ij: f64,
     theta_i: f64,
     theta_idx: usize,
-    s_j: f64,
     _: LogProb, // epsilon
+    n_left: f64,
+    b_left: f64,
+    left_const_term: f64,
     preprocessing: &Preprocessing,
 ) -> LogProb {
-    if d_ij != 0. && mu_ik == 0. {
-        return LogProb::ln_zero();
-    }
     if mu_ik == 0. {
         return LogProb::ln_zero();
     }
     let mut max_prob = LogProb::ln_zero();
-    let mut probs = Vec::with_capacity(300);
+    let mut probs = Vec::with_capacity(2048);
     let cache: &LnBetaCache = &preprocessing.ln_beta_caches()[theta_idx];
     let threshold = LogProb(0.001_f64.ln());
 
     let nb_right = NegBinomPrepared::new(mu_ik, theta_i, cache);
-    let scaled_d_ij = d_ij / s_j;
-
-    // Pre-calculate loop invariants for the "left" distribution
-    let n_left = 1.0 / t_ij;
-    let b_left = ln_beta(scaled_d_ij + 1.0, n_left);
-    let left_const_term = (scaled_d_ij + n_left).ln();
 
     // fast inline closure for the left pmf
     let calc_left_pmf = |x_f64: f64| -> LogProb {

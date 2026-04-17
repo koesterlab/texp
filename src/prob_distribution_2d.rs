@@ -4,16 +4,12 @@ use itertools::iproduct;
 use ordered_float::OrderedFloat;
 use std::collections::HashMap;
 use duckdb::ToSql;
+use ahash::AHashMap;
 
 /// Represents a 2D probability distribution for a given feature stored in DuckDB.
 pub struct ProbDistribution2d {
     conn: Connection,
     feature: String,
-}
-
-pub enum SchemaMode {
-    Temp,
-    Final,
 }
 
 impl ProbDistribution2d {
@@ -103,24 +99,29 @@ impl ProbDistribution2d {
         Ok(())
     }
 
-    // Reader Thread: Lookup Loading
 
-    /// Loads all stored probabilities for this feature into an in-memory HashMap.
+    /// Loads all stored probabilities for this feature into an in-memory AHashMap.
     pub fn load_lookup_table(
         &self,
-    ) -> duckdb::Result<HashMap<(OrderedFloat<f64>, OrderedFloat<f64>), LogProb>> {
+    ) -> duckdb::Result<AHashMap<(OrderedFloat<f64>, OrderedFloat<f64>), LogProb>> {
         let mut stmt = self
             .conn
             .prepare("SELECT mu, theta, prob FROM distributions WHERE feature = ?1")?;
         let mut rows = stmt.query(params![self.feature])?;
 
-        let mut table = HashMap::new();
+        let mut table = AHashMap::new();
+
         while let Some(row) = rows.next()? {
             let mu: f64 = row.get(0)?;
             let theta: f64 = row.get(1)?;
             let prob: f64 = row.get(2)?;
-            table.insert((OrderedFloat(mu), OrderedFloat(theta)), LogProb::from(prob));
+
+            table.insert(
+                (OrderedFloat(mu), OrderedFloat(theta)),
+                LogProb::from(prob),
+            );
         }
+
         Ok(table)
     }
 

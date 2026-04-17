@@ -6,7 +6,7 @@ use rayon::prelude::*;
 use std::path::{Path, PathBuf};
 use rayon::ThreadPoolBuilder;
 use std::fs;
-use std::collections::HashMap;
+use ahash::AHashMap;
 
 use crate::preprocess::Preprocessing;
 use crate::prob_distribution_2d::compute_grid;
@@ -96,7 +96,7 @@ pub(crate) fn group_expression(
                         Ok(table) => table,
                         Err(e) => {
                             eprintln!("Failed to load lookup table: {:?}", e);
-                            HashMap::new() // or whatever fallback
+                            ahash::AHashMap::new()
                         }
                     })
                     .collect();
@@ -121,11 +121,6 @@ pub(crate) fn group_expression(
 
                 let probs = compute_grid(&mu_ik_points, &theta_points, calc_prob);
 
-        //         let mut writer = ProbDistribution2d::with_connection(&*conn, &feature_id.to_string()).expect("writer");
-
-        //         writer.write_output(&probs).expect("write failed");
-        //     },
-        // )
                     batch_results.push((feature_id.to_string(), probs));
                 }
 
@@ -163,6 +158,7 @@ pub(crate) fn group_expression(
 
         final_conn.execute("DETACH temp_db", [])?;
     }
+
     // cleanup phase (parallel)
     temp_paths.par_iter().for_each(|path| {
         let _ = fs::remove_file(path);
