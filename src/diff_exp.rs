@@ -28,11 +28,6 @@ pub(crate) fn diff_exp(
     let conn = Arc::new(Mutex::new(conn));
 
     let preprocessing = Preprocessing::from_path(preprocessing)?;
-    let sample_ids = preprocessing
-        .scale_factors()
-        .keys()
-        .cloned()
-        .collect::<Vec<_>>();
     let prior = preprocessing.prior()?;
     let feature_ids: Vec<_> = preprocessing.feature_ids().iter().enumerate().collect();
 
@@ -42,7 +37,7 @@ pub(crate) fn diff_exp(
     feature_ids
         // .par_iter()
         // .try_for_each(|(i, feature_id)| -> Result<()> {
-        .par_chunks(10)
+        .par_chunks(1) // TODO change back to 10 for small tests
         .try_for_each(|chunk| -> Result<()> {
             for (i, feature_id) in chunk {
                 let prob_dist_i_k1_db = ProbDistribution2d::with_readonly_connection(
@@ -55,6 +50,14 @@ pub(crate) fn diff_exp(
                 )?;
                 let prob_dist_i_k1 = prob_dist_i_k1_db.load_lookup_table()?;
                 let prob_dist_i_k2 = prob_dist_i_k2_db.load_lookup_table()?;
+
+                if prob_dist_i_k1.is_empty() && prob_dist_i_k2.is_empty() {
+                    println!(
+                        "Feature {} missing from both groups, skipping differential expression calculation.",
+                        feature_id
+                    );
+                    continue;
+                }
 
                 // if prob_dist_i_k1_db.is_na() || prob_dist_i_k2_db.is_na() {
                 //     println!("skipped {:?}", feature_id);

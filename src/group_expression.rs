@@ -52,7 +52,7 @@ pub(crate) fn group_expression(
     custom_pool.install(|| {
         feature_ids
             // .into_par_iter()
-             .par_chunks(10)
+            .par_chunks(1) // TODO change back to 10 for small tests
             // .try_for_each_init(
             .map_init(
                  // INIT → runs once per thread
@@ -77,51 +77,59 @@ pub(crate) fn group_expression(
                 let mut batch_results: Vec<(String, Vec<(f64, f64, f64)>)> = Vec::with_capacity(chunk.len());
 
                 for &(i, ref feature_id) in chunk {
-                // Open per-sample likelihood tables (read-only)
-                let sample_expression_likelihoods: Vec<_> = sample_expression_paths
-                    .iter()
-                    .map(|path| {
-                        ProbDistribution2d::with_readonly_connection(
-                            path.to_str().unwrap(),
-                            &feature_id,
-                        )
-                    })
-                    .collect::<duckdb::Result<_>>()
-                    .unwrap();
-
-                // Preload all lookup tables in memory
-                let lookup_tables: Vec<_> = sample_expression_likelihoods
-                    .iter()
-                    .map(|likelihood| match likelihood.load_lookup_table() {
-                        Ok(table) => table,
-                        Err(e) => {
-                            eprintln!("Failed to load lookup table: {:?}", e);
-                            ahash::AHashMap::new()
-                        }
-                    })
-                    .collect();
-
-                let calc_prob = |mu_ik: f64, theta_i: f64, theta_idx: usize| {
-                    if mu_ik == 0.0 {
-                        return LogProb::ln_zero();
-                    }
-
-                    let key = (OrderedFloat(mu_ik), OrderedFloat(theta_i));
-                    let probs: Vec<LogProb> = lookup_tables
+                    // Open per-sample likelihood tables (read-only)
+                    let sample_expression_likelihoods: Vec<_> = sample_expression_paths
                         .iter()
-                        .map(|table| table.get(&key).cloned().unwrap_or(LogProb::ln_zero()))
+                        .map(|path| {
+                            ProbDistribution2d::with_readonly_connection(
+                                path.to_str().unwrap(),
+                                &feature_id,
+                            )
+                        })
+                        .collect::<duckdb::Result<_>>()
+                        .unwrap();
+
+                    // Preload all lookup tables in memory
+                    let lookup_tables: Vec<_> = sample_expression_likelihoods
+                        .iter()
+                        .map(|likelihood| match likelihood.load_lookup_table() {
+                            Ok(table) => table,
+                            Err(e) => {
+                                eprintln!("Failed to load lookup table: {:?}", e);
+                                ahash::AHashMap::new()
+                            }
+                        })
                         .collect();
 
-                    LogProb::ln_sum_exp(&probs)
-                };
+                    if lookup_tables.iter().all(|t| t.is_empty()) {
+                        println!(
+                            "Feature {} missing from all samples",
+                            feature_id
+                        );
+                        continue;
+                    }
 
-                let query_points = query_points_per_feature.get(i);
-                let mu_ik_points = query_points.all_mu_ik();
-                let theta_points = query_points.thetas();
+                    let calc_prob = |mu_ik: f64, theta_i: f64, theta_idx: usize| {
+                        if mu_ik == 0.0 {
+                            return LogProb::ln_zero();
+                        }
 
-                let probs = compute_grid(&mu_ik_points, &theta_points, calc_prob);
+                        let key = (OrderedFloat(mu_ik), OrderedFloat(theta_i));
+                        let probs: Vec<LogProb> = lookup_tables
+                            .iter()
+                            .map(|table| table.get(&key).cloned().unwrap_or(LogProb::ln_zero()))
+                            .collect();
 
-                    batch_results.push((feature_id.to_string(), probs));
+                        LogProb::ln_sum_exp(&probs)
+                    };
+
+                    let query_points = query_points_per_feature.get(i);
+                    let mu_ik_points = query_points.all_mu_ik();
+                    let theta_points = query_points.thetas();
+
+                    let probs = compute_grid(&mu_ik_points, &theta_points, calc_prob);
+
+                        batch_results.push((feature_id.to_string(), probs));
                 }
 
 

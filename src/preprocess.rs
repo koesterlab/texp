@@ -55,31 +55,36 @@ pub(crate) fn preprocess(
     let feature_ids = quants[0].feature_ids()?;
 
     //TODO Get thetas from query points instead of hardcoding them here. We need to make sure that the same thetas are used for both the cache and the query points.
-    let mut thetas: Vec<f64> = linspace(0.01, 0.1, 5).collect();
+    let mut thetas: Vec<f64> = linspace(0.1, 0.1, 1).collect();
     thetas.extend(linspace(0.1, 1., 10).step_by(1));
     thetas.extend(linspace(1.5, 10., 15).step_by(2));
-    thetas.extend(linspace(11., 165., 115).step_by(10));
+    thetas.extend(linspace(11., 150., 115).step_by(10));
     // println!("len thetas {:?}", thetas.len());
     thetas.sort_by(|a, b| a.partial_cmp(b).unwrap());
     thetas.dedup();
     dbg!(&thetas);
     dbg!(thetas.len());
 
+
+    let prior = Prior::new(&prior_parameters)?;
+    // fixed seed
+
+    let mut rng = StdRng::seed_from_u64(100);
+
+    // draw 20 dispersions
+    let mut thetas_rand = prior.sample_n(20, &mut rng);
+    thetas_rand.extend([0.05, 0.1, 0.25, 0.5]);
+    thetas_rand.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    thetas_rand.dedup();
+    dbg!(&thetas_rand);
+    dbg!(thetas_rand.len());
+    let thetas = thetas_rand;
+
     let ln_beta_caches = thetas
         .iter()
         .map(|&theta| LnBetaCache::new(theta, 10000))
         .collect();
 
-    let prior = Prior::new(&prior_parameters)?;
-    // fixed seed
-    let mut rng = StdRng::seed_from_u64(12345);
-
-    // draw 150 dispersions
-    let mut thetas_rand = prior.sample_n(35, &mut rng);
-    thetas_rand.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    thetas_rand.dedup();
-    dbg!(&thetas_rand);
-    dbg!(thetas_rand.len());
 
     let preprocessing = Preprocessing {
         scale_factors,

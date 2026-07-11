@@ -72,7 +72,7 @@ pub(crate) fn sample_expression(
     custom_pool.install(|| {
         feature_ids
             // .into_par_iter()
-            .par_chunks(10)
+            .par_chunks(1) // TODO change back to 10 for small tests
             .map_init(
                  // INIT → runs once per thread
             {
@@ -173,15 +173,18 @@ pub(crate) fn sample_expression(
     ProbDistribution2d::init_schema(&final_conn)?;
 
     for temp_path in &temp_paths {
+        print!("temp_path: {}", temp_path);
         final_conn.execute(
             &format!("ATTACH '{}' AS temp_db", temp_path),
             [],
         )?;
+        print!("ATTACH done");
 
         final_conn.execute(
             "INSERT INTO distributions SELECT * FROM temp_db.distributions",
             [],
         )?;
+        print!("INSERT done");
 
         final_conn.execute("DETACH temp_db", [])?;
     }
