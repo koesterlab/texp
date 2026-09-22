@@ -119,7 +119,7 @@ impl QueryPoints {
         // } else {
         //     start_points_mu_ik.extend(linspace(min, max, 40).step_by(1));
         // }
-        start_points_mu_ik.extend(linspace(min, max, 20).step_by(1));
+        start_points_mu_ik.extend(linspace(min, max, 35).step_by(1));
         start_points_mu_ik.sort_by(|a, b| a.partial_cmp(b).unwrap());
         // round each value to 3 decimal places
         start_points_mu_ik = start_points_mu_ik
@@ -129,12 +129,14 @@ impl QueryPoints {
         start_points_mu_ik.dedup();
         // start_points_mu_ik = start_points_mu_ik.iter().step_by(2).map(|x| *x).collect();
 
-        let mut possible_f: Vec<f64> = linspace(0.05, 4., 25).step_by(1).collect();
-        possible_f.extend(linspace(4., 10., 11).step_by(1));
-        // possible_f.extend(linspace(10.5, 20., 10).step_by(1));
-        // println!("len possible_f {:?}", possible_f.len());
+        // f = [0.05, 0.1, 0.25, 0.5, 0.75, 1., 1.25, ... 4.]
+
+        let mut possible_f : Vec<f64> = vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.67, 0.7, 0.8, 0.9, 1.];
+        possible_f.extend(linspace(1., 4., 13));
+        possible_f.extend(linspace(4., 8.5, 10).step_by(1));
         possible_f.sort_by(|a, b| a.partial_cmp(b).unwrap());
         possible_f.dedup();
+
 
         let prior = Prior::new(&preprocessing.prior_parameters())?;
         // fixed seed
@@ -142,7 +144,7 @@ impl QueryPoints {
 
         //  draw 20 dispersions
         let mut thetas_rand = prior.sample_n(20, &mut rng);
-        thetas_rand.extend([0.05, 0.1, 0.25, 0.5]);
+        thetas_rand.extend([0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.75]);
         thetas_rand.sort_by(|a, b| a.partial_cmp(b).unwrap());
         thetas_rand.dedup();
         // dbg!(&thetas_rand);

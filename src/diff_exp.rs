@@ -37,7 +37,7 @@ pub(crate) fn diff_exp(
     feature_ids
         // .par_iter()
         // .try_for_each(|(i, feature_id)| -> Result<()> {
-        .par_chunks(1) // TODO change back to 10 for small tests
+        .par_chunks(10) // TODO change back to 10 for small tests
         .try_for_each(|chunk| -> Result<()> {
             for (i, feature_id) in chunk {
                 let prob_dist_i_k1_db = ProbDistribution2d::with_readonly_connection(

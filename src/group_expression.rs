@@ -52,7 +52,7 @@ pub(crate) fn group_expression(
     custom_pool.install(|| {
         feature_ids
             // .into_par_iter()
-            .par_chunks(1) // TODO change back to 10 for small tests
+            .par_chunks(10) // TODO change back to 10 for small tests
             // .try_for_each_init(
             .map_init(
                  // INIT → runs once per thread
@@ -115,12 +115,13 @@ pub(crate) fn group_expression(
                         }
 
                         let key = (OrderedFloat(mu_ik), OrderedFloat(theta_i));
-                        let probs: Vec<LogProb> = lookup_tables
+                        let probs: LogProb = lookup_tables
                             .iter()
                             .map(|table| table.get(&key).cloned().unwrap_or(LogProb::ln_zero()))
-                            .collect();
-
-                        LogProb::ln_sum_exp(&probs)
+                            .sum::<LogProb>();
+                        // println!("Feature: {}, Mu: {}, Theta: {}, Probs: {:?}", feature_id, mu_ik, theta_i, probs);
+                        // LogProb::ln_sum_exp(&probs)
+                        probs
                     };
 
                     let query_points = query_points_per_feature.get(i);

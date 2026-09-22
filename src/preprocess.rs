@@ -73,7 +73,7 @@ pub(crate) fn preprocess(
 
     // draw 20 dispersions
     let mut thetas_rand = prior.sample_n(20, &mut rng);
-    thetas_rand.extend([0.05, 0.1, 0.25, 0.5]);
+    thetas_rand.extend([0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.75]);
     thetas_rand.sort_by(|a, b| a.partial_cmp(b).unwrap());
     thetas_rand.dedup();
     dbg!(&thetas_rand);
